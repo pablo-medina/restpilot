@@ -31,6 +31,28 @@ export function renderSettings(settings: UserSettings): string {
         </section>
 
         <section class="settings-card">
+          <h2>${labels.windowSection}</h2>
+          <label class="settings-field settings-toggle">
+            <span>${labels.maximizeOnStartup}</span>
+            <input id="setting-maximize-on-startup" type="checkbox" ${settings.maximizeOnStartup ? "checked" : ""} />
+          </label>
+        </section>
+
+        <section class="settings-card">
+          <h2>${labels.editingSection}</h2>
+          <label class="settings-field">
+            <span>${labels.tabSize}</span>
+            <input id="setting-tab-size" type="number" min="1" max="8" step="1" value="${settings.tabSize}" />
+          </label>
+          <p class="hint settings-field-hint">${labels.tabSizeHint}</p>
+          <label class="settings-field settings-toggle">
+            <span>${labels.autoPrettifyJson}</span>
+            <input id="setting-auto-prettify-json" type="checkbox" ${settings.autoPrettifyJson ? "checked" : ""} />
+          </label>
+          <p class="hint settings-field-hint">${labels.autoPrettifyJsonHint}</p>
+        </section>
+
+        <section class="settings-card">
           <h2>${labels.languageSection}</h2>
           <label class="settings-field">
             <span>${labels.language}</span>
@@ -101,6 +123,24 @@ export function bindSettings(
 
   document.querySelector<HTMLSelectElement>("#setting-theme")?.addEventListener("change", (event) => {
     settings.theme = (event.target as HTMLSelectElement).value as UserSettings["theme"];
+    onChange();
+  });
+
+  document.querySelector<HTMLInputElement>("#setting-maximize-on-startup")?.addEventListener("change", (event) => {
+    settings.maximizeOnStartup = (event.target as HTMLInputElement).checked;
+    onChange();
+  });
+
+  document.querySelector<HTMLInputElement>("#setting-tab-size")?.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    const parsed = Number(input.value);
+    settings.tabSize = Number.isFinite(parsed) ? Math.max(1, Math.min(8, Math.round(parsed))) : 2;
+    input.value = String(settings.tabSize);
+    onChange();
+  });
+
+  document.querySelector<HTMLInputElement>("#setting-auto-prettify-json")?.addEventListener("change", (event) => {
+    settings.autoPrettifyJson = (event.target as HTMLInputElement).checked;
     onChange();
   });
 

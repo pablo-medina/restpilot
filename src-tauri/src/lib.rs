@@ -6,10 +6,14 @@ use std::{
     time::Instant,
 };
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use futures_util::StreamExt;
 use reqwest::{header::HeaderMap, Method};
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tokio::time::{sleep, timeout, Duration};
+
+const STREAM_EVENT: &str = "restpilot:request-stream";
 
 #[derive(Default)]
 struct RuntimeState {
@@ -31,7 +35,7 @@ struct SendRequestPayload {
     proxy: Option<ProxySettings>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct RestRequest {
     id: String,
     method: String,
@@ -41,13 +45,30 @@ struct RestRequest {
     raw_type: Option<String>,
     body: String,
     form: Vec<FormPair>,
+    stream: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct FormPair {
     key: String,
     value: String,
     enabled: bool,
+    #[serde(default)]
+    part_type: Option<String>,
+    #[serde(default)]
+    file_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct StreamEvent {
+    request_id: String,
+    chunk: String,
+    done: bool,
+    status: Option<u16>,
+    status_text: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    duration_ms: Option<u128>,
+    error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -94,6 +115,7 @@ fn cancel_request(state: tauri::State<RuntimeState>, id: String) -> Result<(), S
 
 #[tauri::command]
 async fn send_request(
+    app: tauri::AppHandle,
     state: tauri::State<'_, RuntimeState>,
     payload: SendRequestPayload,
 ) -> Result<RestResponse, String> {
@@ -103,8 +125,48 @@ async fn send_request(
         .map_err(|_| "Cancellation state is unavailable.".to_string())?
         .remove(&payload.request.id);
 
+    if payload.request.stream {
+        let app = app.clone();
+        let request = payload.request;
+        let proxy = payload.proxy;
+        let request_id = request.id.clone();
+        let error_request_id = request_id.clone();
+
+        tauri::async_runtime::spawn(async move {
+            let state = app.state::<RuntimeState>();
+            let result = tokio::select! {
+                result = execute_request(app.clone(), state.inner(), request, proxy) => result,
+                _ = wait_for_cancel(state.inner(), request_id) => Err("Request cancelled.".to_string()),
+            };
+
+            if let Err(error) = result {
+                let _ = emit_stream(
+                    &app,
+                    StreamEvent {
+                        request_id: error_request_id,
+                        chunk: String::new(),
+                        done: true,
+                        status: None,
+                        status_text: None,
+                        headers: None,
+                        duration_ms: None,
+                        error: Some(error),
+                    },
+                );
+            }
+        });
+
+        return Ok(RestResponse {
+            status: 0,
+            status_text: String::new(),
+            duration_ms: 0,
+            headers: HashMap::new(),
+            body: String::new(),
+        });
+    }
+
     let request_id = payload.request.id.clone();
-    let request_future = execute_request(payload.request, payload.proxy);
+    let request_future = execute_request(app, state.inner(), payload.request, payload.proxy);
     let cancel_future = wait_for_cancel(state.inner(), request_id);
 
     tokio::select! {
@@ -157,18 +219,120 @@ fn build_http_client(proxy: Option<ProxySettings>) -> Result<reqwest::Client, St
     builder.build().map_err(|error| error.to_string())
 }
 
-async fn execute_request(request: RestRequest, proxy: Option<ProxySettings>) -> Result<RestResponse, String> {
+fn collect_headers(response: &reqwest::Response) -> HashMap<String, String> {
+    response
+        .headers()
+        .iter()
+        .map(|(key, value)| {
+            (
+                key.as_str().to_string(),
+                value.to_str().unwrap_or("<binary>").to_string(),
+            )
+        })
+        .collect()
+}
+
+fn is_cancelled(state: &RuntimeState, request_id: &str) -> bool {
+    state
+        .cancellations
+        .lock()
+        .map(|cancellations| cancellations.contains(request_id))
+        .unwrap_or(false)
+}
+
+fn emit_stream(app: &tauri::AppHandle, event: StreamEvent) -> Result<(), String> {
+    app.emit(STREAM_EVENT, event)
+        .map_err(|error| error.to_string())
+}
+
+fn apply_body(
+    builder: reqwest::RequestBuilder,
+    method: &Method,
+    request: &RestRequest,
+) -> Result<reqwest::RequestBuilder, String> {
+    if *method == Method::GET || *method == Method::HEAD {
+        return Ok(builder);
+    }
+
+    let body_mode = normalize_body_mode(&request.body_mode);
+
+    match body_mode.as_str() {
+        "form" => {
+            let form = request
+                .form
+                .iter()
+                .filter(|field| field.enabled && !field.key.trim().is_empty())
+                .filter(|field| field.part_type.as_deref() != Some("file"))
+                .map(|field| (field.key.clone(), field.value.clone()))
+                .collect::<Vec<_>>();
+            Ok(builder.form(&form))
+        }
+        "multipart" | "node" => {
+            let mut multipart_form = reqwest::multipart::Form::new();
+            for field in &request.form {
+                if !field.enabled || field.key.trim().is_empty() {
+                    continue;
+                }
+                if field.part_type.as_deref() == Some("file") {
+                    if field.value.is_empty() {
+                        continue;
+                    }
+                    let bytes = BASE64
+                        .decode(field.value.trim())
+                        .map_err(|error| error.to_string())?;
+                    let file_name = field
+                        .file_name
+                        .clone()
+                        .filter(|name| !name.is_empty())
+                        .unwrap_or_else(|| "file".to_string());
+                    let part = reqwest::multipart::Part::bytes(bytes)
+                        .file_name(file_name)
+                        .mime_str("application/octet-stream")
+                        .map_err(|error| error.to_string())?;
+                    multipart_form = multipart_form.part(field.key.clone(), part);
+                } else {
+                    multipart_form = multipart_form.text(field.key.clone(), field.value.clone());
+                }
+            }
+            Ok(builder.multipart(multipart_form))
+        }
+        "none" => Ok(builder),
+        _ => {
+            if request.body.is_empty() {
+                Ok(builder)
+            } else {
+                Ok(builder.body(request.body.clone()))
+            }
+        }
+    }
+}
+
+fn normalize_body_mode(mode: &str) -> String {
+    match mode {
+        "node" => "multipart".to_string(),
+        other => other.to_string(),
+    }
+}
+
+async fn execute_request(
+    app: tauri::AppHandle,
+    state: &RuntimeState,
+    request: RestRequest,
+    proxy: Option<ProxySettings>,
+) -> Result<RestResponse, String> {
     let method = request
         .method
         .parse::<Method>()
         .map_err(|_| format!("Unsupported HTTP method: {}", request.method))?;
 
     let client = build_http_client(proxy)?;
+    let request_id = request.id.clone();
+    let stream = request.stream;
 
-    let mut builder = client.request(method.clone(), request.url);
+    let mut builder = client.request(method.clone(), request.url.clone());
     let mut headers = HeaderMap::new();
 
-    for (key, value) in request.headers {
+    for (key, value) in &request.headers {
         let name = key
             .parse::<reqwest::header::HeaderName>()
             .map_err(|_| format!("Invalid header name: {}", key))?;
@@ -179,52 +343,90 @@ async fn execute_request(request: RestRequest, proxy: Option<ProxySettings>) -> 
     }
 
     builder = builder.headers(headers);
-
-    if request.body_mode == "form" && method != Method::GET && method != Method::HEAD {
-        let form = request
-            .form
-            .into_iter()
-            .filter(|field| field.enabled && !field.key.trim().is_empty())
-            .map(|field| (field.key, field.value))
-            .collect::<Vec<_>>();
-        builder = builder.form(&form);
-    } else if request.body_mode == "node" && method != Method::GET && method != Method::HEAD {
-        let mut multipart_form = reqwest::multipart::Form::new();
-        for field in request.form {
-            if field.enabled && !field.key.trim().is_empty() {
-                multipart_form = multipart_form.text(field.key, field.value);
-            }
-        }
-        builder = builder.multipart(multipart_form);
-    } else if !request.body.is_empty() && method != Method::GET && method != Method::HEAD {
-        builder = builder.body(request.body);
-    }
+    builder = apply_body(builder, &method, &request)?;
 
     let started = Instant::now();
-    let response = timeout(Duration::from_secs(60), builder.send())
+    let timeout_secs = if stream { 600 } else { 60 };
+    let response = timeout(Duration::from_secs(timeout_secs), builder.send())
         .await
-        .map_err(|_| "Request timed out after 60 seconds.".to_string())?
+        .map_err(|_| format!("Request timed out after {timeout_secs} seconds."))?
         .map_err(|error| error.to_string())?;
 
     let status = response.status();
+    let status_code = status.as_u16();
     let status_text = status.canonical_reason().unwrap_or("").to_string();
-    let headers = response
-        .headers()
-        .iter()
-        .map(|(key, value)| {
-            (
-                key.as_str().to_string(),
-                value.to_str().unwrap_or("<binary>").to_string(),
-            )
-        })
-        .collect();
+    let headers_map = collect_headers(&response);
+
+    if stream {
+        let mut body = String::new();
+        emit_stream(
+            &app,
+            StreamEvent {
+                request_id: request_id.clone(),
+                chunk: String::new(),
+                done: false,
+                status: Some(status_code),
+                status_text: Some(status_text.clone()),
+                headers: Some(headers_map.clone()),
+                duration_ms: None,
+                error: None,
+            },
+        )?;
+
+        let mut byte_stream = response.bytes_stream();
+        while let Some(chunk) = byte_stream.next().await {
+            if is_cancelled(state, &request_id) {
+                return Err("Request cancelled.".to_string());
+            }
+            let chunk = chunk.map_err(|error| error.to_string())?;
+            let text = String::from_utf8_lossy(&chunk);
+            body.push_str(&text);
+            emit_stream(
+                &app,
+                StreamEvent {
+                    request_id: request_id.clone(),
+                    chunk: text.into_owned(),
+                    done: false,
+                    status: None,
+                    status_text: None,
+                    headers: None,
+                    duration_ms: None,
+                    error: None,
+                },
+            )?;
+        }
+
+        let duration_ms = started.elapsed().as_millis();
+        emit_stream(
+            &app,
+            StreamEvent {
+                request_id: request_id.clone(),
+                chunk: String::new(),
+                done: true,
+                status: Some(status_code),
+                status_text: Some(status_text.clone()),
+                headers: Some(headers_map.clone()),
+                duration_ms: Some(duration_ms),
+                error: None,
+            },
+        )?;
+
+        return Ok(RestResponse {
+            status: status_code,
+            status_text,
+            duration_ms,
+            headers: headers_map,
+            body,
+        });
+    }
+
     let body = response.text().await.map_err(|error| error.to_string())?;
 
     Ok(RestResponse {
-        status: status.as_u16(),
+        status: status_code,
         status_text,
         duration_ms: started.elapsed().as_millis(),
-        headers,
+        headers: headers_map,
         body,
     })
 }
@@ -254,12 +456,37 @@ fn config_file_path() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+fn maximize_on_startup_enabled() -> bool {
+    let Ok(path) = config_file_path() else {
+        return true;
+    };
+    if !path.exists() {
+        return true;
+    }
+
+    let Ok(content) = fs::read_to_string(path) else {
+        return true;
+    };
+    let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return true;
+    };
+
+    config
+        .get("settings")
+        .and_then(|settings| settings.get("maximizeOnStartup"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .manage(RuntimeState::default())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("RestPilot");
+                if maximize_on_startup_enabled() {
+                    let _ = window.maximize();
+                }
             }
             Ok(())
         })

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   applicationDialog,
   bindDialogs,
@@ -6,11 +7,37 @@ import {
   messageDialog,
   renderDialogLayer
 } from "./components/dialogs";
-import { applyCurlToRequest, looksLikeCurl, parseCurl } from "./curl";
+import {
+  bodySourceKey,
+  escapeHtml,
+  detectContentKind,
+  formatResponseBody,
+  highlightResponse,
+  isLargeText,
+  tryPrettifyJson
+} from "./content-display";
+import {
+  applyCurlToRequest,
+  bodyModeCurlLabel,
+  curlPreviewPayload,
+  looksLikeCurl,
+  parseCurl,
+  rawTypeCurlLabel,
+  requestToCurl
+} from "./curl";
+import { mountHeadersTable } from "./headers-table";
+import {
+  clampTabSize,
+  mountBodyEditor,
+  mountReadonlyViewer,
+  setReadonlyViewerValue,
+  type ViewerMode
+} from "./large-text-editor";
 import { iconDuplicate, iconFolderAdd, iconRemove, iconRename, iconRequestAdd } from "./icons";
 import { brandLogo } from "./logo";
 import { getLocale, setLocale, t } from "./i18n";
 import { bindSettings, renderSettings } from "./settings";
+import { renderVariablesPanel } from "./variables-panel";
 import "./styles.css";
 import {
   defaultConfig,
@@ -19,6 +46,7 @@ import {
   type ApiResponse,
   type AppConfig,
   type BodyMode,
+  type FormPartType,
   type Pair,
   type RawType,
   type ResponseTab,
@@ -30,9 +58,22 @@ import {
 } from "./types";
 
 const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+const STREAM_EVENT = "restpilot:request-stream";
 const root = document.querySelector<HTMLDivElement>("#app");
 let saveTimer: number | undefined;
 let draggedTreeId: string | null = null;
+let responseRenderFrame: number | undefined;
+
+type StreamPayload = {
+  request_id: string;
+  chunk: string;
+  done: boolean;
+  status?: number;
+  status_text?: string;
+  headers?: Record<string, string>;
+  duration_ms?: number;
+  error?: string;
+};
 
 if (!root) throw new Error("App root was not found.");
 const appRoot = root;
@@ -63,6 +104,7 @@ const state: AppState = {
 };
 
 initDialogs(render);
+ensureContextMenuHandlers();
 boot();
 
 async function boot() {
@@ -113,19 +155,51 @@ function normalizeConfig(config: AppConfig): AppConfig {
     variables: config.variables ?? [],
     openTabs: config.openTabs ?? [],
     activeTabId: config.activeTabId ?? "",
-    settings: { ...defaultSettings(), ...config.settings, proxy: { ...defaultSettings().proxy, ...config.settings?.proxy } }
+    settings: {
+      ...defaultSettings(),
+      ...config.settings,
+      tabSize: clampTabSize(config.settings?.tabSize),
+      autoPrettifyJson: config.settings?.autoPrettifyJson !== false,
+      proxy: { ...defaultSettings().proxy, ...config.settings?.proxy }
+    }
   };
+}
+
+function normalizeRawType(rawType: string | undefined): RawType {
+  if (rawType === "text" || rawType === "xml") return rawType;
+  return "json";
+}
+
+function migrateBodyMode(mode: string, form: Pair[]): BodyMode {
+  if (mode === "node") {
+    return form.some((field) => field.enabled && field.key.trim()) ? "multipart" : "none";
+  }
+  if (mode === "none" || mode === "multipart" || mode === "form" || mode === "raw") return mode;
+  return "raw";
 }
 
 function normalizeTreeItem(item: TreeItem): TreeItem {
   if (item.kind === "folder") return item;
-  const request = item as SavedRequest & { rawType?: RawType };
+  const request = item as SavedRequest & {
+    rawType?: RawType;
+    lastResponse?: ApiResponse | null;
+    lastError?: string | null;
+    streamResponse?: boolean;
+    bodyMode?: string;
+  };
+  const form = (request.form ?? []).map((field) => ({
+    ...field,
+    partType: (field.partType === "file" ? "file" : "text") as FormPartType
+  }));
   return {
     ...request,
-    bodyMode: request.bodyMode === "form" || request.bodyMode === "node" ? request.bodyMode : "raw",
-    rawType: request.rawType === "text" ? "text" : "json",
+    bodyMode: migrateBodyMode(String(request.bodyMode ?? "raw"), form),
+    rawType: normalizeRawType(request.rawType),
     headers: request.headers ?? [],
-    form: request.form ?? []
+    form,
+    streamResponse: request.streamResponse ?? false,
+    lastResponse: request.lastResponse ?? null,
+    lastError: request.lastError ?? null
   };
 }
 
@@ -143,10 +217,267 @@ function applyUserSettings(settings: UserSettings) {
   setLocale(settings.language);
 }
 
+function renderWorkspaceMarkup() {
+  const request = getActiveRequest();
+  const tab = request ? ensureTab(request.id) : null;
+  if (state.activePanel === "variables") return renderVariablesPanel(state.variables);
+  if (state.activePanel === "settings") return renderSettings(state.settings);
+  if (request && tab) return renderRequest(request, tab);
+  return renderEmpty();
+}
+
+function renderWorkspace() {
+  const panel = document.querySelector<HTMLElement>(".workspace-body");
+  if (!panel) {
+    render();
+    return;
+  }
+  unmountTabDisplay(state.activeTabId);
+  panel.innerHTML = renderWorkspaceMarkup();
+  bindWorkspace();
+}
+
+function updateTabStripActive() {
+  document.querySelectorAll<HTMLElement>("[data-open-tab]").forEach((element) => {
+    const tabId = element.dataset.openTab ?? "";
+    const active = tabId === state.activeTabId;
+    element.classList.toggle("active", active);
+    element.setAttribute("aria-selected", active ? "true" : "false");
+  });
+}
+
+function refreshTabBar() {
+  const workspace = document.querySelector<HTMLElement>(".workspace");
+  if (!workspace) return;
+
+  const request = getActiveRequest();
+  const tab = request ? ensureTab(request.id) : null;
+  const markup = state.activePanel === "request" ? renderTabBar(request, tab) : "";
+  const existing = workspace.querySelector(".tab-bar");
+
+  if (!markup) {
+    existing?.remove();
+    return;
+  }
+
+  if (existing) existing.outerHTML = markup;
+  else workspace.querySelector(".workspace-body")?.insertAdjacentHTML("beforebegin", markup);
+
+  bindTabBar();
+  bindTabBarActions();
+}
+
+function bindTabBar() {
+  const strip = document.querySelector<HTMLElement>(".tab-strip");
+  if (!strip || strip.dataset.bound === "true") return;
+  strip.dataset.bound = "true";
+
+  strip.addEventListener("click", (event) => {
+    const closeTarget = (event.target as HTMLElement).closest<HTMLElement>("[data-close-tab]");
+    if (closeTarget) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeTab(closeTarget.getAttribute("data-close-tab") ?? "");
+      return;
+    }
+    const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
+    if (tabEl) openRequest(tabEl.dataset.openTab ?? "");
+  });
+
+  strip.addEventListener("auxclick", (event) => {
+    if (event.button !== 1) return;
+    const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
+    if (!tabEl || (event.target as HTMLElement).closest("[data-close-tab]")) return;
+    event.preventDefault();
+    closeTab(tabEl.dataset.openTab ?? "");
+  });
+
+  strip.addEventListener("mousedown", (event) => {
+    if (event.button !== 1) return;
+    const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
+    if (!tabEl || (event.target as HTMLElement).closest("[data-close-tab]")) return;
+    event.preventDefault();
+    closeTab(tabEl.dataset.openTab ?? "");
+  });
+}
+
+function bindTabBarActions() {
+  const request = getActiveRequest();
+  if (!request) return;
+  const tab = ensureTab(request.id);
+  document.querySelector("#clear")?.addEventListener("click", () => {
+    clearRequestResponse(request, tab);
+    scheduleSave();
+    render();
+  });
+  document.querySelector("#duplicate-request")?.addEventListener("click", () => duplicateRequest(request.id));
+}
+
+function updateTreeRowActive() {
+  document.querySelectorAll<HTMLElement>(".tree-row[data-tree-id]").forEach((row) => {
+    const treeId = row.dataset.treeId ?? "";
+    row.classList.toggle("active", treeId === state.selectedTreeId || treeId === state.activeTabId);
+  });
+}
+
+function unmountTabDisplay(requestId: string | null | undefined) {
+  if (!requestId) return;
+  const tab = state.tabs[requestId];
+  tab?.displayUnmount?.();
+  if (tab) {
+    tab.displayUnmount = undefined;
+    tab.bodyEditorUnmount = undefined;
+    tab.responseBodyUnmount = undefined;
+    tab.headersTableUnmount = undefined;
+    invalidateLineCache(tab);
+  }
+}
+
+function invalidateLineCache(tab: TabState) {
+  tab.bodyLinesKey = undefined;
+  tab.bodyLineOffsets = undefined;
+  tab.bodyLineScanLength = undefined;
+  tab.responseDisplayKey = undefined;
+  tab.responseDisplayBody = undefined;
+}
+
+function getResponseBodyForDisplay(tab: TabState, body: string, headers: Record<string, string>) {
+  if (tab.streaming) return body;
+  const cacheKey = `${bodySourceKey(body, headers)}:display`;
+  if (tab.responseDisplayKey === cacheKey && tab.responseDisplayBody) return tab.responseDisplayBody;
+  const display = formatResponseBody(body, headers);
+  tab.responseDisplayKey = cacheKey;
+  tab.responseDisplayBody = display;
+  return display;
+}
+
+function responseViewerMode(body: string, headers: Record<string, string>): ViewerMode {
+  return detectContentKind(body, headers);
+}
+
+function mountResponseBodyViewer(request: SavedRequest, tab: TabState) {
+  tab.responseBodyUnmount?.();
+  tab.responseBodyUnmount = undefined;
+
+  const host = document.querySelector<HTMLElement>("[data-response-body-viewer]");
+  if (!host || !tab.response || tab.selectedResponseTab !== "body") return;
+
+  const body = tab.response.body;
+  const headers = tab.response.headers;
+  const displayBody = getResponseBodyForDisplay(tab, body, headers);
+  tab.responseBodyUnmount = mountReadonlyViewer(
+    host,
+    displayBody,
+    responseViewerMode(body, headers),
+    state.settings.tabSize
+  );
+}
+
+function mountHeadersPanel(tab: TabState) {
+  tab.headersTableUnmount?.();
+  tab.headersTableUnmount = undefined;
+
+  const host = document.querySelector<HTMLElement>("[data-headers-table]");
+  if (!host || !tab.response || tab.selectedResponseTab !== "headers") return;
+
+  const labels = t().request;
+  const rows = Object.entries(tab.response.headers).map(([key, value]) => ({ key, value }));
+  tab.headersTableUnmount = mountHeadersTable(host, rows, {
+    search: labels.headersSearch,
+    key: labels.headersKey,
+    value: labels.headersValue,
+    empty: labels.headersEmpty
+  });
+}
+
+function mountWorkspaceDisplays(request: SavedRequest, tab: TabState) {
+  tab.bodyEditorUnmount?.();
+  tab.responseBodyUnmount?.();
+  tab.headersTableUnmount?.();
+  tab.bodyEditorUnmount = undefined;
+  tab.responseBodyUnmount = undefined;
+  tab.headersTableUnmount = undefined;
+
+  const editorHost = document.querySelector<HTMLElement>("[data-body-editor-host]");
+  if (editorHost && request.bodyMode === "raw") {
+    tab.bodyEditorUnmount = mountBodyEditor(editorHost, request.body, {
+      tabSize: state.settings.tabSize,
+      rawType: request.rawType,
+      autoPrettifyJson: state.settings.autoPrettifyJson,
+      onChange: (value) => {
+        request.body = value;
+        scheduleSave();
+      }
+    });
+  }
+
+  mountResponseBodyViewer(request, tab);
+  mountHeadersPanel(tab);
+
+  tab.displayUnmount = () => {
+    tab.bodyEditorUnmount?.();
+    tab.responseBodyUnmount?.();
+    tab.headersTableUnmount?.();
+    tab.bodyEditorUnmount = undefined;
+    tab.responseBodyUnmount = undefined;
+    tab.headersTableUnmount = undefined;
+  };
+}
+
+function renderResponseHead(tab: TabState) {
+  const labels = t().request;
+  const response = tab.response!;
+  const statusClass = response.status >= 200 && response.status < 300 ? "ok" : response.status >= 400 ? "bad" : "soft";
+  const streamingBadge = tab.streaming ? `<span class="stream-badge">${labels.streaming}</span>` : "";
+  return `
+    <div class="response-head">
+      <div class="status ${statusClass}">${response.status} ${escapeHtml(response.status_text)}</div>${streamingBadge}
+      <div class="metrics"><span>${response.duration_ms} ms</span><span>${formatBytes(response.body.length)}</span></div>
+    </div>
+  `;
+}
+
+function refreshResponseBodyDisplay(request: SavedRequest, tab: TabState) {
+  if (!tab.response) return;
+
+  const body = tab.response.body;
+  const headers = tab.response.headers;
+  const displayBody = getResponseBodyForDisplay(tab, body, headers);
+
+  const head = document.querySelector(".response-head");
+  if (head) head.outerHTML = renderResponseHead(tab);
+
+  const streamHost = document.querySelector<HTMLElement>("[data-response-body-stream]");
+  if (streamHost) {
+    streamHost.textContent = displayBody;
+    return;
+  }
+
+  const host = document.querySelector<HTMLElement>("[data-response-body-viewer]");
+  if (!host) return;
+
+  if (setReadonlyViewerValue(host, displayBody)) return;
+  mountResponseBodyViewer(request, tab);
+}
+
+function activateRequestTab(requestId: string) {
+  const previousId = state.activeTabId;
+  state.activeTabId = requestId;
+  state.selectedTreeId = requestId;
+  state.activePanel = "request";
+  ensureTab(requestId);
+  if (previousId && previousId !== requestId) unmountTabDisplay(previousId);
+  updateTabStripActive();
+  updateTreeRowActive();
+  renderWorkspace();
+}
+
 function render() {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
   const labels = t();
+
+  unmountTabDisplay(state.activeTabId);
 
   appRoot.innerHTML = `
     <main class="shell">
@@ -170,7 +501,7 @@ function render() {
       </aside>
       <section class="workspace">
         ${state.activePanel === "request" ? renderTabBar(request, tab) : ""}
-        ${state.activePanel === "variables" ? renderVariables() : state.activePanel === "settings" ? renderSettings(state.settings) : request && tab ? renderRequest(request, tab) : renderEmpty()}
+        <div class="workspace-body">${renderWorkspaceMarkup()}</div>
       </section>
     </main>
     ${renderDialogLayer()}
@@ -178,6 +509,9 @@ function render() {
   `;
 
   bindEvents();
+  const active = getActiveRequest();
+  const activeTab = active ? ensureTab(active.id) : null;
+  if (active && activeTab) mountWorkspaceDisplays(active, activeTab);
 }
 
 function renderContextMenu() {
@@ -190,6 +524,7 @@ function renderContextMenu() {
       <button data-menu-action="new-folder" type="button">${labels.newFolder}</button>
       ${item ? `<hr><button data-menu-action="rename" type="button">${labels.rename}</button>` : ""}
       ${item?.kind === "request" ? `<button data-menu-action="duplicate" type="button">${labels.duplicate}</button>` : ""}
+      ${item?.kind === "request" ? `<button data-menu-action="copy-curl" type="button">${labels.copyCurl}</button>` : ""}
       ${item ? `<button data-menu-action="delete" class="danger" type="button">${labels.delete}</button>` : ""}
     </div>
   `;
@@ -233,6 +568,10 @@ function renderRequest(request: SavedRequest, tab: TabState) {
     <section class="request-line">
       <select id="method">${methods.map((method) => `<option ${method === request.method ? "selected" : ""}>${method}</option>`).join("")}</select>
       <input id="url" value="${escapeAttribute(request.url)}" spellcheck="false" />
+      <label class="stream-toggle" title="${labels.streamResponse}">
+        <input id="stream-response" type="checkbox" ${request.streamResponse ? "checked" : ""} />
+        <span>${labels.streamResponse}</span>
+      </label>
       ${
         tab.loading
           ? `<button id="cancel" class="danger-button" type="button"><span class="pulse"></span>${labels.cancel}</button>`
@@ -249,13 +588,15 @@ function renderRequest(request: SavedRequest, tab: TabState) {
           <div class="segmented">
             <button class="${request.bodyMode === "raw" ? "active" : ""}" data-body-mode="raw" type="button">${labels.raw}</button>
             <button class="${request.bodyMode === "form" ? "active" : ""}" data-body-mode="form" type="button">${labels.form}</button>
-            <button class="${request.bodyMode === "node" ? "active" : ""}" data-body-mode="node" type="button">${labels.node}</button>
+            <button class="${request.bodyMode === "multipart" ? "active" : ""}" data-body-mode="multipart" type="button">${labels.multipart}</button>
+            <button class="${request.bodyMode === "none" ? "active" : ""}" data-body-mode="none" type="button">${labels.none}</button>
           </div>
           ${
             request.bodyMode === "raw"
               ? `<div class="segmented raw-type-switch">
                   <button class="${request.rawType === "text" ? "active" : ""}" data-raw-type="text" type="button">${labels.rawText}</button>
                   <button class="${request.rawType === "json" ? "active" : ""}" data-raw-type="json" type="button">${labels.rawJson}</button>
+                  <button class="${request.rawType === "xml" ? "active" : ""}" data-raw-type="xml" type="button">${labels.rawXml}</button>
                 </div>`
               : ""
           }
@@ -272,17 +613,57 @@ function renderRequest(request: SavedRequest, tab: TabState) {
 function bodyModeHint(request: SavedRequest) {
   const labels = t().request;
   if (request.bodyMode === "form") return labels.formHint;
-  if (request.bodyMode === "node") return labels.nodeHint;
-  return request.rawType === "json" ? labels.rawJsonHint : labels.rawTextHint;
+  if (request.bodyMode === "multipart") return labels.multipartHint;
+  if (request.bodyMode === "none") return labels.noneHint;
+  if (request.rawType === "xml") return labels.rawXmlHint;
+  if (request.rawType === "text") return labels.rawTextHint;
+  return labels.rawJsonHint;
+}
+
+function ensureFormRow(request: SavedRequest) {
+  if (request.bodyMode !== "form" || request.form.length > 0) return;
+  request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
 }
 
 function renderBodyEditor(request: SavedRequest, labels: ReturnType<typeof t>["request"]) {
   if (request.bodyMode === "raw") {
-    const placeholder = request.rawType === "json" ? '{"key":"value"}' : "Plain text body";
-    return `<div class="code-editor ${request.rawType === "json" ? "json-mode" : "text-mode"}"><pre aria-hidden="true">${highlightBodyContent(request)}</pre><textarea id="body" spellcheck="false" placeholder="${escapeAttribute(placeholder)}">${escapeHtml(request.body)}</textarea></div>`;
+    const modeClass =
+      request.rawType === "json" ? "json-mode" : request.rawType === "xml" ? "xml-mode" : "text-mode";
+    return `<div class="code-editor ${modeClass}" data-body-editor-host></div>`;
   }
-  const addId = request.bodyMode === "node" ? "add-node-field" : "add-form";
-  return `<div class="headers-list form-list">${request.form.map((pair) => renderPair(pair, "form")).join("")}</div><button class="quiet-button add-form" id="${addId}" type="button">${labels.addField}</button>`;
+  if (request.bodyMode === "none") {
+    return `<p class="hint body-none-hint">${labels.noneHint}</p>`;
+  }
+  const isMultipart = request.bodyMode === "multipart";
+  const rows = request.form
+    .map((pair) => (isMultipart ? renderMultipartPair(pair) : renderPair(pair, "form")))
+    .join("");
+  const actions = isMultipart
+    ? `<div class="form-actions"><button class="quiet-button add-form" id="add-form" type="button">${labels.addField}</button><button class="quiet-button add-form" id="add-multipart-file" type="button">${labels.addFile}</button></div>`
+    : `<button class="quiet-button add-form" id="add-form" type="button">${labels.addField}</button>`;
+  return `<div class="headers-list form-list">${rows}</div>${actions}`;
+}
+
+function renderMultipartPair(pair: Pair) {
+  const labels = t().request;
+  const pairLabels = t().pairs;
+  const partType = pair.partType === "file" ? "file" : "text";
+  const valueField =
+    partType === "file"
+      ? `<label class="multipart-file-picker"><input class="form-file" data-form-id="${pair.id}" type="file" hidden /><span class="multipart-file-name">${escapeHtml(pair.fileName || labels.chooseFile)}</span></label>`
+      : `<input class="form-value" value="${escapeAttribute(pair.value)}" placeholder="${pairLabels.value}" spellcheck="false" />`;
+  return `
+    <div class="pair-row multipart-row" data-form-id="${pair.id}">
+      <input class="form-enabled" type="checkbox" ${pair.enabled ? "checked" : ""} />
+      <input class="form-key" value="${escapeAttribute(pair.key)}" placeholder="Name" spellcheck="false" />
+      <select class="form-part-type" data-form-id="${pair.id}">
+        <option value="text" ${partType === "text" ? "selected" : ""}>${labels.partText}</option>
+        <option value="file" ${partType === "file" ? "selected" : ""}>${labels.partFile}</option>
+      </select>
+      ${valueField}
+      <button class="mini-btn remove-form" type="button" aria-label="${t().tree.delete}">×</button>
+    </div>
+  `;
 }
 
 function renderPair(pair: Pair, scope: "header" | "form") {
@@ -297,56 +678,40 @@ function renderPair(pair: Pair, scope: "header" | "form") {
   `;
 }
 
+function renderResponseBodyMarkup(body: string, headers: Record<string, string>, streaming = false) {
+  if (streaming && !isLargeText(body)) {
+    return `<pre class="response-body response-body-stream" data-response-body-stream></pre>`;
+  }
+  if (isLargeText(body)) {
+    return `<div class="response-body response-body-viewer" data-response-body-viewer></div>`;
+  }
+  return `<pre class="response-body">${highlightResponse(body, headers)}</pre>`;
+}
+
+function renderResponseHeadersMarkup() {
+  return `<div class="response-headers-panel" data-headers-table></div>`;
+}
+
 function renderResponse(tab: TabState) {
   const labels = t().request;
-  if (tab.loading) {
+  if (tab.loading && !tab.response) {
     return `<div class="response-empty"><div class="loader"></div><h2>${labels.waitingTitle}</h2><p>${labels.waitingBody}</p></div>`;
   }
-  if (tab.error) return `<div class="response-empty error"><h2>${labels.failedTitle}</h2><p>${escapeHtml(tab.error)}</p></div>`;
+  if (tab.error && !tab.response) return `<div class="response-empty error"><h2>${labels.failedTitle}</h2><p>${escapeHtml(tab.error)}</p></div>`;
   if (!tab.response) return `<div class="response-empty"><h2>${labels.emptyTitle}</h2><p>${labels.emptyBody}</p></div>`;
 
   const response = tab.response;
-  const statusClass = response.status >= 200 && response.status < 300 ? "ok" : response.status >= 400 ? "bad" : "soft";
   return `
-    <div class="response-head">
-      <div class="status ${statusClass}">${response.status} ${escapeHtml(response.status_text)}</div>
-      <div class="metrics"><span>${response.duration_ms} ms</span><span>${formatBytes(response.body.length)}</span></div>
-    </div>
+    ${renderResponseHead(tab)}
     <div class="tabs">
       <button class="${tab.selectedResponseTab === "body" ? "active" : ""}" data-response-tab="body" type="button">${labels.body}</button>
       <button class="${tab.selectedResponseTab === "headers" ? "active" : ""}" data-response-tab="headers" type="button">${labels.responseHeaders}</button>
     </div>
     ${
       tab.selectedResponseTab === "body"
-        ? `<pre class="response-body">${highlightResponse(response.body, response.headers)}</pre>`
-        : `<div class="response-headers">${Object.entries(response.headers)
-            .map(([key, value]) => `<div><strong>${escapeHtml(key)}</strong><span>${escapeHtml(value)}</span></div>`)
-            .join("")}</div>`
+        ? renderResponseBodyMarkup(response.body, response.headers, tab.streaming)
+        : renderResponseHeadersMarkup()
     }
-  `;
-}
-
-function renderVariables() {
-  const labels = t().variables;
-  return `
-    <header class="topbar settings-topbar">
-      <button class="settings-back compact" id="panel-back" type="button"><span aria-hidden="true">←</span> ${t().nav.backToWorkspace}</button>
-      <div><h1>${labels.title}</h1><p>${labels.description}</p></div>
-      <button class="quiet-button" id="add-variable" type="button">${labels.add}</button>
-    </header>
-    <article class="request-card variables-card">
-      ${state.variables
-        .map(
-          (variable) => `
-          <div class="variable-row" data-variable-id="${variable.id}">
-            <input class="variable-enabled" type="checkbox" ${variable.enabled ? "checked" : ""} />
-            <input class="variable-name" value="${escapeAttribute(variable.name)}" placeholder="${labels.namePlaceholder}" spellcheck="false" />
-            <input class="variable-value" value="${escapeAttribute(variable.value)}" placeholder="${labels.valuePlaceholder}" spellcheck="false" />
-            <button class="mini-btn remove-variable" type="button" aria-label="${t().tree.delete}">×</button>
-          </div>`
-        )
-        .join("")}
-    </article>
   `;
 }
 
@@ -362,12 +727,12 @@ function renderExplorerTree(parentId: string | null, depth: number): string {
       return `
         <div class="tree-row ${active ? "active" : ""} ${editing ? "is-editing" : ""}" draggable="${editing ? "false" : "true"}" tabindex="0" data-tree-id="${item.id}" data-kind="${item.kind}" style="--depth:${depth}">
           <span class="tree-chevron">${item.kind === "folder" ? (expanded ? "v" : ">") : ""}</span>
-          <span class="tree-item-icon ${item.kind === "folder" ? "folder-icon" : "request-icon"}"></span>
+          ${item.kind === "folder" ? `<span class="tree-item-icon folder-icon"></span>` : item.kind === "request" && !editing ? `<span class="tree-method">${item.method}</span>` : ""}
           <div class="tree-main">
             ${
               editing
                 ? `<input class="tree-rename-input" value="${escapeAttribute(item.title)}" spellcheck="false" aria-label="${labels.rename}" />`
-                : `<span class="tree-title">${escapeHtml(item.title)}</span>${item.kind === "request" ? `<span class="tree-method">${item.method}</span>` : ""}`
+                : `<span class="tree-title">${escapeHtml(item.title)}</span>`
             }
           </div>
           ${
@@ -390,47 +755,14 @@ function renderEmpty() {
   return `<div class="empty-editor"><span>${t().request.noTab}</span></div>`;
 }
 
-function bindEvents() {
+function bindWorkspace() {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
-
-  bindTree();
-  bindDialogs();
-
-  document.querySelector("#new-folder")?.addEventListener("click", createFolder);
-  document.querySelector("#new-request")?.addEventListener("click", createRequest);
-  document.querySelector("#variables-panel")?.addEventListener("click", () => openPanel("variables"));
-  document.querySelector("#settings-panel")?.addEventListener("click", () => openPanel("settings"));
-  document.querySelector("#panel-back")?.addEventListener("click", backToWorkspace);
 
   if (state.activePanel === "settings") {
     bindSettings(state.settings, onSettingsChanged, backToWorkspace, clearAllData);
     return;
   }
-
-  document.querySelectorAll<HTMLElement>("[data-open-tab]").forEach((tab) => {
-    tab.addEventListener("click", (event) => {
-      const closeTarget = (event.target as HTMLElement).closest("[data-close-tab]");
-      if (closeTarget) {
-        event.stopPropagation();
-        closeTab(closeTarget.getAttribute("data-close-tab") ?? "");
-        return;
-      }
-      openRequest(tab.dataset.openTab ?? "");
-    });
-    tab.addEventListener("auxclick", (event) => {
-      if (event.button !== 1) return;
-      event.preventDefault();
-      closeTab(tab.dataset.openTab ?? "");
-    });
-    tab.addEventListener("mousedown", (event) => {
-      if (event.button !== 1) return;
-      event.preventDefault();
-      closeTab(tab.dataset.openTab ?? "");
-    });
-  });
-
-  bindContextMenu();
 
   if (state.activePanel === "variables") {
     bindVariables();
@@ -439,10 +771,11 @@ function bindEvents() {
 
   if (!request || !tab) return;
 
+  if (request.bodyMode === "form") ensureFormRow(request);
+
   document.querySelector<HTMLSelectElement>("#method")?.addEventListener("change", (event) => {
     request.method = (event.target as HTMLSelectElement).value;
     scheduleSave();
-    render();
   });
   const urlInput = document.querySelector<HTMLInputElement>("#url");
   urlInput?.addEventListener("input", (event) => {
@@ -456,12 +789,6 @@ function bindEvents() {
   urlInput?.addEventListener("paste", handleCurlPaste);
   document.querySelector("#send")?.addEventListener("click", sendRequest);
   document.querySelector("#cancel")?.addEventListener("click", cancelActiveRequest);
-  document.querySelector("#clear")?.addEventListener("click", () => {
-    tab.response = null;
-    tab.error = null;
-    render();
-  });
-  document.querySelector("#duplicate-request")?.addEventListener("click", () => duplicateRequest(request.id));
   document.querySelector(".foldable")?.addEventListener("toggle", (event) => {
     state.headersOpen = (event.target as HTMLDetailsElement).open;
   });
@@ -469,46 +796,60 @@ function bindEvents() {
     event.preventDefault();
     request.headers.push({ id: id(), key: "", value: "", enabled: true });
     scheduleSave();
-    render();
+    renderWorkspace();
   });
   document.querySelectorAll<HTMLButtonElement>("[data-body-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       request.bodyMode = button.dataset.bodyMode as BodyMode;
+      ensureFormRow(request);
       scheduleSave();
-      render();
+      renderWorkspace();
     });
   });
   document.querySelectorAll<HTMLButtonElement>("[data-raw-type]").forEach((button) => {
     button.addEventListener("click", () => {
       request.rawType = button.dataset.rawType as RawType;
       scheduleSave();
-      render();
+      renderWorkspace();
     });
   });
-  document.querySelector<HTMLTextAreaElement>("#body")?.addEventListener("input", (event) => {
-    request.body = (event.target as HTMLTextAreaElement).value;
+  document.querySelector<HTMLElement>("[data-body-editor-host]")?.addEventListener("paste", handleCurlPaste);
+  document.querySelector("#stream-response")?.addEventListener("change", (event) => {
+    request.streamResponse = (event.target as HTMLInputElement).checked;
     scheduleSave();
-    renderRequestCodeOnly(request);
   });
-  document.querySelector<HTMLTextAreaElement>("#body")?.addEventListener("paste", handleCurlPaste);
   document.querySelector("#add-form")?.addEventListener("click", () => {
-    request.form.push({ id: id(), key: "", value: "", enabled: true });
+    request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
     scheduleSave();
-    render();
+    renderWorkspace();
   });
-  document.querySelector("#add-node-field")?.addEventListener("click", () => {
-    request.form.push({ id: id(), key: "", value: "", enabled: true });
+  document.querySelector("#add-multipart-file")?.addEventListener("click", () => {
+    request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "file", fileName: "" });
     scheduleSave();
-    render();
+    renderWorkspace();
   });
   bindPairs(request.headers, "header");
-  bindPairs(request.form, "form");
+  bindFormPairs(request);
   document.querySelectorAll<HTMLButtonElement>("[data-response-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       tab.selectedResponseTab = button.dataset.responseTab as ResponseTab;
-      render();
+      renderWorkspace();
     });
   });
+  mountWorkspaceDisplays(request, tab);
+}
+
+function bindEvents() {
+  bindTree();
+  bindDialogs();
+  bindTabBar();
+  document.querySelector("#new-folder")?.addEventListener("click", createFolder);
+  document.querySelector("#new-request")?.addEventListener("click", createRequest);
+  document.querySelector("#variables-panel")?.addEventListener("click", () => openPanel("variables"));
+  document.querySelector("#settings-panel")?.addEventListener("click", () => openPanel("settings"));
+  document.querySelector("#panel-back")?.addEventListener("click", backToWorkspace);
+  bindTabBarActions();
+  bindWorkspace();
 }
 
 function openPanel(panel: ActivePanel) {
@@ -529,6 +870,7 @@ function onSettingsChanged() {
   applyUserSettings(state.settings);
   scheduleSave();
   if (languageChanged) render();
+  else if (state.activePanel === "request") renderWorkspace();
 }
 
 async function clearAllData() {
@@ -552,6 +894,66 @@ async function clearAllData() {
   state.previousPanel = "request";
   await saveConfig();
   render();
+}
+
+let toastTimeout: ReturnType<typeof setTimeout> | undefined;
+
+function showToast(message: string) {
+  if (toastTimeout) clearTimeout(toastTimeout);
+
+  let toast = document.getElementById("app-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "app-toast";
+    toast.className = "app-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add("app-toast--visible");
+
+  toastTimeout = setTimeout(() => {
+    toast?.classList.remove("app-toast--visible");
+    toastTimeout = setTimeout(() => toast?.remove(), 220);
+  }, 2200);
+}
+
+function closeContextMenu() {
+  if (!state.contextMenu) return;
+  state.contextMenu = null;
+  document.querySelector(".context-menu")?.remove();
+}
+
+function ensureContextMenuHandlers() {
+  const boundKey = "__restpilotContextMenuHandlers";
+  if ((window as Window & { [boundKey]?: boolean })[boundKey]) return;
+  (window as Window & { [boundKey]?: boolean })[boundKey] = true;
+
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (!state.contextMenu) return;
+      if ((event.target as HTMLElement).closest(".context-menu")) return;
+      closeContextMenu();
+    },
+    true
+  );
+
+  document.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLElement>("[data-menu-action]");
+    if (!button?.closest(".context-menu") || !state.contextMenu) return;
+    event.stopPropagation();
+    const itemId = state.contextMenu.itemId;
+    const action = button.dataset.menuAction ?? "";
+    closeContextMenu();
+    if (action === "new-request") createRequest();
+    if (action === "new-folder") createFolder();
+    if (action === "rename" && itemId) startTreeRename(itemId);
+    if (action === "duplicate" && itemId) duplicateRequest(itemId);
+    if (action === "copy-curl" && itemId) void copyRequestAsCurl(itemId);
+    if (action === "delete" && itemId) deleteItem(itemId);
+  });
 }
 
 function bindTree() {
@@ -691,7 +1093,7 @@ function bindTree() {
 
     row.addEventListener("click", (event) => {
       if ((event.target as HTMLElement).closest("[data-tree-action], .tree-rename-input")) return;
-      state.contextMenu = null;
+      closeContextMenu();
       selectTreeItem(item.id, { render: true, focus: true });
     });
     row.addEventListener("dblclick", (event) => {
@@ -847,32 +1249,6 @@ function pickTreeFocusAfterDelete(itemId: string): string | null {
   return visible[0]?.id ?? null;
 }
 
-function bindContextMenu() {
-  document.addEventListener(
-    "click",
-    () => {
-      if (!state.contextMenu) return;
-      state.contextMenu = null;
-      render();
-    },
-    { once: true }
-  );
-
-  document.querySelectorAll<HTMLElement>("[data-menu-action]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const action = button.dataset.menuAction ?? "";
-      const itemId = state.contextMenu?.itemId ?? null;
-      state.contextMenu = null;
-      if (action === "new-request") createRequest();
-      if (action === "new-folder") createFolder();
-      if (action === "rename" && itemId) startTreeRename(itemId);
-      if (action === "duplicate" && itemId) duplicateRequest(itemId);
-      if (action === "delete" && itemId) deleteItem(itemId);
-    });
-  });
-}
-
 function dropClassFor(row: HTMLElement, event: DragEvent, sourceId: string) {
   const placement = dropPlacementFor(row, event, sourceId);
   if (placement === "before") return "drop-before";
@@ -922,7 +1298,47 @@ function activateTreeItem(itemId: string) {
   render();
 }
 
+function bindFormPairs(request: SavedRequest) {
+  bindPairs(request.form, "form");
+  if (request.bodyMode !== "multipart") return;
+
+  document.querySelectorAll<HTMLSelectElement>(".form-part-type").forEach((select) => {
+    const pair = request.form.find((item) => item.id === select.dataset.formId);
+    if (!pair) return;
+    select.addEventListener("change", () => {
+      pair.partType = select.value === "file" ? "file" : "text";
+      if (pair.partType === "text") {
+        pair.fileName = undefined;
+        pair.value = "";
+      }
+      scheduleSave();
+      render();
+    });
+  });
+
+  document.querySelectorAll<HTMLInputElement>(".form-file").forEach((input) => {
+    const pair = request.form.find((item) => item.id === input.dataset.formId);
+    if (!pair) return;
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = String(reader.result ?? "");
+        pair.value = dataUrl.includes(",") ? dataUrl.split(",")[1] ?? "" : dataUrl;
+        pair.fileName = file.name;
+        pair.partType = "file";
+        scheduleSave();
+        render();
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+}
+
 function bindPairs(list: Pair[], scope: "header" | "form") {
+  const rerender = scope === "form" ? () => renderWorkspace() : () => render();
+
   document.querySelectorAll<HTMLElement>(`[data-${scope}-id]`).forEach((row) => {
     const pair = list.find((item) => item.id === row.getAttribute(`data-${scope}-id`));
     if (!pair) return;
@@ -942,36 +1358,165 @@ function bindPairs(list: Pair[], scope: "header" | "form") {
       const index = list.findIndex((item) => item.id === pair.id);
       if (index >= 0) list.splice(index, 1);
       scheduleSave();
+      rerender();
+    });
+  });
+}
+
+function addVariableAndFocus() {
+  state.variables.push({ id: id(), name: "", value: "", enabled: true });
+  scheduleSave();
+  render();
+  requestAnimationFrame(() => {
+    const rows = document.querySelectorAll<HTMLElement>(".variable-item");
+    const last = rows[rows.length - 1];
+    last?.querySelector<HTMLInputElement>(".variable-name")?.focus();
+    last?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
+}
+
+function bindVariables() {
+  const add = () => addVariableAndFocus();
+  document.querySelector("#add-variable")?.addEventListener("click", add);
+  document.querySelector("#add-variable-empty")?.addEventListener("click", add);
+
+  document.querySelectorAll<HTMLElement>(".variable-item[data-variable-id]").forEach((row) => {
+    const variable = state.variables.find((item) => item.id === row.dataset.variableId);
+    if (!variable) return;
+
+    const syncToken = () => {
+      const tokenHost = row.querySelector(".variable-field-token");
+      if (!tokenHost) return;
+      const labels = t().variables;
+      const trimmed = variable.name.trim();
+      const tokenMarkup = trimmed
+        ? `<code class="variable-token">${escapeHtml(`\${${trimmed}}`)}</code>`
+        : `<span class="variable-token variable-token-empty">—</span>`;
+      tokenHost.innerHTML = `<span class="variable-field-label">${labels.tokenPreview}</span>${tokenMarkup}`;
+    };
+
+    row.querySelector<HTMLInputElement>(".variable-enabled")?.addEventListener("change", (event) => {
+      variable.enabled = (event.target as HTMLInputElement).checked;
+      row.classList.toggle("is-disabled", !variable.enabled);
+      scheduleSave();
+    });
+
+    row.querySelector<HTMLInputElement>(".variable-name")?.addEventListener("input", (event) => {
+      variable.name = (event.target as HTMLInputElement).value;
+      syncToken();
+      scheduleSave();
+    });
+
+    row.querySelector<HTMLInputElement>(".variable-value")?.addEventListener("input", (event) => {
+      variable.value = (event.target as HTMLInputElement).value;
+      scheduleSave();
+    });
+
+    row.querySelector(".remove-variable")?.addEventListener("click", () => {
+      state.variables = state.variables.filter((item) => item.id !== variable.id);
+      scheduleSave();
       render();
     });
   });
 }
 
-function bindVariables() {
-  document.querySelector("#add-variable")?.addEventListener("click", () => {
-    state.variables.push({ id: id(), name: "", value: "", enabled: true });
-    scheduleSave();
-    render();
+function maybePrettifyRequestJson(request: SavedRequest) {
+  if (!state.settings.autoPrettifyJson || request.bodyMode !== "raw" || request.rawType !== "json") return;
+  const pretty = tryPrettifyJson(request.body);
+  if (pretty) request.body = pretty;
+}
+
+function buildFormPayload(request: SavedRequest) {
+  return request.form.map((field) => ({
+    key: applyVariables(field.key),
+    value: field.partType === "file" ? field.value : applyVariables(field.value),
+    enabled: field.enabled,
+    part_type: field.partType ?? "text",
+    file_name: field.fileName ?? null
+  }));
+}
+
+function handleStreamEvent(
+  payload: StreamPayload,
+  runId: string,
+  tab: TabState,
+  onFinished?: () => void
+) {
+  if (payload.request_id !== runId) return;
+
+  if (payload.error) {
+    tab.error = payload.error;
+    tab.streaming = false;
+    scheduleResponseRender();
+    onFinished?.();
+    return;
+  }
+
+  if (payload.status !== undefined && payload.headers) {
+    tab.response = {
+      status: payload.status,
+      status_text: payload.status_text ?? "",
+      duration_ms: payload.duration_ms ?? 0,
+      headers: payload.headers,
+      body: tab.response?.body ?? ""
+    };
+    tab.loading = false;
+    tab.streaming = !payload.done;
+    tab.error = null;
+  }
+
+  if (payload.chunk) {
+    if (!tab.response) {
+      tab.response = { status: 0, status_text: "", duration_ms: 0, headers: {}, body: "" };
+      tab.loading = false;
+      tab.streaming = true;
+    }
+    tab.response.body += payload.chunk;
+  }
+
+  if (payload.done) {
+    tab.streaming = false;
+    if (tab.response && payload.duration_ms !== undefined) tab.response.duration_ms = payload.duration_ms;
+    invalidateLineCache(tab);
+    onFinished?.();
+  }
+
+  scheduleResponseRender();
+}
+
+function scheduleResponseRender() {
+  if (responseRenderFrame) return;
+  responseRenderFrame = requestAnimationFrame(() => {
+    responseRenderFrame = undefined;
+    const request = getActiveRequest();
+    if (!request) return;
+    const tab = state.tabs[request.id];
+    if (!tab?.response) return;
+    const card = document.querySelector(".response-card");
+    if (!card) return;
+
+    const canPatchBody =
+      tab.selectedResponseTab === "body" &&
+      card.querySelector("[data-response-body-viewer], [data-response-body-stream]");
+
+    if (canPatchBody) {
+      refreshResponseBodyDisplay(request, tab);
+      return;
+    }
+
+    card.innerHTML = renderResponse(tab);
+    bindResponseTabs(request.id);
+    mountWorkspaceDisplays(request, tab);
   });
-  document.querySelectorAll<HTMLElement>("[data-variable-id]").forEach((row) => {
-    const variable = state.variables.find((item) => item.id === row.dataset.variableId);
-    if (!variable) return;
-    row.querySelector<HTMLInputElement>(".variable-enabled")?.addEventListener("change", (event) => {
-      variable.enabled = (event.target as HTMLInputElement).checked;
-      scheduleSave();
-    });
-    row.querySelector<HTMLInputElement>(".variable-name")?.addEventListener("input", (event) => {
-      variable.name = (event.target as HTMLInputElement).value;
-      scheduleSave();
-    });
-    row.querySelector<HTMLInputElement>(".variable-value")?.addEventListener("input", (event) => {
-      variable.value = (event.target as HTMLInputElement).value;
-      scheduleSave();
-    });
-    row.querySelector(".remove-variable")?.addEventListener("click", () => {
-      state.variables = state.variables.filter((item) => item.id !== variable.id);
-      scheduleSave();
-      render();
+}
+
+function bindResponseTabs(requestId: string) {
+  const tab = state.tabs[requestId];
+  if (!tab) return;
+  document.querySelectorAll<HTMLButtonElement>(".response-card [data-response-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      tab.selectedResponseTab = button.dataset.responseTab as ResponseTab;
+      renderWorkspace();
     });
   });
 }
@@ -981,7 +1526,11 @@ async function sendRequest() {
   if (!request) return;
   const tab = ensureTab(request.id);
   const runId = id();
+  let unlisten: UnlistenFn | undefined;
+  let finishStream: (() => void) | undefined;
+
   tab.loading = true;
+  tab.streaming = false;
   tab.requestRunId = runId;
   tab.error = null;
   tab.response = null;
@@ -996,25 +1545,55 @@ async function sendRequest() {
           .map((header) => [applyVariables(header.key.trim()), applyVariables(header.value)])
       )
     );
-    tab.response = await invoke<ApiResponse>("send_request", {
-      payload: {
-        request: {
-          id: runId,
-          method: request.method,
-          url: applyVariables(request.url.trim()),
-          headers,
-          body_mode: request.bodyMode,
-          raw_type: request.rawType,
-          body: request.bodyMode === "raw" ? applyVariables(request.body) : "",
-          form: request.form.map((field) => ({ ...field, key: applyVariables(field.key), value: applyVariables(field.value) }))
-        },
-        proxy: proxyPayload(state.settings.proxy)
-      }
-    });
+
+    const streamFinished = request.streamResponse
+      ? new Promise<void>((resolve) => {
+          finishStream = resolve;
+        })
+      : null;
+
+    if (request.streamResponse) {
+      unlisten = await listen<StreamPayload>(STREAM_EVENT, (event) => {
+        handleStreamEvent(event.payload, runId, tab, finishStream);
+      });
+    }
+
+    const payload = {
+      request: {
+        id: runId,
+        method: request.method,
+        url: applyVariables(request.url.trim()),
+        headers,
+        body_mode: request.bodyMode,
+        raw_type: request.rawType,
+        body: request.bodyMode === "raw" ? applyVariables(request.body) : "",
+        form: buildFormPayload(request),
+        stream: request.streamResponse
+      },
+      proxy: proxyPayload(state.settings.proxy)
+    };
+
+    if (request.streamResponse) {
+      await invoke("send_request", { payload });
+      if (streamFinished) await streamFinished;
+    } else {
+      tab.response = await invoke<ApiResponse>("send_request", { payload });
+    }
+
+    tab.error = null;
+    if (tab.response) {
+      request.lastResponse = tab.response;
+      request.lastError = null;
+      scheduleSave();
+    }
   } catch (error) {
     tab.error = error instanceof Error ? error.message : String(error);
+    request.lastError = tab.error;
+    scheduleSave();
   } finally {
+    unlisten?.();
     tab.loading = false;
+    tab.streaming = false;
     tab.requestRunId = null;
     render();
   }
@@ -1047,7 +1626,10 @@ async function handleCurlPaste(event: ClipboardEvent) {
   });
   if (result === "import") {
     const current = getActiveRequest();
-    if (current) applyCurlToRequest(current, parsed);
+    if (current) {
+      applyCurlToRequest(current, parsed);
+      maybePrettifyRequestJson(current);
+    }
     scheduleSave();
     render();
   }
@@ -1055,13 +1637,29 @@ async function handleCurlPaste(event: ClipboardEvent) {
 }
 
 function renderCurlPreview(request: SavedRequest) {
+  const modeLabel = bodyModeCurlLabel(request.bodyMode);
+  const typeLabel = request.bodyMode === "raw" ? rawTypeCurlLabel(request.rawType) : "";
   return `
     <div class="curl-preview">
-      <div><b>${escapeHtml(request.method)}</b><span>${escapeHtml(request.url)}</span></div>
-      <div class="curl-meta">${escapeHtml(request.bodyMode)} · ${escapeHtml(request.rawType)}</div>
-      <pre>${escapeHtml(JSON.stringify({ headers: request.headers, body: request.body, form: request.form }, null, 2))}</pre>
+      <div class="curl-preview-summary">
+        <div class="curl-preview-line"><b>${escapeHtml(request.method)}</b><span>${escapeHtml(request.url)}</span></div>
+        <div class="curl-preview-meta">${escapeHtml(typeLabel ? `${modeLabel} · ${typeLabel}` : modeLabel)}</div>
+      </div>
+      <pre>${escapeHtml(curlPreviewPayload(request))}</pre>
     </div>
   `;
+}
+
+async function copyRequestAsCurl(requestId: string) {
+  const request = getRequest(requestId);
+  if (!request) return;
+  const curl = requestToCurl(request);
+  try {
+    await navigator.clipboard.writeText(curl);
+    showToast(t().messages.copyCurlSuccess);
+  } catch {
+    await messageDialog("error", t().messages.copyCurlTitle, t().messages.copyCurlFailed);
+  }
 }
 
 function createFolder() {
@@ -1121,6 +1719,8 @@ function duplicateRequest(requestId: string) {
   copy.title = `${source.title} copy`;
   copy.headers = copy.headers.map((pair) => ({ ...pair, id: id() }));
   copy.form = copy.form.map((pair) => ({ ...pair, id: id() }));
+  copy.lastResponse = null;
+  copy.lastError = null;
   const siblings = childrenOf(source.parentId);
   insertItemAt(copy, source.parentId, siblings.findIndex((item) => item.id === source.id) + 1);
   openRequest(copy.id);
@@ -1216,25 +1816,80 @@ function insertItemAt(item: TreeItem, parentId: string | null, childIndex: numbe
 function openRequest(requestId: string) {
   if (!getRequest(requestId)) return;
   if (state.autoTitleFromUrlId && state.autoTitleFromUrlId !== requestId) state.autoTitleFromUrlId = null;
-  if (!state.openTabs.includes(requestId)) state.openTabs.push(requestId);
-  state.activeTabId = requestId;
-  state.selectedTreeId = requestId;
+  const isNewTab = !state.openTabs.includes(requestId);
+  if (isNewTab) {
+    state.openTabs.push(requestId);
+    refreshTabBar();
+  }
   state.activePanel = "request";
   ensureTab(requestId);
   scheduleSave();
+
+  if (isNewTab) {
+    state.activeTabId = requestId;
+    state.selectedTreeId = requestId;
+    render();
+    return;
+  }
+
+  if (document.querySelector(".workspace-body .request-editor")) {
+    activateRequestTab(requestId);
+    return;
+  }
+
+  state.activeTabId = requestId;
+  state.selectedTreeId = requestId;
   render();
 }
 
 function closeTab(requestId: string) {
+  if (!requestId || !state.openTabs.includes(requestId)) return;
+
+  unmountTabDisplay(requestId);
+  delete state.tabs[requestId];
+
+  const closedIndex = state.openTabs.indexOf(requestId);
   state.openTabs = state.openTabs.filter((id) => id !== requestId);
-  if (state.activeTabId === requestId) state.activeTabId = state.openTabs[0] ?? "";
+
+  if (state.activeTabId === requestId) {
+    const nextIndex = Math.min(closedIndex, Math.max(0, state.openTabs.length - 1));
+    state.activeTabId = state.openTabs[nextIndex] ?? "";
+    if (state.activeTabId) state.selectedTreeId = state.activeTabId;
+  }
+
   scheduleSave();
+  refreshTabBar();
+
+  if (state.activePanel === "request" && document.querySelector(".workspace-body")) {
+    renderWorkspace();
+    updateTreeRowActive();
+    return;
+  }
+
   render();
 }
 
 function ensureTab(requestId: string) {
-  state.tabs[requestId] ??= { requestId, response: null, error: null, loading: false, requestRunId: null, selectedResponseTab: "body" };
+  const request = getRequest(requestId);
+  if (!state.tabs[requestId]) {
+    state.tabs[requestId] = {
+      requestId,
+      response: request?.lastResponse ?? null,
+      error: request?.lastError ?? null,
+      loading: false,
+      streaming: false,
+      requestRunId: null,
+      selectedResponseTab: "body"
+    };
+  }
   return state.tabs[requestId];
+}
+
+function clearRequestResponse(request: SavedRequest, tab: TabState) {
+  tab.response = null;
+  tab.error = null;
+  request.lastResponse = null;
+  request.lastError = null;
 }
 
 function scheduleSave() {
@@ -1242,9 +1897,21 @@ function scheduleSave() {
   saveTimer = window.setTimeout(saveConfig, 300);
 }
 
+function sanitizeItemsForSave(items: TreeItem[]): TreeItem[] {
+  return items.map((item) => {
+    if (item.kind !== "request") return item;
+    return {
+      ...item,
+      form: item.form.map((field) =>
+        field.partType === "file" ? { ...field, value: "" } : field
+      )
+    };
+  });
+}
+
 async function saveConfig() {
   const config: AppConfig = {
-    items: state.items,
+    items: sanitizeItemsForSave(state.items),
     variables: state.variables,
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
@@ -1260,44 +1927,28 @@ function applyVariables(value: string) {
   });
 }
 
-function highlightResponse(body: string, headers: Record<string, string>) {
-  const contentType = Object.entries(headers).find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? "";
-  return contentType.toLowerCase().includes("json") ? highlightJson(formatJson(body)) : escapeHtml(body);
-}
-
-function highlightJson(value: string) {
-  return escapeHtml(value).replace(
-    /("(?:\\.|[^"\\])*"(?=\s*:))|("(?:\\.|[^"\\])*")|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/gi,
-    (match, key, string, literal, number) => {
-      const cls = key ? "json-key" : string ? "json-string" : literal ? "json-literal" : number ? "json-number" : "";
-      return `<span class="${cls}">${match}</span>`;
-    }
-  );
-}
-
-function formatJson(value: string) {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2);
-  } catch {
-    return value;
-  }
-}
-
-function highlightBodyContent(request: SavedRequest) {
-  if (request.rawType !== "json") return escapeHtml(request.body);
-  return highlightJson(request.body);
-}
-
-function renderRequestCodeOnly(request: SavedRequest) {
-  const pre = document.querySelector(".code-editor pre");
-  if (pre) pre.innerHTML = highlightBodyContent(request);
+function hasEnabledFormFields(request: SavedRequest) {
+  return request.form.some((field) => field.enabled && field.key.trim());
 }
 
 function withContentType(request: SavedRequest, headers: Record<string, string>) {
-  if (request.bodyMode !== "raw" || !request.body.trim()) return headers;
   if (Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) return headers;
-  const type = request.rawType === "json" ? "application/json" : "text/plain";
-  return { ...headers, "Content-Type": type };
+
+  if (request.bodyMode === "form" && hasEnabledFormFields(request)) {
+    return { ...headers, "Content-Type": "application/x-www-form-urlencoded" };
+  }
+
+  if (request.bodyMode === "raw" && request.body.trim()) {
+    const type =
+      request.rawType === "json"
+        ? "application/json"
+        : request.rawType === "xml"
+          ? "application/xml"
+          : "text/plain";
+    return { ...headers, "Content-Type": type };
+  }
+
+  return headers;
 }
 
 function blankRequest(parentId: string | null): SavedRequest {
@@ -1312,7 +1963,10 @@ function blankRequest(parentId: string | null): SavedRequest {
     bodyMode: "raw",
     rawType: "json",
     body: "",
-    form: []
+    form: [],
+    streamResponse: false,
+    lastResponse: null,
+    lastError: null
   };
 }
 
@@ -1366,10 +2020,6 @@ function formatBytes(bytes: number) {
 
 function id() {
   return crypto.randomUUID();
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char] ?? char);
 }
 
 function escapeAttribute(value: string) {

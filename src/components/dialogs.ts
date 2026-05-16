@@ -79,6 +79,7 @@ export function bindDialogs() {
       if (target.closest("[data-dialog-action]")) return;
       event.preventDefault();
       dragState = { type: "move", id: dialogId, dx: event.clientX - dialog.x, dy: event.clientY - dialog.y };
+      setDialogDragging(dialogId, true);
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     });
 
@@ -98,6 +99,7 @@ export function bindDialogs() {
             startY: event.clientY,
             startBounds: { x: dialog.x, y: dialog.y, width: dialog.width, height: dialog.height }
           };
+          setDialogDragging(dialogId, true);
           handle.setPointerCapture(event.pointerId);
         });
       });
@@ -286,6 +288,7 @@ function onPointerMove(event: PointerEvent) {
 }
 
 function onPointerUp() {
+  if (dragState) setDialogDragging(dragState.id, false);
   dragState = null;
 }
 
@@ -315,16 +318,28 @@ function applyResize(dialog: DialogState, edge: ResizeEdge, start: Bounds, delta
   dialog.height = height;
 }
 
+function setDialogDragging(dialogId: string, dragging: boolean) {
+  document.querySelector<HTMLElement>(`[data-dialog-id="${dialogId}"]`)?.classList.toggle("is-dragging", dragging);
+}
+
+function applyDialogBounds(element: HTMLElement, dialog: DialogState) {
+  element.style.left = `${dialog.x}px`;
+  element.style.top = `${dialog.y}px`;
+  element.style.width = `${dialog.width}px`;
+  if (dialog.resizable || dialog.height > 0) {
+    element.style.height = `${dialog.height}px`;
+  } else {
+    element.style.removeProperty("height");
+  }
+}
+
 function updateDialogElement(dialog: DialogState) {
   const element = document.querySelector<HTMLElement>(`[data-dialog-id="${dialog.id}"]`);
   if (!element) {
     requestRender();
     return;
   }
-  element.style.left = `${dialog.x}px`;
-  element.style.top = `${dialog.y}px`;
-  element.style.width = `${dialog.width}px`;
-  element.style.height = `${dialog.height}px`;
+  applyDialogBounds(element, dialog);
   element.classList.toggle("maximized", dialog.maximized);
 }
 
@@ -367,7 +382,7 @@ function renderDialog(dialog: DialogState): string {
           <button class="mini-btn dialog-window-btn" data-dialog-action="close" type="button" title="${labels.close}" aria-label="${labels.close}">×</button>
         </div>
       </div>
-      <div class="dialog-body">
+      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}">
         <p>${escapeHtml(dialog.body)}</p>
         ${isInput ? `<input class="dialog-input" value="${escapeAttribute(String(dialog.data?.value ?? ""))}" spellcheck="false" />` : ""}
         ${previewHtml}
