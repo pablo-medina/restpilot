@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RestPilot">
+  <defs>
+    <linearGradient id="rp-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141d2b"/>
+      <stop offset="100%" stop-color="#0d121c"/>
+    </linearGradient>
+    <radialGradient id="rp-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2a3d57" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#2a3d57" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#rp-bg)"/>
+  <circle cx="256" cy="256" r="92" fill="url(#rp-glow)"/>
+  <g stroke="#4da3e8" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="256" y1="148" x2="364" y2="256" stroke-width="34"/>
+    <line x1="364" y1="256" x2="256" y2="364" stroke-width="34"/>
+    <line x1="256" y1="364" x2="148" y2="256" stroke-width="34"/>
+    <line x1="148" y1="256" x2="256" y2="148" stroke-width="34"/>
+  </g>
+  <circle cx="256" cy="148" r="30" fill="#c5ced8"/>
+  <circle cx="364" cy="256" r="30" fill="#3ecf8e"/>
+  <circle cx="256" cy="364" r="30" fill="#c5ced8"/>
+  <circle cx="148" cy="256" r="30" fill="#58b8f5"/>
+  <circle cx="256" cy="256" r="18" fill="#243246" opacity="0.9"/>
+</svg>
