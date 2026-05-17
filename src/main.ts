@@ -33,34 +33,73 @@ import {
   setReadonlyViewerValue,
   type ViewerMode
 } from "./large-text-editor";
-import { iconDuplicate, iconFolderAdd, iconRemove, iconRename, iconRequestAdd } from "./icons";
+import { iconCopy, iconDuplicate, iconFolderAdd, iconRemove, iconRename, iconRequestAdd } from "./icons";
 import { brandLogo } from "./logo";
 import { getLocale, setLocale, t } from "./i18n";
 import { bindSettings, renderSettings } from "./settings";
 import { renderVariablesPanel } from "./variables-panel";
+import { buildRequestUrl, ingestUrlIntoRequest, migrateRequestQuery } from "./url-params";
+import {
+  applyVariables,
+  displayRequestUrl,
+  resolvedRequestUrl,
+  shouldShowUrlPreview
+} from "./variables";
 import "./styles.css";
 import {
   defaultConfig,
-  defaultSettings,
   type ActivePanel,
   type ApiResponse,
-  type AppConfig,
   type BodyMode,
   type FormPartType,
   type Pair,
   type RawType,
+  type RequestTab,
   type ResponseTab,
   type SavedRequest,
   type TabState,
-  type TreeItem,
-  type UserSettings,
-  type Variable
+  type TreeItem
 } from "./types";
+import { insertItemAt, moveDroppedItem, moveItemTo } from "./app/collection-store";
+import {
+  applyUserSettings,
+  loadStoredConfig,
+  persistConfig,
+  proxyPayload,
+  scheduleSave
+} from "./app/persistence";
+import { render, setRenderApp } from "./app/render";
+import { blankRequest, buildFormPayload, networkPayload, withContentType } from "./app/request-utils";
+import {
+  hasMissingMultipartFiles,
+  missingMultipartFileNames
+} from "./request-multipart";
+import { bindGlobalShortcuts } from "./shortcuts";
+import {
+  contextMenuButton,
+  renderTextContextMenuMarkup,
+  resolveTextContextMenu,
+  runTextMenuAction
+} from "./app/context-menu";
+import { menuShortcuts } from "./app/menu-shortcuts";
+import {
+  appRoot,
+  childCount,
+  childrenOf,
+  collectChildren,
+  escapeAttribute,
+  formatBytes,
+  getActiveRequest,
+  getItem,
+  getRequest,
+  getRequestFrom,
+  id,
+  selectedFolderId,
+  state
+} from "./app/state";
 
 const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 const STREAM_EVENT = "restpilot:request-stream";
-const root = document.querySelector<HTMLDivElement>("#app");
-let saveTimer: number | undefined;
 let draggedTreeId: string | null = null;
 let responseRenderFrame: number | undefined;
 
@@ -75,52 +114,32 @@ type StreamPayload = {
   error?: string;
 };
 
-if (!root) throw new Error("App root was not found.");
-const appRoot = root;
-
-type AppState = AppConfig & {
-  tabs: Record<string, TabState>;
-  activePanel: ActivePanel;
-  headersOpen: boolean;
-  selectedTreeId: string | null;
-  editingTreeId: string | null;
-  autoTitleFromUrlId: string | null;
-  pendingCurl: SavedRequest | null;
-  contextMenu: { x: number; y: number; itemId: string | null } | null;
-  previousPanel: ActivePanel;
-};
-
-const state: AppState = {
-  ...defaultConfig(),
-  tabs: {},
-  activePanel: "request",
-  headersOpen: false,
-  selectedTreeId: null,
-  editingTreeId: null,
-  autoTitleFromUrlId: null,
-  pendingCurl: null,
-  contextMenu: null,
-  previousPanel: "request"
-};
-
 initDialogs(render);
 ensureContextMenuHandlers();
+bindGlobalShortcuts({
+  send: () => void trySendRequest(),
+  closeTab: () => {
+    if (state.activeTabId) closeTab(state.activeTabId);
+  },
+  focusUrl: () => focusRequestUrl()
+});
+setRenderApp(renderApp);
 boot();
 
 async function boot() {
   try {
-    const stored = await invoke<AppConfig | null>("load_app_config");
-    if (stored) {
-      const migrated = stored.items?.length && isSeedConfig(stored) ? defaultConfig() : normalizeConfig(stored);
+    const loaded = await loadStoredConfig();
+    if (loaded) {
+      const { config: migrated, persist } = loaded;
       Object.assign(state, {
         items: migrated.items,
         variables: migrated.variables ?? [],
-        openTabs: (migrated.openTabs ?? []).filter((id) => Boolean(getRequestFrom(migrated.items, id))),
+        openTabs: (migrated.openTabs ?? []).filter((tabId) => Boolean(getRequestFrom(migrated.items, tabId))),
         activeTabId: "",
         settings: migrated.settings
       });
       state.activeTabId = state.openTabs.includes(migrated.activeTabId) ? migrated.activeTabId : (state.openTabs[0] ?? "");
-      if (migrated !== stored) scheduleSave();
+      if (persist) scheduleSave();
     }
   } catch {
     const labels = t().messages;
@@ -136,85 +155,6 @@ async function boot() {
 function focusUrlOnStartup() {
   if (state.activePanel !== "request" || !getActiveRequest()) return;
   focusRequestUrl();
-}
-
-function proxyPayload(proxy: UserSettings["proxy"]) {
-  if (proxy.mode === "none") return null;
-  return {
-    mode: proxy.mode,
-    host: proxy.host.trim() || null,
-    port: proxy.port || null,
-    username: proxy.username.trim() || null,
-    password: proxy.password || null
-  };
-}
-
-function normalizeConfig(config: AppConfig): AppConfig {
-  return {
-    items: (config.items ?? []).map(normalizeTreeItem),
-    variables: config.variables ?? [],
-    openTabs: config.openTabs ?? [],
-    activeTabId: config.activeTabId ?? "",
-    settings: {
-      ...defaultSettings(),
-      ...config.settings,
-      tabSize: clampTabSize(config.settings?.tabSize),
-      autoPrettifyJson: config.settings?.autoPrettifyJson !== false,
-      proxy: { ...defaultSettings().proxy, ...config.settings?.proxy }
-    }
-  };
-}
-
-function normalizeRawType(rawType: string | undefined): RawType {
-  if (rawType === "text" || rawType === "xml") return rawType;
-  return "json";
-}
-
-function migrateBodyMode(mode: string, form: Pair[]): BodyMode {
-  if (mode === "node") {
-    return form.some((field) => field.enabled && field.key.trim()) ? "multipart" : "none";
-  }
-  if (mode === "none" || mode === "multipart" || mode === "form" || mode === "raw") return mode;
-  return "raw";
-}
-
-function normalizeTreeItem(item: TreeItem): TreeItem {
-  if (item.kind === "folder") return item;
-  const request = item as SavedRequest & {
-    rawType?: RawType;
-    lastResponse?: ApiResponse | null;
-    lastError?: string | null;
-    streamResponse?: boolean;
-    bodyMode?: string;
-  };
-  const form = (request.form ?? []).map((field) => ({
-    ...field,
-    partType: (field.partType === "file" ? "file" : "text") as FormPartType
-  }));
-  return {
-    ...request,
-    bodyMode: migrateBodyMode(String(request.bodyMode ?? "raw"), form),
-    rawType: normalizeRawType(request.rawType),
-    headers: request.headers ?? [],
-    form,
-    streamResponse: request.streamResponse ?? false,
-    lastResponse: request.lastResponse ?? null,
-    lastError: request.lastError ?? null
-  };
-}
-
-function isSeedConfig(config: AppConfig) {
-  const hasOnlySeedItems =
-    config.items.length === 2 &&
-    config.items.some((item) => item.kind === "folder" && item.title === "Local") &&
-    config.items.some((item) => item.kind === "request" && item.title === "Example" && item.url === "https://httpbin.org/get");
-  const hasOnlySeedVariable = config.variables.length <= 1 && (config.variables[0]?.name ?? "base_url") === "base_url";
-  return hasOnlySeedItems && hasOnlySeedVariable;
-}
-
-function applyUserSettings(settings: UserSettings) {
-  document.documentElement.dataset.theme = settings.theme;
-  setLocale(settings.language);
 }
 
 function renderWorkspaceMarkup() {
@@ -316,8 +256,17 @@ function bindTabBarActions() {
 function updateTreeRowActive() {
   document.querySelectorAll<HTMLElement>(".tree-row[data-tree-id]").forEach((row) => {
     const treeId = row.dataset.treeId ?? "";
-    row.classList.toggle("active", treeId === state.selectedTreeId || treeId === state.activeTabId);
+    row.classList.toggle("is-selected", treeId === state.selectedTreeId);
+    row.classList.toggle("is-open-tab", row.dataset.kind === "request" && treeId === state.activeTabId);
   });
+}
+
+function treeRowClassName(item: TreeItem, editing: boolean) {
+  const classes = ["tree-row"];
+  if (editing) classes.push("is-editing");
+  if (state.selectedTreeId === item.id) classes.push("is-selected");
+  if (item.kind === "request" && state.activeTabId === item.id) classes.push("is-open-tab");
+  return classes.join(" ");
 }
 
 function unmountTabDisplay(requestId: string | null | undefined) {
@@ -399,7 +348,7 @@ function mountWorkspaceDisplays(request: SavedRequest, tab: TabState) {
   tab.headersTableUnmount = undefined;
 
   const editorHost = document.querySelector<HTMLElement>("[data-body-editor-host]");
-  if (editorHost && request.bodyMode === "raw") {
+  if (editorHost && request.bodyMode === "raw" && tab.selectedRequestTab === "body") {
     tab.bodyEditorUnmount = mountBodyEditor(editorHost, request.body, {
       tabSize: state.settings.tabSize,
       rawType: request.rawType,
@@ -407,7 +356,8 @@ function mountWorkspaceDisplays(request: SavedRequest, tab: TabState) {
       onChange: (value) => {
         request.body = value;
         scheduleSave();
-      }
+      },
+      onSend: () => void trySendRequest()
     });
   }
 
@@ -432,7 +382,18 @@ function renderResponseHead(tab: TabState) {
   return `
     <div class="response-head">
       <div class="status ${statusClass}">${response.status} ${escapeHtml(response.status_text)}</div>${streamingBadge}
-      <div class="metrics"><span>${response.duration_ms} ms</span><span>${formatBytes(response.body.length)}</span></div>
+      <div class="response-head-actions">
+        <div class="metrics"><span>${response.duration_ms} ms</span><span>${formatBytes(response.body.length)}</span></div>
+        <button
+          class="icon-btn"
+          data-copy-menu-trigger
+          id="copy-response-menu"
+          type="button"
+          aria-label="${labels.copyResponseMenu}"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >${iconCopy}</button>
+      </div>
     </div>
   `;
 }
@@ -445,7 +406,10 @@ function refreshResponseBodyDisplay(request: SavedRequest, tab: TabState) {
   const displayBody = getResponseBodyForDisplay(tab, body, headers);
 
   const head = document.querySelector(".response-head");
-  if (head) head.outerHTML = renderResponseHead(tab);
+  if (head) {
+    head.outerHTML = renderResponseHead(tab);
+    bindResponseCopyMenu(tab);
+  }
 
   const streamHost = document.querySelector<HTMLElement>("[data-response-body-stream]");
   if (streamHost) {
@@ -472,7 +436,7 @@ function activateRequestTab(requestId: string) {
   renderWorkspace();
 }
 
-function render() {
+function renderApp() {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
   const labels = t();
@@ -505,29 +469,68 @@ function render() {
       </section>
     </main>
     ${renderDialogLayer()}
-    ${renderContextMenu()}
   `;
 
   bindEvents();
+  syncContextMenu();
   const active = getActiveRequest();
   const activeTab = active ? ensureTab(active.id) : null;
   if (active && activeTab) mountWorkspaceDisplays(active, activeTab);
 }
 
-function renderContextMenu() {
+function buildContextMenuMarkup() {
   if (!state.contextMenu) return "";
+  if (state.contextMenu.kind === "text") {
+    return renderTextContextMenuMarkup(state.contextMenu);
+  }
+  if (state.contextMenu.kind === "request-tab") {
+    const labels = t();
+    return `
+      <div class="context-menu" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
+        ${contextMenuButton("close-tab", labels.contextMenu.closeTab, { shortcut: menuShortcuts.closeTab() })}
+        ${contextMenuButton("duplicate", labels.request.duplicate)}
+      </div>
+    `;
+  }
+  if (state.contextMenu.kind === "response-copy") {
+    const labels = t().request;
+    return `
+      <div class="context-menu context-menu--anchor-end" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
+        ${contextMenuButton("copy-response-body", labels.copyBody)}
+        ${contextMenuButton("copy-response-headers", labels.copyHeaders)}
+        ${contextMenuButton("copy-response-status", labels.copyStatus)}
+      </div>
+    `;
+  }
   const labels = t().tree;
   const item = state.contextMenu.itemId ? getItem(state.contextMenu.itemId) : null;
   return `
     <div class="context-menu" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
-      <button data-menu-action="new-request" type="button">${labels.newRequest}</button>
-      <button data-menu-action="new-folder" type="button">${labels.newFolder}</button>
-      ${item ? `<hr><button data-menu-action="rename" type="button">${labels.rename}</button>` : ""}
-      ${item?.kind === "request" ? `<button data-menu-action="duplicate" type="button">${labels.duplicate}</button>` : ""}
-      ${item?.kind === "request" ? `<button data-menu-action="copy-curl" type="button">${labels.copyCurl}</button>` : ""}
-      ${item ? `<button data-menu-action="delete" class="danger" type="button">${labels.delete}</button>` : ""}
+      ${contextMenuButton("new-request", labels.newRequest)}
+      ${contextMenuButton("new-folder", labels.newFolder)}
+      ${
+        item
+          ? `<hr>${contextMenuButton("rename", labels.rename, { shortcut: menuShortcuts.rename() })}`
+          : ""
+      }
+      ${item?.kind === "request" ? contextMenuButton("duplicate", labels.duplicate) : ""}
+      ${item?.kind === "request" ? contextMenuButton("copy-curl", labels.copyCurl) : ""}
+      ${
+        item
+          ? contextMenuButton("delete", labels.delete, { shortcut: menuShortcuts.delete(), danger: true })
+          : ""
+      }
     </div>
   `;
+}
+
+function syncContextMenu() {
+  document.querySelector(".context-menu")?.remove();
+  const markup = buildContextMenuMarkup();
+  if (!markup) return;
+  appRoot.insertAdjacentHTML("beforeend", markup);
+  const trigger = document.querySelector<HTMLButtonElement>("[data-copy-menu-trigger]");
+  trigger?.setAttribute("aria-expanded", state.contextMenu?.kind === "response-copy" ? "true" : "false");
 }
 
 
@@ -563,11 +566,14 @@ function renderTab(requestId: string) {
 
 function renderRequest(request: SavedRequest, tab: TabState) {
   const labels = t().request;
+  const displayUrl = displayRequestUrl(request);
+  const previewVisible = shouldShowUrlPreview(request, state.variables);
+  const resolvedUrl = resolvedRequestUrl(request, state.variables);
   return `
     <div class="request-editor">
     <section class="request-line">
       <select id="method">${methods.map((method) => `<option ${method === request.method ? "selected" : ""}>${method}</option>`).join("")}</select>
-      <input id="url" value="${escapeAttribute(request.url)}" spellcheck="false" />
+      <input id="url" value="${escapeAttribute(displayUrl)}" spellcheck="false" />
       <label class="stream-toggle" title="${labels.streamResponse}">
         <input id="stream-response" type="checkbox" ${request.streamResponse ? "checked" : ""} />
         <span>${labels.streamResponse}</span>
@@ -578,34 +584,71 @@ function renderRequest(request: SavedRequest, tab: TabState) {
           : `<button id="send" type="button">${labels.send}</button>`
       }
     </section>
+    <div class="url-preview-wrap${previewVisible ? "" : " is-hidden"}" id="url-preview-wrap" aria-live="polite">
+      <span class="url-preview-label">${labels.resolvedUrl}</span>
+      <code class="url-preview" id="url-preview">${escapeHtml(resolvedUrl)}</code>
+    </div>
     <section class="editor-grid">
       <article class="request-card">
-        <details class="foldable" ${state.headersOpen ? "open" : ""}>
-          <summary><span>${labels.headers}</span><button class="mini-btn" id="add-header" type="button" aria-label="${t().variables.add}">+</button></summary>
-          <div class="headers-list">${request.headers.map((pair) => renderPair(pair, "header")).join("")}</div>
-        </details>
-        <div class="body-toolbar">
-          <div class="segmented">
-            <button class="${request.bodyMode === "raw" ? "active" : ""}" data-body-mode="raw" type="button">${labels.raw}</button>
-            <button class="${request.bodyMode === "form" ? "active" : ""}" data-body-mode="form" type="button">${labels.form}</button>
-            <button class="${request.bodyMode === "multipart" ? "active" : ""}" data-body-mode="multipart" type="button">${labels.multipart}</button>
-            <button class="${request.bodyMode === "none" ? "active" : ""}" data-body-mode="none" type="button">${labels.none}</button>
-          </div>
-          ${
-            request.bodyMode === "raw"
-              ? `<div class="segmented raw-type-switch">
-                  <button class="${request.rawType === "text" ? "active" : ""}" data-raw-type="text" type="button">${labels.rawText}</button>
-                  <button class="${request.rawType === "json" ? "active" : ""}" data-raw-type="json" type="button">${labels.rawJson}</button>
-                  <button class="${request.rawType === "xml" ? "active" : ""}" data-raw-type="xml" type="button">${labels.rawXml}</button>
-                </div>`
-              : ""
-          }
-          <span class="hint">${bodyModeHint(request)}</span>
+        <div class="tabs">
+          <button class="${tab.selectedRequestTab === "params" ? "active" : ""}" data-request-tab="params" type="button">${labels.params}</button>
+          <button class="${tab.selectedRequestTab === "headers" ? "active" : ""}" data-request-tab="headers" type="button">${labels.headers}</button>
+          <button class="${tab.selectedRequestTab === "body" ? "active" : ""}" data-request-tab="body" type="button">${labels.body}</button>
         </div>
-        ${renderBodyEditor(request, labels)}
+        ${renderRequestTabPanel(request, tab, labels)}
       </article>
       <article class="response-card">${renderResponse(tab)}</article>
     </section>
+    </div>
+  `;
+}
+
+function renderRequestTabPanel(
+  request: SavedRequest,
+  tab: TabState,
+  labels: ReturnType<typeof t>["request"]
+) {
+  if (tab.selectedRequestTab === "params") {
+    return `
+      <div class="request-tab-panel">
+        <div class="request-tab-toolbar">
+          <button class="mini-btn" id="add-query" type="button" aria-label="${labels.addField}">+</button>
+        </div>
+        <div class="headers-list request-pairs-list">${request.queryParams.map((pair) => renderPair(pair, "query")).join("")}</div>
+      </div>
+    `;
+  }
+  if (tab.selectedRequestTab === "headers") {
+    return `
+      <div class="request-tab-panel">
+        <div class="request-tab-toolbar">
+          <button class="mini-btn" id="add-header" type="button" aria-label="${labels.addField}">+</button>
+        </div>
+        <div class="headers-list request-pairs-list">${request.headers.map((pair) => renderPair(pair, "header")).join("")}</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="request-tab-panel">
+      <div class="body-toolbar">
+        <div class="segmented">
+          <button class="${request.bodyMode === "raw" ? "active" : ""}" data-body-mode="raw" type="button">${labels.raw}</button>
+          <button class="${request.bodyMode === "form" ? "active" : ""}" data-body-mode="form" type="button">${labels.form}</button>
+          <button class="${request.bodyMode === "multipart" ? "active" : ""}" data-body-mode="multipart" type="button">${labels.multipart}</button>
+          <button class="${request.bodyMode === "none" ? "active" : ""}" data-body-mode="none" type="button">${labels.none}</button>
+        </div>
+        ${
+          request.bodyMode === "raw"
+            ? `<div class="segmented raw-type-switch">
+                <button class="${request.rawType === "text" ? "active" : ""}" data-raw-type="text" type="button">${labels.rawText}</button>
+                <button class="${request.rawType === "json" ? "active" : ""}" data-raw-type="json" type="button">${labels.rawJson}</button>
+                <button class="${request.rawType === "xml" ? "active" : ""}" data-raw-type="xml" type="button">${labels.rawXml}</button>
+              </div>`
+            : ""
+        }
+        <span class="hint">${bodyModeHint(request)}</span>
+      </div>
+      ${renderBodyEditor(request, labels)}
     </div>
   `;
 }
@@ -638,10 +681,13 @@ function renderBodyEditor(request: SavedRequest, labels: ReturnType<typeof t>["r
   const rows = request.form
     .map((pair) => (isMultipart ? renderMultipartPair(pair) : renderPair(pair, "form")))
     .join("");
+  const multipartHint = isMultipart
+    ? `<p class="hint multipart-hint">${labels.multipartFilesHint}</p>`
+    : "";
   const actions = isMultipart
     ? `<div class="form-actions"><button class="quiet-button add-form" id="add-form" type="button">${labels.addField}</button><button class="quiet-button add-form" id="add-multipart-file" type="button">${labels.addFile}</button></div>`
     : `<button class="quiet-button add-form" id="add-form" type="button">${labels.addField}</button>`;
-  return `<div class="headers-list form-list">${rows}</div>${actions}`;
+  return `${multipartHint}<div class="headers-list form-list">${rows}</div>${actions}`;
 }
 
 function renderMultipartPair(pair: Pair) {
@@ -666,12 +712,14 @@ function renderMultipartPair(pair: Pair) {
   `;
 }
 
-function renderPair(pair: Pair, scope: "header" | "form") {
+function renderPair(pair: Pair, scope: "header" | "form" | "query") {
   const labels = t().pairs;
+  const keyPlaceholder =
+    scope === "header" ? labels.header : scope === "query" ? labels.param : "Name";
   return `
     <div class="pair-row" data-${scope}-id="${pair.id}">
       <input class="${scope}-enabled" type="checkbox" ${pair.enabled ? "checked" : ""} />
-      <input class="${scope}-key" value="${escapeAttribute(pair.key)}" placeholder="${scope === "header" ? labels.header : "Name"}" spellcheck="false" />
+      <input class="${scope}-key" value="${escapeAttribute(pair.key)}" placeholder="${keyPlaceholder}" spellcheck="false" />
       <input class="${scope}-value" value="${escapeAttribute(pair.value)}" placeholder="${labels.value}" spellcheck="false" />
       <button class="mini-btn remove-${scope}" type="button" aria-label="${t().tree.delete}">×</button>
     </div>
@@ -720,12 +768,11 @@ function renderExplorerTree(parentId: string | null, depth: number): string {
   return state.items
     .filter((item) => item.parentId === parentId)
     .map((item) => {
-      const active = state.selectedTreeId === item.id || state.activeTabId === item.id;
       const editing = state.editingTreeId === item.id;
       const expanded = item.kind === "folder" && item.expanded;
       const children = item.kind === "folder" && item.expanded ? renderExplorerTree(item.id, depth + 1) : "";
       return `
-        <div class="tree-row ${active ? "active" : ""} ${editing ? "is-editing" : ""}" draggable="${editing ? "false" : "true"}" tabindex="0" data-tree-id="${item.id}" data-kind="${item.kind}" style="--depth:${depth}">
+        <div class="${treeRowClassName(item, editing)}" draggable="${editing ? "false" : "true"}" tabindex="0" data-tree-id="${item.id}" data-kind="${item.kind}" style="--depth:${depth}">
           <span class="tree-chevron">${item.kind === "folder" ? (expanded ? "v" : ">") : ""}</span>
           ${item.kind === "folder" ? `<span class="tree-item-icon folder-icon"></span>` : item.kind === "request" && !editing ? `<span class="tree-method">${item.method}</span>` : ""}
           <div class="tree-main">
@@ -779,18 +826,24 @@ function bindWorkspace() {
   });
   const urlInput = document.querySelector<HTMLInputElement>("#url");
   urlInput?.addEventListener("input", (event) => {
-    request.url = (event.target as HTMLInputElement).value;
+    ingestUrlIntoRequest(request, (event.target as HTMLInputElement).value, id);
     if (state.autoTitleFromUrlId === request.id) applyAutoTitleFromUrl(request);
+    syncUrlInputFromRequest(request);
+    updateUrlPreview(request);
     scheduleSave();
   });
   urlInput?.addEventListener("blur", () => {
     if (state.autoTitleFromUrlId === request.id) state.autoTitleFromUrlId = null;
   });
   urlInput?.addEventListener("paste", handleCurlPaste);
-  document.querySelector("#send")?.addEventListener("click", sendRequest);
+  document.querySelector("#send")?.addEventListener("click", () => void trySendRequest());
   document.querySelector("#cancel")?.addEventListener("click", cancelActiveRequest);
-  document.querySelector(".foldable")?.addEventListener("toggle", (event) => {
-    state.headersOpen = (event.target as HTMLDetailsElement).open;
+  document.querySelector("#add-query")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    request.queryParams.push({ id: id(), key: "", value: "", enabled: true });
+    syncUrlInputFromRequest(request);
+    scheduleSave();
+    renderWorkspace();
   });
   document.querySelector("#add-header")?.addEventListener("click", (event) => {
     event.preventDefault();
@@ -829,13 +882,11 @@ function bindWorkspace() {
     renderWorkspace();
   });
   bindPairs(request.headers, "header");
+  bindPairs(request.queryParams, "query", request);
   bindFormPairs(request);
-  document.querySelectorAll<HTMLButtonElement>("[data-response-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      tab.selectedResponseTab = button.dataset.responseTab as ResponseTab;
-      renderWorkspace();
-    });
-  });
+  bindResponseCopyMenu(tab);
+  bindRequestTabs(request.id);
+  bindResponseTabs(request.id);
   mountWorkspaceDisplays(request, tab);
 }
 
@@ -892,7 +943,7 @@ async function clearAllData() {
   state.contextMenu = null;
   state.activePanel = "request";
   state.previousPanel = "request";
-  await saveConfig();
+  await persistConfig();
   render();
 }
 
@@ -923,6 +974,114 @@ function closeContextMenu() {
   if (!state.contextMenu) return;
   state.contextMenu = null;
   document.querySelector(".context-menu")?.remove();
+  document.querySelector("[data-copy-menu-trigger]")?.setAttribute("aria-expanded", "false");
+}
+
+function contextMenuAnchor(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  return {
+    x: Math.min(Math.max(rect.left + 8, 8), window.innerWidth - 180),
+    y: Math.min(rect.bottom + 4, window.innerHeight - 8)
+  };
+}
+
+function resolveContextMenuTarget(focused: HTMLElement): HTMLElement {
+  if (focused.closest(".context-menu, [data-copy-menu-trigger]")) return focused;
+
+  if (focused.closest(".tree")) {
+    return (
+      focused.closest<HTMLElement>("[data-tree-id]") ??
+      (state.selectedTreeId
+        ? (document.querySelector<HTMLElement>(`[data-tree-id="${state.selectedTreeId}"]`) ?? undefined)
+        : undefined) ??
+      focused.closest<HTMLElement>(".tree") ??
+      focused
+    );
+  }
+
+  const openTab = focused.closest<HTMLElement>("[data-open-tab]");
+  if (openTab) return openTab;
+
+  return focused;
+}
+
+function openContextMenuForTarget(target: HTMLElement, x: number, y: number) {
+  if (target.closest(".context-menu, [data-copy-menu-trigger]")) return;
+
+  if (target.closest(".tree")) {
+    const row = target.closest<HTMLElement>("[data-tree-id]");
+    const itemId = row?.dataset.treeId ?? null;
+    state.contextMenu = { kind: "tree", x, y, itemId };
+    selectTreeItem(itemId, { render: true, focus: true });
+    syncContextMenu();
+    return;
+  }
+
+  const openTab = target.closest<HTMLElement>("[data-open-tab]");
+  if (openTab?.dataset.openTab) {
+    state.contextMenu = {
+      kind: "request-tab",
+      x,
+      y,
+      requestId: openTab.dataset.openTab
+    };
+    syncContextMenu();
+    return;
+  }
+
+  const responseCard = target.closest(".response-card");
+  if (responseCard) {
+    const request = getActiveRequest();
+    const tab = request ? state.tabs[request.id] : null;
+    if (request && tab?.response) {
+      state.contextMenu = {
+        kind: "response-copy",
+        x,
+        y,
+        requestId: request.id
+      };
+      syncContextMenu();
+      return;
+    }
+  }
+
+  const textFlags = resolveTextContextMenu(target);
+  if (textFlags) {
+    state.contextMenu = { kind: "text", x, y, ...textFlags };
+    syncContextMenu();
+    return;
+  }
+
+  closeContextMenu();
+}
+
+function handleGlobalContextMenu(event: MouseEvent) {
+  event.preventDefault();
+  const target = event.target as HTMLElement;
+  openContextMenuForTarget(target, event.clientX, event.clientY);
+}
+
+function isContextMenuKey(event: KeyboardEvent) {
+  return event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey);
+}
+
+function handleContextMenuKey(event: KeyboardEvent) {
+  if (!isContextMenuKey(event) || event.defaultPrevented || event.isComposing) return;
+  if (document.querySelector(".app-dialog")) return;
+
+  const focused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : (event.target as HTMLElement);
+  if (!(focused instanceof HTMLElement)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const target = resolveContextMenuTarget(focused);
+  const { x, y } = contextMenuAnchor(
+    target.closest<HTMLElement>("[data-tree-id], [data-open-tab], .tree, .response-card, .cm-editor, input, textarea") ??
+      target
+  );
+  openContextMenuForTarget(target, x, y);
 }
 
 function ensureContextMenuHandlers() {
@@ -930,11 +1089,15 @@ function ensureContextMenuHandlers() {
   if ((window as Window & { [boundKey]?: boolean })[boundKey]) return;
   (window as Window & { [boundKey]?: boolean })[boundKey] = true;
 
+  document.addEventListener("contextmenu", handleGlobalContextMenu, true);
+  document.addEventListener("keydown", handleContextMenuKey, true);
+
   document.addEventListener(
     "pointerdown",
     (event) => {
       if (!state.contextMenu) return;
       if ((event.target as HTMLElement).closest(".context-menu")) return;
+      if ((event.target as HTMLElement).closest("[data-copy-menu-trigger]")) return;
       closeContextMenu();
     },
     true
@@ -944,27 +1107,41 @@ function ensureContextMenuHandlers() {
     const button = (event.target as HTMLElement).closest<HTMLElement>("[data-menu-action]");
     if (!button?.closest(".context-menu") || !state.contextMenu) return;
     event.stopPropagation();
-    const itemId = state.contextMenu.itemId;
+    const menu = state.contextMenu;
     const action = button.dataset.menuAction ?? "";
     closeContextMenu();
-    if (action === "new-request") createRequest();
-    if (action === "new-folder") createFolder();
-    if (action === "rename" && itemId) startTreeRename(itemId);
-    if (action === "duplicate" && itemId) duplicateRequest(itemId);
-    if (action === "copy-curl" && itemId) void copyRequestAsCurl(itemId);
-    if (action === "delete" && itemId) deleteItem(itemId);
+    if (menu.kind === "tree") {
+      const itemId = menu.itemId;
+      if (action === "new-request") createRequest();
+      if (action === "new-folder") createFolder();
+      if (action === "rename" && itemId) startTreeRename(itemId);
+      if (action === "duplicate" && itemId) duplicateRequest(itemId);
+      if (action === "copy-curl" && itemId) void copyRequestAsCurl(itemId);
+      if (action === "delete" && itemId) deleteItem(itemId);
+      return;
+    }
+    if (menu.kind === "text") {
+      void runTextMenuAction(action);
+      return;
+    }
+    if (menu.kind === "request-tab") {
+      if (action === "close-tab") closeTab(menu.requestId);
+      if (action === "duplicate") duplicateRequest(menu.requestId);
+      return;
+    }
+    if (menu.kind === "response-copy") {
+      const request = getRequest(menu.requestId);
+      const tab = state.tabs[menu.requestId];
+      if (!request || !tab) return;
+      if (action === "copy-response-body") void copyResponseBody(request, tab);
+      if (action === "copy-response-headers") void copyResponseHeaders(tab);
+      if (action === "copy-response-status") void copyResponseStatus(tab);
+    }
   });
 }
 
 function bindTree() {
   const tree = document.querySelector<HTMLElement>(".tree");
-  tree?.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-    const row = (event.target as HTMLElement).closest<HTMLElement>("[data-tree-id]");
-    const itemId = row?.dataset.treeId ?? null;
-    state.contextMenu = { x: event.clientX, y: event.clientY, itemId };
-    selectTreeItem(itemId, { render: true, focus: true });
-  });
   tree?.addEventListener("keydown", async (event) => {
     if (state.editingTreeId) {
       if (event.key === "Enter") {
@@ -1336,31 +1513,121 @@ function bindFormPairs(request: SavedRequest) {
   });
 }
 
-function bindPairs(list: Pair[], scope: "header" | "form") {
-  const rerender = scope === "form" ? () => renderWorkspace() : () => render();
+function bindPairs(list: Pair[], scope: "header" | "form" | "query", request?: SavedRequest) {
+  const rerender = scope === "form" || scope === "query" ? () => renderWorkspace() : () => render();
 
   document.querySelectorAll<HTMLElement>(`[data-${scope}-id]`).forEach((row) => {
     const pair = list.find((item) => item.id === row.getAttribute(`data-${scope}-id`));
     if (!pair) return;
+    const onQueryChange = () => {
+      if (!request) return;
+      syncUrlInputFromRequest(request);
+      updateUrlPreview(request);
+    };
     row.querySelector<HTMLInputElement>(`.${scope}-enabled`)?.addEventListener("change", (event) => {
       pair.enabled = (event.target as HTMLInputElement).checked;
+      if (scope === "query") onQueryChange();
       scheduleSave();
     });
     row.querySelector<HTMLInputElement>(`.${scope}-key`)?.addEventListener("input", (event) => {
       pair.key = (event.target as HTMLInputElement).value;
+      if (scope === "query") onQueryChange();
       scheduleSave();
     });
     row.querySelector<HTMLInputElement>(`.${scope}-value`)?.addEventListener("input", (event) => {
       pair.value = (event.target as HTMLInputElement).value;
+      if (scope === "query") onQueryChange();
       scheduleSave();
     });
     row.querySelector(`.remove-${scope}`)?.addEventListener("click", () => {
       const index = list.findIndex((item) => item.id === pair.id);
       if (index >= 0) list.splice(index, 1);
+      if (scope === "query") onQueryChange();
       scheduleSave();
       rerender();
     });
   });
+}
+
+function syncUrlInputFromRequest(request: SavedRequest) {
+  const urlInput = document.querySelector<HTMLInputElement>("#url");
+  if (!urlInput || document.activeElement === urlInput) return;
+  urlInput.value = displayRequestUrl(request);
+}
+
+function updateUrlPreview(request: SavedRequest) {
+  const wrap = document.querySelector("#url-preview-wrap");
+  const preview = document.querySelector("#url-preview");
+  if (!wrap || !preview) return;
+  const visible = shouldShowUrlPreview(request, state.variables);
+  wrap.classList.toggle("is-hidden", !visible);
+  preview.textContent = resolvedRequestUrl(request, state.variables);
+}
+
+function bindResponseCopyMenu(tab: TabState) {
+  const button = document.querySelector<HTMLButtonElement>("#copy-response-menu");
+  button?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (state.contextMenu?.kind === "response-copy" && state.contextMenu.requestId === tab.requestId) {
+      closeContextMenu();
+      return;
+    }
+    const rect = button.getBoundingClientRect();
+    state.contextMenu = {
+      kind: "response-copy",
+      x: rect.right,
+      y: rect.bottom + 4,
+      requestId: tab.requestId
+    };
+    syncContextMenu();
+  });
+}
+
+async function copyResponseStatus(tab: TabState) {
+  if (!tab.response) return;
+  const line = `${tab.response.status} ${tab.response.status_text} · ${tab.response.duration_ms} ms`;
+  await copyText(line);
+}
+
+async function trySendRequest() {
+  if (state.activePanel !== "request") return;
+  const request = getActiveRequest();
+  if (!request) return;
+  const tab = ensureTab(request.id);
+  if (tab.loading) return;
+
+  if (request.bodyMode === "multipart" && hasMissingMultipartFiles(request)) {
+    const labels = t().request;
+    const names = missingMultipartFileNames(request).join(", ");
+    await messageDialog("warning", labels.multipartFilesMissingTitle, labels.multipartFilesMissingBody.replace("{names}", names));
+    return;
+  }
+
+  await sendRequest();
+}
+
+async function copyResponseBody(request: SavedRequest, tab: TabState) {
+  if (!tab.response) return;
+  const body = getResponseBodyForDisplay(tab, tab.response.body, tab.response.headers);
+  await copyText(body);
+}
+
+async function copyResponseHeaders(tab: TabState) {
+  if (!tab.response) return;
+  const text = Object.entries(tab.response.headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+  await copyText(text);
+}
+
+async function copyText(text: string) {
+  const labels = t().messages;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(labels.copySuccess);
+  } catch {
+    await messageDialog("error", labels.copyCurlTitle, labels.copyFailed);
+  }
 }
 
 function addVariableAndFocus() {
@@ -1399,17 +1666,23 @@ function bindVariables() {
       variable.enabled = (event.target as HTMLInputElement).checked;
       row.classList.toggle("is-disabled", !variable.enabled);
       scheduleSave();
+      const request = getActiveRequest();
+      if (request) updateUrlPreview(request);
     });
 
     row.querySelector<HTMLInputElement>(".variable-name")?.addEventListener("input", (event) => {
       variable.name = (event.target as HTMLInputElement).value;
       syncToken();
       scheduleSave();
+      const request = getActiveRequest();
+      if (request) updateUrlPreview(request);
     });
 
     row.querySelector<HTMLInputElement>(".variable-value")?.addEventListener("input", (event) => {
       variable.value = (event.target as HTMLInputElement).value;
       scheduleSave();
+      const request = getActiveRequest();
+      if (request) updateUrlPreview(request);
     });
 
     row.querySelector(".remove-variable")?.addEventListener("click", () => {
@@ -1424,16 +1697,6 @@ function maybePrettifyRequestJson(request: SavedRequest) {
   if (!state.settings.autoPrettifyJson || request.bodyMode !== "raw" || request.rawType !== "json") return;
   const pretty = tryPrettifyJson(request.body);
   if (pretty) request.body = pretty;
-}
-
-function buildFormPayload(request: SavedRequest) {
-  return request.form.map((field) => ({
-    key: applyVariables(field.key),
-    value: field.partType === "file" ? field.value : applyVariables(field.value),
-    enabled: field.enabled,
-    part_type: field.partType ?? "text",
-    file_name: field.fileName ?? null
-  }));
 }
 
 function handleStreamEvent(
@@ -1510,6 +1773,17 @@ function scheduleResponseRender() {
   });
 }
 
+function bindRequestTabs(requestId: string) {
+  const tab = state.tabs[requestId];
+  if (!tab) return;
+  document.querySelectorAll<HTMLButtonElement>(".request-card [data-request-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      tab.selectedRequestTab = button.dataset.requestTab as RequestTab;
+      renderWorkspace();
+    });
+  });
+}
+
 function bindResponseTabs(requestId: string) {
   const tab = state.tabs[requestId];
   if (!tab) return;
@@ -1542,7 +1816,10 @@ async function sendRequest() {
       Object.fromEntries(
         request.headers
           .filter((header) => header.enabled && header.key.trim())
-          .map((header) => [applyVariables(header.key.trim()), applyVariables(header.value)])
+          .map((header) => [
+            applyVariables(header.key.trim(), state.variables),
+            applyVariables(header.value, state.variables)
+          ])
       )
     );
 
@@ -1562,15 +1839,16 @@ async function sendRequest() {
       request: {
         id: runId,
         method: request.method,
-        url: applyVariables(request.url.trim()),
+        url: resolvedRequestUrl(request, state.variables).trim(),
         headers,
         body_mode: request.bodyMode,
         raw_type: request.rawType,
-        body: request.bodyMode === "raw" ? applyVariables(request.body) : "",
+        body: request.bodyMode === "raw" ? applyVariables(request.body, state.variables) : "",
         form: buildFormPayload(request),
         stream: request.streamResponse
       },
-      proxy: proxyPayload(state.settings.proxy)
+      proxy: proxyPayload(state.settings.proxy),
+      network: networkPayload(state.settings, request.streamResponse)
     };
 
     if (request.streamResponse) {
@@ -1642,7 +1920,7 @@ function renderCurlPreview(request: SavedRequest) {
   return `
     <div class="curl-preview">
       <div class="curl-preview-summary">
-        <div class="curl-preview-line"><b>${escapeHtml(request.method)}</b><span>${escapeHtml(request.url)}</span></div>
+        <div class="curl-preview-line"><b>${escapeHtml(request.method)}</b><span>${escapeHtml(displayRequestUrl(request))}</span></div>
         <div class="curl-preview-meta">${escapeHtml(typeLabel ? `${modeLabel} · ${typeLabel}` : modeLabel)}</div>
       </div>
       <pre>${escapeHtml(curlPreviewPayload(request))}</pre>
@@ -1687,7 +1965,7 @@ function focusRequestUrl() {
 }
 
 function applyAutoTitleFromUrl(request: SavedRequest) {
-  const derived = titleFromUrl(request.url);
+  const derived = titleFromUrl(displayRequestUrl(request));
   if (!derived) return;
   request.title = derived;
   syncRequestTitle(request.id);
@@ -1718,6 +1996,7 @@ function duplicateRequest(requestId: string) {
   copy.id = id();
   copy.title = `${source.title} copy`;
   copy.headers = copy.headers.map((pair) => ({ ...pair, id: id() }));
+  copy.queryParams = copy.queryParams.map((pair) => ({ ...pair, id: id() }));
   copy.form = copy.form.map((pair) => ({ ...pair, id: id() }));
   copy.lastResponse = null;
   copy.lastError = null;
@@ -1754,63 +2033,6 @@ async function deleteItem(itemId: string) {
   scheduleSave();
   render();
   requestAnimationFrame(() => focusTreeSelection());
-}
-
-function moveDroppedItem(sourceId: string, target: TreeItem, placement: "before" | "after" | "inside") {
-  if (sourceId === target.id) return;
-
-  if (placement === "inside" && target.kind === "folder") {
-    moveItemTo(sourceId, target.id, childCount(target.id));
-    return;
-  }
-
-  const siblings = childrenOf(target.parentId);
-  const targetIndex = siblings.findIndex((item) => item.id === target.id);
-  moveItemTo(sourceId, target.parentId, targetIndex + (placement === "after" ? 1 : 0));
-}
-
-function moveItemTo(sourceId: string, targetParentId: string | null, targetChildIndex: number) {
-  const source = getItem(sourceId);
-  const targetParent = targetParentId ? getItem(targetParentId) : null;
-  if (!source || source.id === targetParentId || (targetParent && targetParent.kind !== "folder")) return;
-  if (targetParentId && collectChildren(source.id).includes(targetParentId)) return;
-
-  const previousParentId = source.parentId;
-  const previousIndex = childrenOf(previousParentId).findIndex((item) => item.id === source.id);
-  let nextIndex = Math.max(0, targetChildIndex);
-  if (previousParentId === targetParentId && previousIndex >= 0 && previousIndex < nextIndex) nextIndex -= 1;
-
-  state.items = state.items.filter((item) => item.id !== source.id);
-  source.parentId = targetParentId;
-  insertItemAt(source, targetParentId, nextIndex);
-  if (targetParent?.kind === "folder") targetParent.expanded = true;
-  scheduleSave();
-  render();
-}
-
-function insertItemAt(item: TreeItem, parentId: string | null, childIndex: number) {
-  item.parentId = parentId;
-  const siblings = childrenOf(parentId);
-  const normalizedIndex = Math.max(0, Math.min(childIndex, siblings.length));
-  const beforeSibling = siblings[normalizedIndex];
-  if (beforeSibling) {
-    state.items.splice(state.items.findIndex((entry) => entry.id === beforeSibling.id), 0, item);
-    return;
-  }
-
-  if (siblings.length) {
-    const lastSiblingIndex = state.items.findIndex((entry) => entry.id === siblings[siblings.length - 1].id);
-    state.items.splice(lastSiblingIndex + 1, 0, item);
-    return;
-  }
-
-  if (parentId) {
-    const parentIndex = state.items.findIndex((entry) => entry.id === parentId);
-    state.items.splice(parentIndex + 1, 0, item);
-    return;
-  }
-
-  state.items.push(item);
 }
 
 function openRequest(requestId: string) {
@@ -1879,10 +2101,13 @@ function ensureTab(requestId: string) {
       loading: false,
       streaming: false,
       requestRunId: null,
-      selectedResponseTab: "body"
+      selectedResponseTab: "body",
+      selectedRequestTab: "body"
     };
   }
-  return state.tabs[requestId];
+  const tab = state.tabs[requestId];
+  if (!tab.selectedRequestTab) tab.selectedRequestTab = "body";
+  return tab;
 }
 
 function clearRequestResponse(request: SavedRequest, tab: TabState) {
@@ -1892,117 +2117,6 @@ function clearRequestResponse(request: SavedRequest, tab: TabState) {
   request.lastError = null;
 }
 
-function scheduleSave() {
-  window.clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(saveConfig, 300);
-}
-
-function sanitizeItemsForSave(items: TreeItem[]): TreeItem[] {
-  return items.map((item) => {
-    if (item.kind !== "request") return item;
-    return {
-      ...item,
-      form: item.form.map((field) =>
-        field.partType === "file" ? { ...field, value: "" } : field
-      )
-    };
-  });
-}
-
-async function saveConfig() {
-  const config: AppConfig = {
-    items: sanitizeItemsForSave(state.items),
-    variables: state.variables,
-    openTabs: state.openTabs,
-    activeTabId: state.activeTabId,
-    settings: state.settings
-  };
-  await invoke("save_app_config", { config });
-}
-
-function applyVariables(value: string) {
-  return value.replace(/\$\{([^}]+)\}/g, (_, name: string) => {
-    const variable = state.variables.find((item) => item.enabled && item.name === name.trim());
-    return variable?.value ?? "";
-  });
-}
-
-function hasEnabledFormFields(request: SavedRequest) {
-  return request.form.some((field) => field.enabled && field.key.trim());
-}
-
-function withContentType(request: SavedRequest, headers: Record<string, string>) {
-  if (Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) return headers;
-
-  if (request.bodyMode === "form" && hasEnabledFormFields(request)) {
-    return { ...headers, "Content-Type": "application/x-www-form-urlencoded" };
-  }
-
-  if (request.bodyMode === "raw" && request.body.trim()) {
-    const type =
-      request.rawType === "json"
-        ? "application/json"
-        : request.rawType === "xml"
-          ? "application/xml"
-          : "text/plain";
-    return { ...headers, "Content-Type": type };
-  }
-
-  return headers;
-}
-
-function blankRequest(parentId: string | null): SavedRequest {
-  return {
-    id: id(),
-    kind: "request",
-    parentId,
-    title: "New request",
-    method: "GET",
-    url: "",
-    headers: [],
-    bodyMode: "raw",
-    rawType: "json",
-    body: "",
-    form: [],
-    streamResponse: false,
-    lastResponse: null,
-    lastError: null
-  };
-}
-
-function getActiveRequest() {
-  return getRequest(state.activeTabId);
-}
-
-function getRequest(itemId: string) {
-  return state.items.find((item): item is SavedRequest => item.kind === "request" && item.id === itemId);
-}
-
-function getRequestFrom(items: TreeItem[], itemId: string) {
-  return items.find((item): item is SavedRequest => item.kind === "request" && item.id === itemId);
-}
-
-function getItem(itemId: string) {
-  return state.items.find((item) => item.id === itemId);
-}
-
-function selectedFolderId() {
-  const selected = state.selectedTreeId ? getItem(state.selectedTreeId) : null;
-  return selected?.kind === "folder" ? selected.id : selected?.parentId ?? null;
-}
-
-function childrenOf(parentId: string | null) {
-  return state.items.filter((item) => item.parentId === parentId);
-}
-
-function childCount(parentId: string | null) {
-  return childrenOf(parentId).length;
-}
-
-function collectChildren(itemId: string): string[] {
-  return [itemId, ...state.items.filter((item) => item.parentId === itemId).flatMap((item) => collectChildren(item.id))];
-}
-
 function syncRequestTitle(requestId: string) {
   const request = getRequest(requestId);
   if (!request) return;
@@ -2010,18 +2124,4 @@ function syncRequestTitle(requestId: string) {
   if (row) row.textContent = request.title;
   const tabLabel = document.querySelector(`[data-open-tab="${requestId}"] .tab-label`);
   if (tabLabel) tabLabel.textContent = request.title;
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function id() {
-  return crypto.randomUUID();
-}
-
-function escapeAttribute(value: string) {
-  return escapeHtml(value).replace(/`/g, "&#096;");
 }

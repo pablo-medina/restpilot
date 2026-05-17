@@ -1,4 +1,5 @@
 import type { BodyMode, Pair, RawType, SavedRequest } from "./types";
+import { buildRequestUrl, migrateRequestQuery } from "./url-params";
 
 export function looksLikeCurl(value: string) {
   return /^\s*curl\s+/i.test(value.replace(/\r?\n\s*\^/g, " "));
@@ -106,6 +107,8 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     title: "Imported curl",
     method: "GET",
     url: "",
+    urlHash: "",
+    queryParams: [],
     headers: [],
     bodyMode: "raw",
     rawType: "text",
@@ -226,7 +229,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     upsertHeader(request.headers, "Content-Type", "application/xml", id);
   }
 
-  return request.url ? request : null;
+  return request.url ? migrateRequestQuery(request) : null;
 }
 
 function looksLikeXmlBody(body: string) {
@@ -247,6 +250,8 @@ function appendQuery(url: string, key: string, value: string) {
 export function applyCurlToRequest(target: SavedRequest, parsed: SavedRequest) {
   target.method = parsed.method;
   target.url = parsed.url;
+  target.urlHash = parsed.urlHash ?? "";
+  target.queryParams = parsed.queryParams.map((param) => ({ ...param, id: crypto.randomUUID() }));
   target.headers = parsed.headers.map((header) => ({ ...header, id: crypto.randomUUID() }));
   target.body = parsed.body;
   target.bodyMode = parsed.bodyMode;
@@ -259,7 +264,7 @@ export function applyCurlToRequest(target: SavedRequest, parsed: SavedRequest) {
 }
 
 export function requestToCurl(request: SavedRequest): string {
-  const url = request.url.trim();
+  const url = buildRequestUrl(request.url, request.queryParams, request.urlHash ?? "").trim();
   if (!url) return "curl";
 
   const lines: string[] = ["curl"];
@@ -323,7 +328,7 @@ function formatCurlLines(parts: string[]) {
 export function curlPreviewPayload(request: SavedRequest) {
   const payload: Record<string, unknown> = {
     method: request.method,
-    url: request.url,
+    url: buildRequestUrl(request.url, request.queryParams, request.urlHash ?? ""),
     bodyMode: request.bodyMode,
     rawType: request.bodyMode === "raw" ? request.rawType : undefined,
     headers: request.headers.filter((header) => header.enabled && header.key.trim()),

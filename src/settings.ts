@@ -1,5 +1,5 @@
 import { t } from "./i18n";
-import type { UserSettings } from "./types";
+import { clampRequestTimeoutSecs, type UserSettings } from "./types";
 
 export function renderSettings(settings: UserSettings): string {
   const labels = t().settings;
@@ -73,6 +73,16 @@ export function renderSettings(settings: UserSettings): string {
               <option value="manual" ${settings.proxy.mode === "manual" ? "selected" : ""}>${labels.proxyManual}</option>
             </select>
           </label>
+          <label class="settings-field">
+            <span>${labels.requestTimeout}</span>
+            <input id="setting-request-timeout" type="number" min="5" max="300" step="1" value="${settings.requestTimeoutSecs}" />
+          </label>
+          <p class="hint settings-field-hint">${labels.requestTimeoutHint}</p>
+          <label class="settings-field settings-toggle">
+            <span>${labels.followRedirects}</span>
+            <input id="setting-follow-redirects" type="checkbox" ${settings.followRedirects ? "checked" : ""} />
+          </label>
+          <p class="hint settings-field-hint">${labels.followRedirectsHint}</p>
           <div class="settings-proxy-manual ${manualOpen ? "open" : ""}" id="proxy-manual-fields">
             <label class="settings-field">
               <span>${labels.proxyHost}</span>
@@ -91,6 +101,20 @@ export function renderSettings(settings: UserSettings): string {
               <input id="setting-proxy-password" type="password" value="${escapeAttribute(settings.proxy.password)}" autocomplete="off" />
             </label>
           </div>
+        </section>
+
+        <section class="settings-card settings-card-wide">
+          <h2>${labels.shortcutsSection}</h2>
+          <dl class="settings-shortcuts">
+            <div><dt>${labels.shortcutSend}</dt><dd><kbd>${labels.shortcutSendKeys}</kbd></dd></div>
+            <div><dt>${labels.shortcutCloseTab}</dt><dd><kbd>${labels.shortcutCloseTabKeys}</kbd></dd></div>
+            <div><dt>${labels.shortcutFocusUrl}</dt><dd><kbd>${labels.shortcutFocusUrlKeys}</kbd></dd></div>
+            <div><dt>${labels.shortcutFormatJson}</dt><dd><kbd>${labels.shortcutFormatJsonKeys}</kbd></dd></div>
+            <div><dt>${labels.shortcutUndo}</dt><dd><kbd>${labels.shortcutUndoKeys}</kbd></dd></div>
+            <div><dt>${labels.shortcutRedo}</dt><dd><kbd>${labels.shortcutRedoKeys}</kbd></dd></div>
+            <div><dt>${labels.shortcutContextMenu}</dt><dd><kbd>${labels.shortcutContextMenuKeys}</kbd></dd></div>
+            <div><dt>${labels.shortcutTreeNav}</dt><dd>${labels.shortcutTreeNavKeys}</dd></div>
+          </dl>
         </section>
 
         <section class="settings-card settings-card-wide about-card">
@@ -146,6 +170,18 @@ export function bindSettings(
 
   document.querySelector<HTMLSelectElement>("#setting-language")?.addEventListener("change", (event) => {
     settings.language = (event.target as HTMLSelectElement).value as UserSettings["language"];
+    onChange();
+  });
+
+  document.querySelector<HTMLInputElement>("#setting-request-timeout")?.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    settings.requestTimeoutSecs = clampRequestTimeoutSecs(input.value);
+    input.value = String(settings.requestTimeoutSecs);
+    onChange();
+  });
+
+  document.querySelector<HTMLInputElement>("#setting-follow-redirects")?.addEventListener("change", (event) => {
+    settings.followRedirects = (event.target as HTMLInputElement).checked;
     onChange();
   });
 

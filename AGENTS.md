@@ -35,3 +35,17 @@
 ## Collection tree
 
 - Collection order is a flat `items[]` with `parentId`. Drag-and-drop must support reordering, nesting folders, moving requests between folders, and moving items to the root.
+
+## Source layout
+
+- `src/main.ts` — UI orchestration (render, bindings, panels). Still large; further splits belong in `src/ui/` when touched.
+- `src/app/state.ts` — shared `state`, IDs, collection lookups, formatting helpers.
+- `src/app/persistence.ts` — config load/normalize/save (`scheduleSave`, `persistConfig`).
+- `src/app/collection-store.ts` — tree reorder inserts/moves (calls `render()` via `app/render.ts`).
+- `src/app/request-utils.ts` — blank request factory, content-type, form payload for HTTP.
+- `src/app/render.ts` — `render()` dispatcher so non-UI modules can request a re-render without importing `main.ts`.
+- `src/curl.ts`, `src/url-params.ts`, `src/variables.ts`, `src/content-display.ts` — pure helpers covered by unit tests.
+
+## Tests
+
+- Run locally: `npm test` (Vitest). No GitHub Actions workflow is configured; do not add push-triggered CI unless explicitly requested.

@@ -11,6 +11,15 @@ export const es = {
     newFolder: "Nueva carpeta",
     newRequest: "Nueva solicitud"
   },
+  contextMenu: {
+    cut: "Cortar",
+    copy: "Copiar",
+    paste: "Pegar",
+    undo: "Deshacer",
+    redo: "Rehacer",
+    selectAll: "Seleccionar todo",
+    closeTab: "Cerrar pestaña"
+  },
   tree: {
     newRequest: "Nueva solicitud",
     newFolder: "Nueva carpeta",
@@ -24,6 +33,8 @@ export const es = {
     clear: "Limpiar",
     send: "Enviar",
     cancel: "Cancelar",
+    params: "Parámetros de consulta",
+    resolvedUrl: "URL resuelta",
     headers: "Encabezados",
     raw: "Raw",
     form: "x-form",
@@ -56,7 +67,16 @@ export const es = {
     headersSearch: "Buscar encabezados…",
     headersKey: "Encabezado",
     headersValue: "Valor",
-    headersEmpty: "Ningún encabezado coincide con la búsqueda."
+    headersEmpty: "Ningún encabezado coincide con la búsqueda.",
+    copyResponseMenu: "Copiar respuesta",
+    copyBody: "Copiar cuerpo",
+    copyHeaders: "Copiar encabezados",
+    copyStatus: "Copiar estado",
+    multipartFilesHint:
+      "Los archivos adjuntos permanecen solo en memoria hasta guardar la colección. Tras reiniciar, vuelva a elegir cada archivo antes de enviar.",
+    multipartFilesMissingTitle: "Faltan archivos adjuntos",
+    multipartFilesMissingBody:
+      "Las siguientes partes de archivo no tienen datos cargados: {names}. Elija cada archivo nuevamente antes de enviar."
   },
   variables: {
     title: "Variables",
@@ -104,6 +124,27 @@ export const es = {
     proxyPort: "Puerto",
     proxyUsername: "Usuario",
     proxyPassword: "Contraseña",
+    requestTimeout: "Tiempo de espera de la solicitud (segundos)",
+    requestTimeoutHint: "Se aplica a cada solicitud. Las respuestas en streaming usan al menos 600 segundos.",
+    followRedirects: "Seguir redirecciones",
+    followRedirectsHint: "Si está desactivado, el cliente no sigue respuestas HTTP 3xx.",
+    shortcutsSection: "Atajos de teclado",
+    shortcutSend: "Enviar solicitud",
+    shortcutSendKeys: "Ctrl+Enter",
+    shortcutCloseTab: "Cerrar pestaña activa",
+    shortcutCloseTabKeys: "Ctrl+W",
+    shortcutFocusUrl: "Enfocar campo URL",
+    shortcutFocusUrlKeys: "Ctrl+Shift+U",
+    shortcutFormatJson: "Formatear JSON en el editor del cuerpo",
+    shortcutFormatJsonKeys: "Ctrl+Shift+F",
+    shortcutUndo: "Deshacer en el editor del cuerpo",
+    shortcutUndoKeys: "Ctrl+Z",
+    shortcutRedo: "Rehacer en el editor del cuerpo",
+    shortcutRedoKeys: "Ctrl+Y · Ctrl+Shift+Z",
+    shortcutContextMenu: "Abrir menú contextual",
+    shortcutContextMenuKeys: "Tecla Menú · Mayús+F10",
+    shortcutTreeNav: "Navegar el árbol de colección",
+    shortcutTreeNavKeys: "Flechas, Enter, F2, Supr (con el árbol enfocado)",
     about: "Acerca de",
     aboutAuthor: "Autor",
     aboutDescription: "Descripción",
@@ -137,6 +178,8 @@ export const es = {
     copyCurlTitle: "Copiar como cURL",
     copyCurlSuccess: "Copiado al portapapeles.",
     copyCurlFailed: "No se pudo copiar el comando cURL al portapapeles.",
+    copySuccess: "Copiado al portapapeles.",
+    copyFailed: "No se pudo copiar al portapapeles.",
     renameTitle: "Renombrar",
     renameBody: "Ingrese un título claro.",
     deleteTitle: "Eliminar",
@@ -144,6 +187,7 @@ export const es = {
   },
   pairs: {
     header: "Encabezado",
+    param: "Parámetro",
     value: "Valor"
   }
 } as const;

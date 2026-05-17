@@ -30,9 +30,16 @@ struct ProxySettings {
 }
 
 #[derive(Debug, Deserialize)]
+struct NetworkSettings {
+    timeout_secs: Option<u64>,
+    follow_redirects: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
 struct SendRequestPayload {
     request: RestRequest,
     proxy: Option<ProxySettings>,
+    network: Option<NetworkSettings>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -132,10 +139,12 @@ async fn send_request(
         let request_id = request.id.clone();
         let error_request_id = request_id.clone();
 
+        let network = payload.network;
+
         tauri::async_runtime::spawn(async move {
             let state = app.state::<RuntimeState>();
             let result = tokio::select! {
-                result = execute_request(app.clone(), state.inner(), request, proxy) => result,
+                result = execute_request(app.clone(), state.inner(), request, proxy, network) => result,
                 _ = wait_for_cancel(state.inner(), request_id) => Err("Request cancelled.".to_string()),
             };
 
@@ -166,7 +175,13 @@ async fn send_request(
     }
 
     let request_id = payload.request.id.clone();
-    let request_future = execute_request(app, state.inner(), payload.request, payload.proxy);
+    let request_future = execute_request(
+        app,
+        state.inner(),
+        payload.request,
+        payload.proxy,
+        payload.network,
+    );
     let cancel_future = wait_for_cancel(state.inner(), request_id);
 
     tokio::select! {
@@ -175,8 +190,16 @@ async fn send_request(
     }
 }
 
-fn build_http_client(proxy: Option<ProxySettings>) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder().redirect(reqwest::redirect::Policy::limited(10));
+fn build_http_client(
+    proxy: Option<ProxySettings>,
+    follow_redirects: bool,
+) -> Result<reqwest::Client, String> {
+    let redirect = if follow_redirects {
+        reqwest::redirect::Policy::limited(10)
+    } else {
+        reqwest::redirect::Policy::none()
+    };
+    let mut builder = reqwest::Client::builder().redirect(redirect);
 
     if let Some(proxy) = proxy {
         match proxy.mode.as_str() {
@@ -319,15 +342,22 @@ async fn execute_request(
     state: &RuntimeState,
     request: RestRequest,
     proxy: Option<ProxySettings>,
+    network: Option<NetworkSettings>,
 ) -> Result<RestResponse, String> {
     let method = request
         .method
         .parse::<Method>()
         .map_err(|_| format!("Unsupported HTTP method: {}", request.method))?;
 
-    let client = build_http_client(proxy)?;
+    let follow_redirects = network.as_ref().and_then(|n| n.follow_redirects).unwrap_or(true);
+    let client = build_http_client(proxy, follow_redirects)?;
     let request_id = request.id.clone();
     let stream = request.stream;
+    let timeout_secs = network
+        .as_ref()
+        .and_then(|n| n.timeout_secs)
+        .unwrap_or(if stream { 600 } else { 60 })
+        .clamp(5, 3600);
 
     let mut builder = client.request(method.clone(), request.url.clone());
     let mut headers = HeaderMap::new();
@@ -346,7 +376,6 @@ async fn execute_request(
     builder = apply_body(builder, &method, &request)?;
 
     let started = Instant::now();
-    let timeout_secs = if stream { 600 } else { 60 };
     let response = timeout(Duration::from_secs(timeout_secs), builder.send())
         .await
         .map_err(|_| format!("Request timed out after {timeout_secs} seconds."))?

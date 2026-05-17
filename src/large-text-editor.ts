@@ -2,7 +2,8 @@ import { tryPrettifyJson } from "./content-display";
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorSelection, EditorState, type ChangeSpec } from "@codemirror/state";
+import { history, historyKeymap } from "@codemirror/commands";
+import { EditorSelection, EditorState, Transaction, type ChangeSpec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import type { RawType } from "./types";
 
@@ -13,6 +14,7 @@ export type BodyEditorOptions = {
   rawType: RawType;
   autoPrettifyJson?: boolean;
   onChange: (value: string) => void;
+  onSend?: () => void;
 };
 
 export function clampTabSize(value: unknown): number {
@@ -68,6 +70,19 @@ function insertTabKeymap(tabSize: number) {
   ]);
 }
 
+function sendKeymap(onSend?: () => void) {
+  if (!onSend) return keymap.of([]);
+  return keymap.of([
+    {
+      key: "Mod-Enter",
+      run: () => {
+        onSend();
+        return true;
+      }
+    }
+  ]);
+}
+
 function prettifyJsonKeymap(rawType: RawType, onChange: (value: string) => void) {
   return keymap.of([
     {
@@ -110,7 +125,7 @@ function bodyPasteHandler(rawType: RawType, autoPrettifyJson: boolean, onChange:
 }
 
 function baseExtensions(editable: boolean, tabSize: number) {
-  return [
+  const extensions = [
     EditorView.lineWrapping,
     codeEditorTheme(),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
@@ -118,6 +133,10 @@ function baseExtensions(editable: boolean, tabSize: number) {
     EditorState.readOnly.of(!editable),
     EditorView.editable.of(editable)
   ];
+  if (editable) {
+    extensions.unshift(history(), keymap.of([...historyKeymap]));
+  }
+  return extensions;
 }
 
 function languageExtension(mode: ViewerMode) {
@@ -132,6 +151,7 @@ export function mountBodyEditor(host: HTMLElement, initial: string, options: Bod
   const extensions = [
     ...baseExtensions(true, tabSize),
     languageExtension(rawType),
+    sendKeymap(options.onSend),
     prettifyJsonKeymap(rawType, onChange),
     bodyPasteHandler(rawType, autoPrettifyJson, onChange),
     EditorView.updateListener.of((update) => {
@@ -162,7 +182,10 @@ export function setReadonlyViewerValue(host: HTMLElement, value: string): boolea
   if (!view) return false;
   const current = view.state.doc.toString();
   if (current === value) return true;
-  view.dispatch({ changes: { from: 0, to: current.length, insert: value } });
+  view.dispatch({
+    changes: { from: 0, to: current.length, insert: value },
+    annotations: Transaction.addToHistory.of(false)
+  });
   return true;
 }
 

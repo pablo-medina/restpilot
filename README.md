@@ -25,6 +25,14 @@ npm install
 npm run tauri:dev
 ```
 
+## Tests
+
+```bash
+npm test
+```
+
+Runs unit tests locally (Vitest). There is no CI workflow on push.
+
 ## Build
 
 ```bash

@@ -11,6 +11,15 @@ export const en = {
     newFolder: "New folder",
     newRequest: "New request"
   },
+  contextMenu: {
+    cut: "Cut",
+    copy: "Copy",
+    paste: "Paste",
+    undo: "Undo",
+    redo: "Redo",
+    selectAll: "Select all",
+    closeTab: "Close tab"
+  },
   tree: {
     newRequest: "New request",
     newFolder: "New folder",
@@ -24,6 +33,8 @@ export const en = {
     clear: "Clear",
     send: "Send",
     cancel: "Cancel",
+    params: "Query params",
+    resolvedUrl: "Resolved URL",
     headers: "Headers",
     raw: "Raw",
     form: "x-form",
@@ -56,7 +67,16 @@ export const en = {
     headersSearch: "Search headers…",
     headersKey: "Header",
     headersValue: "Value",
-    headersEmpty: "No headers match your search."
+    headersEmpty: "No headers match your search.",
+    copyResponseMenu: "Copy response",
+    copyBody: "Copy body",
+    copyHeaders: "Copy headers",
+    copyStatus: "Copy status",
+    multipartFilesHint:
+      "File attachments are kept in memory only until you save the collection. After restart, choose each file again before sending.",
+    multipartFilesMissingTitle: "File attachments required",
+    multipartFilesMissingBody:
+      "The following file parts have no data loaded: {names}. Choose each file again before sending."
   },
   variables: {
     title: "Variables",
@@ -104,6 +124,27 @@ export const en = {
     proxyPort: "Port",
     proxyUsername: "Username",
     proxyPassword: "Password",
+    requestTimeout: "Request timeout (seconds)",
+    requestTimeoutHint: "Applies to each request. Streaming responses use at least 600 seconds.",
+    followRedirects: "Follow redirects",
+    followRedirectsHint: "When disabled, the client does not follow HTTP 3xx responses.",
+    shortcutsSection: "Keyboard shortcuts",
+    shortcutSend: "Send request",
+    shortcutSendKeys: "Ctrl+Enter",
+    shortcutCloseTab: "Close active tab",
+    shortcutCloseTabKeys: "Ctrl+W",
+    shortcutFocusUrl: "Focus URL field",
+    shortcutFocusUrlKeys: "Ctrl+Shift+U",
+    shortcutFormatJson: "Format JSON in body editor",
+    shortcutFormatJsonKeys: "Ctrl+Shift+F",
+    shortcutUndo: "Undo in body editor",
+    shortcutUndoKeys: "Ctrl+Z",
+    shortcutRedo: "Redo in body editor",
+    shortcutRedoKeys: "Ctrl+Y · Ctrl+Shift+Z",
+    shortcutContextMenu: "Open context menu",
+    shortcutContextMenuKeys: "Menu key · Shift+F10",
+    shortcutTreeNav: "Navigate collection tree",
+    shortcutTreeNavKeys: "Arrow keys, Enter, F2, Delete (when tree is focused)",
     about: "About",
     aboutAuthor: "Author",
     aboutDescription: "Description",
@@ -137,6 +178,8 @@ export const en = {
     copyCurlTitle: "Copy as cURL",
     copyCurlSuccess: "Copied to clipboard.",
     copyCurlFailed: "The cURL command could not be copied to the clipboard.",
+    copySuccess: "Copied to clipboard.",
+    copyFailed: "Could not copy to clipboard.",
     renameTitle: "Rename",
     renameBody: "Enter a clear title.",
     deleteTitle: "Delete",
@@ -144,6 +187,7 @@ export const en = {
   },
   pairs: {
     header: "Header",
+    param: "Parameter",
     value: "Value"
   }
 } as const;
