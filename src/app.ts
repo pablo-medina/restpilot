@@ -134,6 +134,13 @@ import {
   state
 } from "./app/state";
 import { HTTP_METHODS, methodDataAttribute } from "./http-methods";
+import {
+  bindWindowChrome,
+  initWindowChrome,
+  renderWindowChromeMarkup,
+  renderWindowChromeTabsMarkup,
+  syncMaximizeControl
+} from "./window-chrome";
 
 const STREAM_EVENT = "restpilot:request-stream";
 let draggedTreeId: string | null = null;
@@ -192,6 +199,7 @@ export async function startApp(
   }
 
   applyUserSettings(state.settings);
+  initWindowChrome();
   for (const id of state.openTabs) ensureTab(id);
   render();
 
@@ -208,16 +216,13 @@ function focusUrlOnStartup() {
 }
 
 function renderShellChrome(labels: ReturnType<typeof t>) {
-  return `${renderActivityBarMarkup(labels, state.activePanel, state.settings.theme)}${renderCollectionSidebarShell(
-    labels,
-    {
-      activePanel: state.activePanel,
-      collectionSidebarOpen: state.collectionSidebarOpen,
-      collectionSearchQuery: state.collectionSearchQuery,
-      treeHtml: renderExplorerTree(null, 0),
-      escapeAttribute
-    }
-  )}`;
+  return renderCollectionSidebarShell(labels, {
+    activePanel: state.activePanel,
+    collectionSidebarOpen: state.collectionSidebarOpen,
+    collectionSearchQuery: state.collectionSearchQuery,
+    treeHtml: renderExplorerTree(null, 0),
+    escapeAttribute
+  });
 }
 
 function openVariablesWorkspace(tab: "globals" | "environments" = "globals") {
@@ -277,24 +282,28 @@ function updateActivityBarActive() {
   updateThemeToggleIcon();
 }
 
+function syncAppFrameLayout() {
+  const isRequest = state.activePanel === "request";
+  const collectionCollapsed = isRequest && !state.collectionSidebarOpen;
+  appRoot.classList.toggle("app-frame--request", isRequest);
+  appRoot.classList.toggle("is-collection-collapsed", collectionCollapsed);
+}
+
 function syncCollectionSidebarDom() {
   const sidebar = document.querySelector(".collection-sidebar");
-  const shell = document.querySelector<HTMLElement>(".shell.shell--activity-bar");
-  if (!sidebar) {
-    shell?.classList.remove("is-collection-collapsed");
-    return;
+  if (sidebar) {
+    const open = state.collectionSidebarOpen;
+    sidebar.classList.toggle("is-collapsed", !open);
+    sidebar.setAttribute("aria-hidden", state.activePanel !== "request" || !open ? "true" : "false");
+    const toggle = document.querySelector<HTMLButtonElement>("#toggle-collection-sidebar");
+    if (toggle) {
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      const labels = t();
+      toggle.title = labels.nav.hideCollection;
+      toggle.setAttribute("aria-label", labels.nav.hideCollection);
+    }
   }
-  const open = state.collectionSidebarOpen;
-  sidebar.classList.toggle("is-collapsed", !open);
-  shell?.classList.toggle("is-collection-collapsed", !open);
-  sidebar.setAttribute("aria-hidden", state.activePanel !== "request" || !open ? "true" : "false");
-  const toggle = document.querySelector<HTMLButtonElement>("#toggle-collection-sidebar");
-  if (toggle) {
-    toggle.setAttribute("aria-expanded", open ? "true" : "false");
-    const labels = t();
-    toggle.title = labels.nav.hideCollection;
-    toggle.setAttribute("aria-label", labels.nav.hideCollection);
-  }
+  syncAppFrameLayout();
 }
 
 function updateThemeToggleIcon() {
@@ -337,21 +346,38 @@ function focusRequestWorkspace(): boolean {
 }
 
 function refreshTabBar() {
-  const workspace = document.querySelector<HTMLElement>(".workspace");
-  if (!workspace) return;
-
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
   const markup = state.activePanel === "request" ? renderTabBar(request, tab) : "";
-  const existing = workspace.querySelector(".tab-bar");
+  const tabsHost = document.querySelector(".title-bar-tabs-host");
+  const workspace = document.querySelector<HTMLElement>(".workspace");
 
-  if (!markup) {
-    existing?.remove();
+  if (tabsHost) {
+    if (!markup) {
+      tabsHost.innerHTML = "";
+      tabsHost.classList.add("title-bar-tabs-host--empty");
+      tabsHost.setAttribute("aria-hidden", "true");
+    } else {
+      tabsHost.classList.remove("title-bar-tabs-host--empty");
+      tabsHost.removeAttribute("aria-hidden");
+      const existing = tabsHost.querySelector(".tab-bar");
+      if (existing) existing.outerHTML = markup;
+      else tabsHost.innerHTML = markup;
+    }
+  } else if (workspace) {
+    const existing = workspace.querySelector(".tab-bar");
+    if (!markup) {
+      existing?.remove();
+      bindTabBar();
+      bindTabStripScroll();
+      bindTabBarToolButtons();
+      return;
+    }
+    if (existing) existing.outerHTML = markup;
+    else workspace.querySelector(".workspace-body")?.insertAdjacentHTML("beforebegin", markup);
+  } else {
     return;
   }
-
-  if (existing) existing.outerHTML = markup;
-  else workspace.querySelector(".workspace-body")?.insertAdjacentHTML("beforebegin", markup);
 
   bindTabBar();
   bindTabStripScroll();
@@ -377,9 +403,13 @@ function bindTabStripScroll() {
     const overflow = strip.scrollWidth > viewport.clientWidth + 1;
     const atStart = viewport.scrollLeft <= 1;
     const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
+    const showBack = overflow && !atStart;
+    const showForward = overflow && !atEnd;
     wrap.classList.toggle("has-overflow", overflow);
-    back.classList.toggle("is-hidden", !overflow || atStart);
-    forward.classList.toggle("is-hidden", !overflow || atEnd);
+    wrap.classList.toggle("has-scroll-back", showBack);
+    wrap.classList.toggle("has-scroll-forward", showForward);
+    back.classList.toggle("is-hidden", !showBack);
+    forward.classList.toggle("is-hidden", !showForward);
   };
 
   const scrollByPage = (direction: -1 | 1) => {
@@ -680,21 +710,36 @@ function activateRequestTab(requestId: string) {
   renderWorkspace();
 }
 
+function resolveTitleBarCenter(): string {
+  if (state.activePanel === "settings") return t().settings.title;
+  if (state.activePanel === "variables") return t().nav.variables;
+  const request = getActiveRequest();
+  if (request?.title.trim()) return request.title.trim();
+  return t().app.name;
+}
+
 function renderApp() {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
   const labels = t();
+  const isRequest = state.activePanel === "request";
 
   unmountTabDisplay(state.activeTabId);
+  syncAppFrameLayout();
+
+  const titleBar = isRequest
+    ? renderWindowChromeTabsMarkup(renderTabBar(request, tab))
+    : renderWindowChromeMarkup({ center: resolveTitleBarCenter() });
 
   appRoot.innerHTML = `
-    <main class="shell shell--activity-bar${state.activePanel === "request" && !state.collectionSidebarOpen ? " is-collection-collapsed" : ""}">
-      ${renderShellChrome(labels)}
-      <section class="workspace">
-        ${state.activePanel === "request" ? renderTabBar(request, tab) : ""}
-        <div class="workspace-body">${renderWorkspaceMarkup()}</div>
-      </section>
-    </main>
+      ${renderActivityBarMarkup(labels, state.activePanel, state.settings.theme)}
+      ${titleBar}
+      ${isRequest ? renderShellChrome(labels) : ""}
+      <main class="shell shell--workspace-only">
+        <section class="workspace">
+          <div class="workspace-body">${renderWorkspaceMarkup()}</div>
+        </section>
+      </main>
     ${renderDialogLayer()}
   `;
 
@@ -809,6 +854,7 @@ function renderTabBar(request: SavedRequest | undefined, tab: TabState | null | 
         </div>
         <button class="tab-scroll-btn tab-scroll-forward is-hidden" type="button" aria-label="${labels.tabScrollForward}">${iconChevronRight}</button>
       </div>
+      <div class="title-bar-drag" data-tauri-drag-region aria-hidden="true"></div>
       ${tools}
     </header>
   `;
@@ -820,7 +866,7 @@ function renderTab(requestId: string) {
   return `
     <div class="request-tab ${state.activeTabId === requestId ? "active" : ""}" data-open-tab="${requestId}" role="tab" aria-selected="${state.activeTabId === requestId}" tabindex="0">
       <span class="tab-label">${escapeHtml(request.title)}</span>
-      <button class="mini-btn tab-close" data-close-tab="${requestId}" type="button" aria-label="${t().dialog.close}">×</button>
+      <button class="mini-btn tab-close field-remove-btn" data-close-tab="${requestId}" type="button" aria-label="${t().dialog.close}">×</button>
     </div>
   `;
 }
@@ -895,36 +941,33 @@ function renderRequestTabPanel(
   return `
     <div class="request-tab-panel">
       <div class="body-toolbar">
-        <div class="segmented">
+        <div class="segmented body-mode-switch">
           <button class="${request.bodyMode === "raw" ? "active" : ""}" data-body-mode="raw" type="button">${labels.raw}</button>
           <button class="${request.bodyMode === "form" ? "active" : ""}" data-body-mode="form" type="button">${labels.form}</button>
           <button class="${request.bodyMode === "multipart" ? "active" : ""}" data-body-mode="multipart" type="button">${labels.multipart}</button>
           <button class="${request.bodyMode === "none" ? "active" : ""}" data-body-mode="none" type="button">${labels.none}</button>
         </div>
-        ${
-          request.bodyMode === "raw"
-            ? `<div class="segmented raw-type-switch">
-                <button class="${request.rawType === "text" ? "active" : ""}" data-raw-type="text" type="button">${labels.rawText}</button>
-                <button class="${request.rawType === "json" ? "active" : ""}" data-raw-type="json" type="button">${labels.rawJson}</button>
-                <button class="${request.rawType === "xml" ? "active" : ""}" data-raw-type="xml" type="button">${labels.rawXml}</button>
-              </div>`
-            : ""
-        }
-        <span class="hint">${bodyModeHint(request)}</span>
+        ${renderBodyToolbarTrailing(request, labels)}
       </div>
       ${renderBodyEditor(request, labels)}
     </div>
   `;
 }
 
-function bodyModeHint(request: SavedRequest) {
-  const labels = t().request;
-  if (request.bodyMode === "form") return labels.formHint;
-  if (request.bodyMode === "multipart") return labels.multipartHint;
-  if (request.bodyMode === "none") return labels.noneHint;
-  if (request.rawType === "xml") return labels.rawXmlHint;
-  if (request.rawType === "text") return labels.rawTextHint;
-  return labels.rawJsonHint;
+function renderBodyToolbarTrailing(request: SavedRequest, labels: ReturnType<typeof t>["request"]) {
+  if (request.bodyMode === "raw") {
+    return `
+      <label class="raw-type-select-wrap body-toolbar-trailing">
+        <span class="raw-type-select-label">${labels.rawFormat}</span>
+        <select id="raw-type" class="raw-type-select" aria-label="${labels.rawFormat}">
+          <option value="text" ${request.rawType === "text" ? "selected" : ""}>${labels.rawText}</option>
+          <option value="json" ${request.rawType === "json" ? "selected" : ""}>${labels.rawJson}</option>
+          <option value="xml" ${request.rawType === "xml" ? "selected" : ""}>${labels.rawXml}</option>
+        </select>
+      </label>
+    `;
+  }
+  return "";
 }
 
 function ensureFormRow(request: SavedRequest) {
@@ -939,7 +982,7 @@ function renderBodyEditor(request: SavedRequest, labels: ReturnType<typeof t>["r
     return `<div class="code-editor ${modeClass}" data-body-editor-host></div>`;
   }
   if (request.bodyMode === "none") {
-    return `<p class="hint body-none-hint">${labels.noneHint}</p>`;
+    return "";
   }
   const isMultipart = request.bodyMode === "multipart";
   const rows = request.form
@@ -971,7 +1014,7 @@ function renderMultipartPair(pair: Pair) {
         <option value="file" ${partType === "file" ? "selected" : ""}>${labels.partFile}</option>
       </select>
       ${valueField}
-      <button class="mini-btn remove-form" type="button" aria-label="${t().tree.delete}">×</button>
+      <button class="mini-btn field-remove-btn remove-form" type="button" aria-label="${t().tree.delete}">×</button>
     </div>
   `;
 }
@@ -985,7 +1028,7 @@ function renderPair(pair: Pair, scope: "header" | "form" | "query") {
       <input class="${scope}-enabled" type="checkbox" ${pair.enabled ? "checked" : ""} />
       <input class="${scope}-key" value="${escapeAttribute(pair.key)}" placeholder="${keyPlaceholder}" spellcheck="false" />
       <input class="${scope}-value" value="${escapeAttribute(pair.value)}" placeholder="${labels.value}" spellcheck="false" />
-      <button class="mini-btn remove-${scope}" type="button" aria-label="${t().tree.delete}">×</button>
+      <button class="mini-btn field-remove-btn remove-${scope}" type="button" aria-label="${t().tree.delete}">×</button>
     </div>
   `;
 }
@@ -1135,12 +1178,10 @@ function bindWorkspace() {
       renderWorkspace();
     });
   });
-  document.querySelectorAll<HTMLButtonElement>("[data-raw-type]").forEach((button) => {
-    button.addEventListener("click", () => {
-      request.rawType = button.dataset.rawType as RawType;
-      scheduleSave();
-      renderWorkspace();
-    });
+  document.querySelector<HTMLSelectElement>("#raw-type")?.addEventListener("change", (event) => {
+    request.rawType = (event.target as HTMLSelectElement).value as RawType;
+    scheduleSave();
+    renderWorkspace();
   });
   document.querySelector<HTMLElement>("[data-body-editor-host]")?.addEventListener("paste", handleCurlPaste);
   document.querySelector("#add-form")?.addEventListener("click", () => {
@@ -1238,6 +1279,8 @@ function bindCollectionSearch() {
 }
 
 function bindEvents() {
+  bindWindowChrome();
+  void syncMaximizeControl();
   bindTree();
   bindDialogs();
   bindActivityBar();

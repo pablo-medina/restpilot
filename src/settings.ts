@@ -11,11 +11,6 @@ export function renderSettings(settings: UserSettings): string {
       <div class="panel-close-sticky">
         <button class="mini-btn panel-close-btn" id="settings-back" type="button" title="${closeLabel}" aria-label="${closeLabel}">×</button>
       </div>
-      <header class="settings-header">
-        <h1>${labels.title}</h1>
-        <p>${labels.subtitle}</p>
-      </header>
-
       <div class="settings-grid">
         <section class="settings-card">
           <h2>${labels.appearance}</h2>

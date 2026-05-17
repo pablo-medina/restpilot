@@ -2,6 +2,7 @@ import { escapeAttribute } from "./content-display";
 import { defaultRequestAuth, normalizeRequestAuth } from "./app/request-auth";
 import { t } from "./i18n";
 import type { RequestAuth, SavedRequest } from "./types";
+import { hiddenClass } from "./ui/visibility";
 
 export function renderAuthPanel(request: SavedRequest) {
   const labels = t().request.auth;
@@ -18,13 +19,13 @@ export function renderAuthPanel(request: SavedRequest) {
           <option value="apikey" ${auth.type === "apikey" ? "selected" : ""}>${labels.typeApiKey}</option>
         </select>
       </label>
-      <div class="auth-fields" data-auth-panel="bearer"${auth.type === "bearer" ? "" : " hidden"}>
+      <div class="auth-fields${hiddenClass(auth.type !== "bearer")}" data-auth-panel="bearer">
         <label class="auth-field">
           <span class="auth-field-label">${labels.bearerToken}</span>
           <input id="auth-bearer-token" type="password" value="${escapeAttribute(auth.bearerToken ?? "")}" placeholder="${labels.bearerPlaceholder}" spellcheck="false" autocomplete="off" />
         </label>
       </div>
-      <div class="auth-fields" data-auth-panel="basic"${auth.type === "basic" ? "" : " hidden"}>
+      <div class="auth-fields${hiddenClass(auth.type !== "basic")}" data-auth-panel="basic">
         <label class="auth-field">
           <span class="auth-field-label">${labels.basicUsername}</span>
           <input id="auth-basic-username" value="${escapeAttribute(auth.basicUsername ?? "")}" placeholder="${labels.basicUsernamePlaceholder}" spellcheck="false" autocomplete="username" />
@@ -34,7 +35,7 @@ export function renderAuthPanel(request: SavedRequest) {
           <input id="auth-basic-password" type="password" value="${escapeAttribute(auth.basicPassword ?? "")}" placeholder="${labels.basicPasswordPlaceholder}" spellcheck="false" autocomplete="current-password" />
         </label>
       </div>
-      <div class="auth-fields" data-auth-panel="apikey"${auth.type === "apikey" ? "" : " hidden"}>
+      <div class="auth-fields${hiddenClass(auth.type !== "apikey")}" data-auth-panel="apikey">
         <label class="auth-field">
           <span class="auth-field-label">${labels.apiKeyName}</span>
           <input id="auth-api-key-name" value="${escapeAttribute(auth.apiKeyName ?? "")}" placeholder="${labels.apiKeyNamePlaceholder}" spellcheck="false" autocomplete="off" />
@@ -90,7 +91,7 @@ function readAuthFromForm(request: SavedRequest): RequestAuth {
 
 function syncAuthPanels(type: RequestAuth["type"]) {
   document.querySelectorAll<HTMLElement>("[data-auth-panel]").forEach((panel) => {
-    panel.toggleAttribute("hidden", panel.dataset.authPanel !== type);
+    panel.classList.toggle("is-hidden", panel.dataset.authPanel !== type);
   });
 }
 

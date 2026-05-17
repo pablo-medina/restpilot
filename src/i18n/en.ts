@@ -3,6 +3,14 @@ export const en = {
     name: "RestPilot",
     tagline: "Your calm co-pilot for REST APIs."
   },
+  titleBar: {
+    ariaLabel: "Window title bar",
+    windowControls: "Window controls",
+    minimize: "Minimize",
+    maximize: "Maximize",
+    restore: "Restore down",
+    close: "Close"
+  },
   nav: {
     activityBar: "Primary navigation",
     collection: "Collection",
@@ -92,12 +100,7 @@ export const en = {
     rawJson: "JSON",
     rawText: "Plain text",
     rawXml: "XML",
-    rawJsonHint: "application/json",
-    rawTextHint: "text/plain",
-    rawXmlHint: "application/xml",
-    formHint: "application/x-www-form-urlencoded",
-    multipartHint: "multipart/form-data",
-    noneHint: "No request body",
+    rawFormat: "Format",
     addField: "Add field",
     addFile: "Add file",
     chooseFile: "Choose file…",

@@ -102,7 +102,6 @@ function renderGlobalsTab() {
       </div>
       <article class="variables-panel">
         <div class="variables-panel-head">
-          <h2>${labels.title}</h2>
           ${total ? `<span class="variables-panel-meta">${formatVariablesStats(total, active)}</span>` : ""}
           ${total ? `<button class="variables-add-btn" id="add-variable" type="button"><span class="variables-add-icon" aria-hidden="true">+</span>${labels.add}</button>` : ""}
         </div>
@@ -160,12 +159,6 @@ export function renderVariablesWorkspace() {
       <div class="panel-close-sticky">
         <button class="mini-btn panel-close-btn" id="panel-back" type="button" title="${closeLabel}" aria-label="${closeLabel}">×</button>
       </div>
-      <header class="variables-header">
-        <div class="variables-heading">
-          <h1>${labels.manageTitle}</h1>
-          <p>${t().variables.description}</p>
-        </div>
-      </header>
       <div class="segmented variables-workspace-tabs" role="tablist">
         <button class="${tab === "globals" ? "active" : ""}" type="button" data-variables-tab="globals" role="tab" aria-selected="${tab === "globals"}">${labels.tabGlobals}</button>
         <button class="${tab === "environments" ? "active" : ""}" type="button" data-variables-tab="environments" role="tab" aria-selected="${tab === "environments"}">${labels.tabEnvironments}</button>
