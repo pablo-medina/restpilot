@@ -38,6 +38,8 @@ export type UserSettings = {
   requestTimeoutSecs: number;
   /** Whether the HTTP client follows redirects (up to 10 hops). */
   followRedirects: boolean;
+  /** Single-click a request with an open tab focuses that tab; does not open closed requests. */
+  clickToSelect: boolean;
 };
 
 export type SavedRequest = {
@@ -71,6 +73,12 @@ export type Folder = {
 export type TreeItem = SavedRequest | Folder;
 export type Variable = { id: string; name: string; value: string; enabled: boolean };
 
+export type Environment = {
+  id: string;
+  name: string;
+  variables: Variable[];
+};
+
 export type ApiResponse = {
   status: number;
   status_text: string;
@@ -102,6 +110,8 @@ export type TabState = {
 export type AppConfig = {
   items: TreeItem[];
   variables: Variable[];
+  environments: Environment[];
+  activeEnvironmentId: string | null;
   openTabs: string[];
   activeTabId: string;
   settings: UserSettings;
@@ -116,7 +126,8 @@ export function defaultSettings(): UserSettings {
     tabSize: 2,
     autoPrettifyJson: true,
     requestTimeoutSecs: 60,
-    followRedirects: true
+    followRedirects: true,
+    clickToSelect: true
   };
 }
 
@@ -130,6 +141,8 @@ export function defaultConfig(): AppConfig {
   return {
     items: [],
     variables: [],
+    environments: [],
+    activeEnvironmentId: null,
     openTabs: [],
     activeTabId: "",
     settings: defaultSettings()

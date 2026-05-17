@@ -1,0 +1,54 @@
+import { t } from "../i18n";
+
+export type PopoverShellOptions = {
+  className?: string;
+  title: string;
+  bodyHtml: string;
+  footerHtml?: string;
+  ariaLabel?: string;
+};
+
+/** All floating popovers must include a top-right close control (see AGENTS.md). */
+export function renderPopoverShell(options: PopoverShellOptions): string {
+  const labels = t().dialog;
+  const extraClass = options.className ? ` ${options.className}` : "";
+  return `
+    <div class="app-popover${extraClass}" role="dialog" aria-label="${options.ariaLabel ?? options.title}">
+      <header class="app-popover-head">
+        <strong class="app-popover-title">${options.title}</strong>
+        <button class="mini-btn app-popover-close" type="button" data-popover-close aria-label="${labels.close}">×</button>
+      </header>
+      <div class="app-popover-body">${options.bodyHtml}</div>
+      ${options.footerHtml ? `<footer class="app-popover-footer">${options.footerHtml}</footer>` : ""}
+    </div>
+  `;
+}
+
+export function positionPopoverElement(popover: HTMLElement, anchor: HTMLElement) {
+  const rect = anchor.getBoundingClientRect();
+  const width = popover.offsetWidth || 400;
+  const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+  const top = rect.bottom + 6;
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+}
+
+export function mountPopover(html: string, anchor: HTMLElement): HTMLElement {
+  document.querySelectorAll(".app-popover").forEach((node) => node.remove());
+  document.body.insertAdjacentHTML("beforeend", html);
+  const popover = document.querySelector<HTMLElement>(".app-popover");
+  if (!popover) throw new Error("Popover mount failed.");
+  positionPopoverElement(popover, anchor);
+  return popover;
+}
+
+export function bindPopoverClose(popover: HTMLElement, onClose: () => void) {
+  popover.querySelector("[data-popover-close]")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onClose();
+  });
+}
+
+export function removePopovers() {
+  document.querySelectorAll(".app-popover").forEach((node) => node.remove());
+}

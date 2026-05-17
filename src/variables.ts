@@ -1,6 +1,20 @@
 import { buildRequestUrl } from "./url-params";
 import type { Pair, SavedRequest, Variable } from "./types";
 
+/** Environment variables override global variables with the same name. */
+export function effectiveVariables(global: Variable[], environment: Variable[]): Variable[] {
+  const byName = new Map<string, Variable>();
+  for (const variable of global) {
+    const key = variable.name.trim();
+    if (key) byName.set(key, variable);
+  }
+  for (const variable of environment) {
+    const key = variable.name.trim();
+    if (key) byName.set(key, variable);
+  }
+  return Array.from(byName.values());
+}
+
 export function applyVariables(value: string, variables: Variable[]): string {
   return value.replace(/\$\{([^}]+)\}/g, (_, name: string) => {
     const variable = variables.find((item) => item.enabled && item.name === name.trim());

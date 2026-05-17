@@ -5,6 +5,7 @@ export const es = {
   },
   nav: {
     collection: "Colección",
+    workspace: "Espacio de trabajo",
     variables: "Variables",
     settings: "Configuración",
     backToWorkspace: "Volver al espacio de trabajo",
@@ -24,6 +25,7 @@ export const es = {
     newRequest: "Nueva solicitud",
     newFolder: "Nueva carpeta",
     rename: "Renombrar",
+    show: "Mostrar",
     duplicate: "Duplicar",
     copyCurl: "Copiar como cURL",
     delete: "Eliminar"
@@ -78,8 +80,34 @@ export const es = {
     multipartFilesMissingBody:
       "Las siguientes partes de archivo no tienen datos cargados: {names}. Elija cada archivo nuevamente antes de enviar."
   },
+  environments: {
+    noEnvironment: "Sin entorno",
+    chipTitle: "Entorno activo y variables",
+    popoverTitle: "Entorno",
+    activeEnvironment: "Entorno activo",
+    manage: "Administrar entornos…",
+    manageTitle: "Variables y entornos",
+    manageHint: "Cree entornos para desarrollo, pruebas o producción. Las variables del entorno activo reemplazan a las globales con el mismo nombre.",
+    tabGlobals: "Variables globales",
+    tabEnvironments: "Entornos",
+    addVariable: "Agregar variable",
+    emptyEnvVars: "Este entorno aún no tiene variables.",
+    globalVariables: "Variables globales",
+    environmentsSection: "Entornos",
+    newEnvironment: "Nuevo entorno",
+    environmentName: "Nombre del entorno",
+    rename: "Renombrar…",
+    deleteEnvironment: "Eliminar",
+    deleteEnvironmentTitle: "Eliminar entorno",
+    deleteEnvironmentBody: '¿Eliminar "{name}" y sus variables?',
+    emptyEnvironments: "Aún no hay entornos. Cree uno para agrupar variables por etapa.",
+    selectEnvironment: "Seleccione un entorno para editar sus variables."
+  },
   variables: {
     title: "Variables",
+    popoverTitle: "Variables globales",
+    popoverMeta: "{total} variables · {active} activas",
+    popoverManage: "Administrar variables…",
     description: "Reutilice valores en toda la colección sin copiarlos en cada solicitud.",
     add: "Agregar variable",
     addFirst: "Crear la primera variable",
@@ -108,9 +136,12 @@ export const es = {
     maximizeOnStartup: "Maximizar al iniciar",
     editingSection: "Edición",
     tabSize: "Espaciado de tabulación",
-    tabSizeHint: "Cantidad de espacios que se insertan en la posición del cursor al presionar Tab en el cuerpo de la solicitud.",
+    tabSizeHint: "Espacios insertados al presionar Tab en el cuerpo de la solicitud.",
     autoPrettifyJson: "Autoformatear JSON",
-    autoPrettifyJsonHint: "Si está activo, el JSON válido se formatea al pegar y al importar cURL. Use Ctrl+Shift+F en el cuerpo para formatear manualmente.",
+    autoPrettifyJsonHint: "Formatea JSON válido al pegar y al importar cURL. Ctrl+Shift+F para formatear manualmente.",
+    clickToSelect: "Clic para seleccionar solicitudes abiertas",
+    clickToSelectHint:
+      "Muestra una solicitud que ya tiene pestaña abierta. Sin pestaña, use doble clic, Enter o Mostrar en el menú contextual.",
     languageSection: "Idioma",
     language: "Idioma de la interfaz",
     languageEn: "Inglés",
@@ -156,7 +187,7 @@ export const es = {
     clearData: "Borrar todos los datos",
     clearDataTitle: "Borrar todos los datos",
     clearDataBody:
-      "Se eliminarán de forma permanente todas las solicitudes, carpetas, variables y pestañas abiertas. Se conservará la configuración de la aplicación. Esta acción no se puede deshacer."
+      "Se eliminarán de forma permanente todas las solicitudes, carpetas, variables, entornos y pestañas abiertas. Se conservará la configuración de la aplicación. Esta acción no se puede deshacer."
   },
   dialog: {
     ok: "Aceptar",

@@ -53,7 +53,7 @@ Goal: real projects with dev/staging/prod and portable data.
 
 | # | Item | Scope | Status |
 |---|------|--------|--------|
-| 2.1 | **Environments** — named sets of variables; one active environment | `AppConfig.environments`, UI in Variables or dedicated panel | planned |
+| 2.1 | **Environments** — named sets of variables; one active environment | `AppConfig.environments`, chip + popover + manage dialog | done |
 | 2.2 | **Per-request environment override** (optional) — inherit global env | Advanced; can defer | planned |
 | 2.3 | **Export collection** — JSON snapshot (items + variables + folders, no secrets option) | File dialog via Tauri | planned |
 | 2.4 | **Import collection** — merge or replace; conflict policy (rename/skip) | Dialog + validation | planned |

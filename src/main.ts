@@ -37,7 +37,17 @@ import { iconCopy, iconDuplicate, iconFolderAdd, iconRemove, iconRename, iconReq
 import { brandLogo } from "./logo";
 import { getLocale, setLocale, t } from "./i18n";
 import { bindSettings, renderSettings } from "./settings";
-import { renderVariablesPanel } from "./variables-panel";
+import {
+  bindRequestPopoverTriggers,
+  closeRequestPopovers,
+  renderEnvironmentChipButton,
+  renderStreamToggle,
+  renderVariablesPopoverButton,
+  setRequestPopoverHooks,
+  syncRequestPopover
+} from "./request-popovers";
+import { bindVariablesWorkspace, renderVariablesWorkspace } from "./variables-workspace";
+import { environmentChipLabel, getEffectiveVariables } from "./app/environments";
 import { buildRequestUrl, ingestUrlIntoRequest, migrateRequestQuery } from "./url-params";
 import {
   applyVariables,
@@ -124,6 +134,10 @@ bindGlobalShortcuts({
   focusUrl: () => focusRequestUrl()
 });
 setRenderApp(renderApp);
+setRequestPopoverHooks({
+  onVariablesChanged: onEffectiveVariablesChanged,
+  openVariablesPanel: openVariablesWorkspace
+});
 boot();
 
 async function boot() {
@@ -134,6 +148,8 @@ async function boot() {
       Object.assign(state, {
         items: migrated.items,
         variables: migrated.variables ?? [],
+        environments: migrated.environments ?? [],
+        activeEnvironmentId: migrated.activeEnvironmentId ?? null,
         openTabs: (migrated.openTabs ?? []).filter((tabId) => Boolean(getRequestFrom(migrated.items, tabId))),
         activeTabId: "",
         settings: migrated.settings
@@ -157,10 +173,39 @@ function focusUrlOnStartup() {
   focusRequestUrl();
 }
 
+function renderRailNav(labels: ReturnType<typeof t>) {
+  return `
+    <div class="rail-stack">
+      <section class="rail-collection">
+        <div class="explorer-head">
+          <strong>${labels.nav.collection}</strong>
+          <div class="rail-actions">
+            <button class="mini-btn tool-icon" id="new-folder" type="button" title="${labels.nav.newFolder}" aria-label="${labels.nav.newFolder}">${iconFolderAdd}</button>
+            <button class="mini-btn tool-icon" id="new-request" type="button" title="${labels.nav.newRequest}" aria-label="${labels.nav.newRequest}">${iconRequestAdd}</button>
+          </div>
+        </div>
+        <section class="tree" tabindex="0" aria-label="${labels.nav.collection}">${renderExplorerTree(null, 0)}</section>
+      </section>
+      <nav class="rail-nav">
+        <button class="rail-link${state.activePanel === "variables" ? " active" : ""}" type="button" data-rail-nav="variables">${labels.nav.variables}</button>
+        <button class="rail-link${state.activePanel === "settings" ? " active" : ""}" type="button" data-rail-nav="settings">${labels.nav.settings}</button>
+      </nav>
+    </div>
+  `;
+}
+
+function openVariablesWorkspace(tab: "globals" | "environments" = "globals") {
+  state.variablesWorkspaceTab = tab;
+  if (tab === "environments" && !state.envManageSelectedId && state.environments.length) {
+    state.envManageSelectedId = state.activeEnvironmentId ?? state.environments[0]?.id ?? null;
+  }
+  openPanel("variables");
+}
+
 function renderWorkspaceMarkup() {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
-  if (state.activePanel === "variables") return renderVariablesPanel(state.variables);
+  if (state.activePanel === "variables") return renderVariablesWorkspace();
   if (state.activePanel === "settings") return renderSettings(state.settings);
   if (request && tab) return renderRequest(request, tab);
   return renderEmpty();
@@ -175,6 +220,7 @@ function renderWorkspace() {
   unmountTabDisplay(state.activeTabId);
   panel.innerHTML = renderWorkspaceMarkup();
   bindWorkspace();
+  if (state.openRequestPopover) requestAnimationFrame(() => syncRequestPopover());
 }
 
 function updateTabStripActive() {
@@ -450,18 +496,7 @@ function renderApp() {
           ${brandLogo}
           <span class="brand-name">${labels.app.name}</span>
         </div>
-        <div class="explorer-head">
-          <strong>${labels.nav.collection}</strong>
-          <div class="rail-actions">
-            <button class="mini-btn tool-icon" id="new-folder" type="button" title="${labels.nav.newFolder}" aria-label="${labels.nav.newFolder}">${iconFolderAdd}</button>
-            <button class="mini-btn tool-icon" id="new-request" type="button" title="${labels.nav.newRequest}" aria-label="${labels.nav.newRequest}">${iconRequestAdd}</button>
-          </div>
-        </div>
-        <section class="tree" tabindex="0" aria-label="${labels.nav.collection}">${renderExplorerTree(null, 0)}</section>
-        <nav class="rail-nav">
-          <button class="rail-link ${state.activePanel === "variables" ? "active" : ""}" id="variables-panel" type="button">${labels.nav.variables}</button>
-          <button class="rail-link ${state.activePanel === "settings" ? "active" : ""}" id="settings-panel" type="button">${labels.nav.settings}</button>
-        </nav>
+        ${renderRailNav(labels)}
       </aside>
       <section class="workspace">
         ${state.activePanel === "request" ? renderTabBar(request, tab) : ""}
@@ -473,6 +508,7 @@ function renderApp() {
 
   bindEvents();
   syncContextMenu();
+  if (state.openRequestPopover) syncRequestPopover();
   const active = getActiveRequest();
   const activeTab = active ? ensureTab(active.id) : null;
   if (active && activeTab) mountWorkspaceDisplays(active, activeTab);
@@ -513,6 +549,7 @@ function buildContextMenuMarkup() {
           ? `<hr>${contextMenuButton("rename", labels.rename, { shortcut: menuShortcuts.rename() })}`
           : ""
       }
+      ${item?.kind === "request" ? contextMenuButton("show", labels.show) : ""}
       ${item?.kind === "request" ? contextMenuButton("duplicate", labels.duplicate) : ""}
       ${item?.kind === "request" ? contextMenuButton("copy-curl", labels.copyCurl) : ""}
       ${
@@ -567,22 +604,24 @@ function renderTab(requestId: string) {
 function renderRequest(request: SavedRequest, tab: TabState) {
   const labels = t().request;
   const displayUrl = displayRequestUrl(request);
-  const previewVisible = shouldShowUrlPreview(request, state.variables);
-  const resolvedUrl = resolvedRequestUrl(request, state.variables);
+  const effectiveVariables = getEffectiveVariables();
+  const previewVisible = shouldShowUrlPreview(request, effectiveVariables);
+  const resolvedUrl = resolvedRequestUrl(request, effectiveVariables);
   return `
     <div class="request-editor">
     <section class="request-line">
       <select id="method">${methods.map((method) => `<option ${method === request.method ? "selected" : ""}>${method}</option>`).join("")}</select>
-      <input id="url" value="${escapeAttribute(displayUrl)}" spellcheck="false" />
-      <label class="stream-toggle" title="${labels.streamResponse}">
-        <input id="stream-response" type="checkbox" ${request.streamResponse ? "checked" : ""} />
-        <span>${labels.streamResponse}</span>
-      </label>
-      ${
-        tab.loading
-          ? `<button id="cancel" class="danger-button" type="button"><span class="pulse"></span>${labels.cancel}</button>`
-          : `<button id="send" type="button">${labels.send}</button>`
-      }
+      <div class="url-send-field">
+        <input id="url" class="url-send-input" value="${escapeAttribute(displayUrl)}" spellcheck="false" aria-label="${labels.resolvedUrl}" />
+        ${
+          tab.loading
+            ? `<button id="cancel" class="url-send-btn url-send-btn--cancel danger-button" type="button"><span class="pulse"></span>${labels.cancel}</button>`
+            : `<button id="send" class="url-send-btn" type="button">${labels.send}</button>`
+        }
+      </div>
+      ${renderEnvironmentChipButton()}
+      ${renderVariablesPopoverButton()}
+      ${renderStreamToggle(request.streamResponse)}
     </section>
     <div class="url-preview-wrap${previewVisible ? "" : " is-hidden"}" id="url-preview-wrap" aria-live="polite">
       <span class="url-preview-label">${labels.resolvedUrl}</span>
@@ -812,7 +851,7 @@ function bindWorkspace() {
   }
 
   if (state.activePanel === "variables") {
-    bindVariables();
+    bindVariablesWorkspace(onEffectiveVariablesChanged);
     return;
   }
 
@@ -836,6 +875,11 @@ function bindWorkspace() {
     if (state.autoTitleFromUrlId === request.id) state.autoTitleFromUrlId = null;
   });
   urlInput?.addEventListener("paste", handleCurlPaste);
+  urlInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    void trySendRequest();
+  });
   document.querySelector("#send")?.addEventListener("click", () => void trySendRequest());
   document.querySelector("#cancel")?.addEventListener("click", cancelActiveRequest);
   document.querySelector("#add-query")?.addEventListener("click", (event) => {
@@ -867,9 +911,10 @@ function bindWorkspace() {
     });
   });
   document.querySelector<HTMLElement>("[data-body-editor-host]")?.addEventListener("paste", handleCurlPaste);
-  document.querySelector("#stream-response")?.addEventListener("change", (event) => {
-    request.streamResponse = (event.target as HTMLInputElement).checked;
+  document.querySelector("#stream-response-btn")?.addEventListener("click", () => {
+    request.streamResponse = !request.streamResponse;
     scheduleSave();
+    renderWorkspace();
   });
   document.querySelector("#add-form")?.addEventListener("click", () => {
     request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
@@ -887,26 +932,38 @@ function bindWorkspace() {
   bindResponseCopyMenu(tab);
   bindRequestTabs(request.id);
   bindResponseTabs(request.id);
+  bindRequestPopoverTriggers(onEffectiveVariablesChanged);
   mountWorkspaceDisplays(request, tab);
+  if (state.openRequestPopover) syncRequestPopover();
 }
 
 function bindEvents() {
   bindTree();
   bindDialogs();
+  bindRailNav();
   bindTabBar();
   document.querySelector("#new-folder")?.addEventListener("click", createFolder);
   document.querySelector("#new-request")?.addEventListener("click", createRequest);
-  document.querySelector("#variables-panel")?.addEventListener("click", () => openPanel("variables"));
-  document.querySelector("#settings-panel")?.addEventListener("click", () => openPanel("settings"));
   document.querySelector("#panel-back")?.addEventListener("click", backToWorkspace);
   bindTabBarActions();
   bindWorkspace();
+}
+
+function bindRailNav() {
+  document.querySelector<HTMLButtonElement>('[data-rail-nav="variables"]')?.addEventListener("click", () => {
+    openVariablesWorkspace("globals");
+  });
+
+  document.querySelector<HTMLButtonElement>('[data-rail-nav="settings"]')?.addEventListener("click", () => {
+    openPanel("settings");
+  });
 }
 
 function openPanel(panel: ActivePanel) {
   if (panel !== state.activePanel && (panel === "settings" || panel === "variables")) {
     state.previousPanel = state.activePanel;
   }
+  closeRequestPopovers();
   state.activePanel = panel;
   state.contextMenu = null;
   render();
@@ -933,6 +990,10 @@ async function clearAllData() {
   const fresh = defaultConfig();
   state.items = fresh.items;
   state.variables = fresh.variables;
+  state.environments = fresh.environments;
+  state.activeEnvironmentId = fresh.activeEnvironmentId;
+  state.openRequestPopover = null;
+  state.envManageSelectedId = null;
   state.openTabs = fresh.openTabs;
   state.activeTabId = fresh.activeTabId;
   state.settings = settings;
@@ -1115,6 +1176,7 @@ function ensureContextMenuHandlers() {
       if (action === "new-request") createRequest();
       if (action === "new-folder") createFolder();
       if (action === "rename" && itemId) startTreeRename(itemId);
+      if (action === "show" && itemId && getRequest(itemId)) openRequest(itemId);
       if (action === "duplicate" && itemId) duplicateRequest(itemId);
       if (action === "copy-curl" && itemId) void copyRequestAsCurl(itemId);
       if (action === "delete" && itemId) deleteItem(itemId);
@@ -1271,6 +1333,14 @@ function bindTree() {
     row.addEventListener("click", (event) => {
       if ((event.target as HTMLElement).closest("[data-tree-action], .tree-rename-input")) return;
       closeContextMenu();
+      if (
+        item.kind === "request" &&
+        state.settings.clickToSelect &&
+        state.openTabs.includes(item.id)
+      ) {
+        activateRequestTab(item.id);
+        return;
+      }
       selectTreeItem(item.id, { render: true, focus: true });
     });
     row.addEventListener("dblclick", (event) => {
@@ -1555,13 +1625,23 @@ function syncUrlInputFromRequest(request: SavedRequest) {
   urlInput.value = displayRequestUrl(request);
 }
 
+function onEffectiveVariablesChanged() {
+  const request = getActiveRequest();
+  if (request) updateUrlPreview(request);
+  const chipLabel = document.querySelector(".env-chip-label");
+  if (chipLabel) chipLabel.textContent = environmentChipLabel();
+  document.querySelector("#request-env-btn")?.setAttribute("title", environmentChipLabel());
+  if (state.openRequestPopover === "environment") syncRequestPopover();
+}
+
 function updateUrlPreview(request: SavedRequest) {
   const wrap = document.querySelector("#url-preview-wrap");
   const preview = document.querySelector("#url-preview");
   if (!wrap || !preview) return;
-  const visible = shouldShowUrlPreview(request, state.variables);
+  const effectiveVariables = getEffectiveVariables();
+  const visible = shouldShowUrlPreview(request, effectiveVariables);
   wrap.classList.toggle("is-hidden", !visible);
-  preview.textContent = resolvedRequestUrl(request, state.variables);
+  preview.textContent = resolvedRequestUrl(request, effectiveVariables);
 }
 
 function bindResponseCopyMenu(tab: TabState) {
@@ -1628,69 +1708,6 @@ async function copyText(text: string) {
   } catch {
     await messageDialog("error", labels.copyCurlTitle, labels.copyFailed);
   }
-}
-
-function addVariableAndFocus() {
-  state.variables.push({ id: id(), name: "", value: "", enabled: true });
-  scheduleSave();
-  render();
-  requestAnimationFrame(() => {
-    const rows = document.querySelectorAll<HTMLElement>(".variable-item");
-    const last = rows[rows.length - 1];
-    last?.querySelector<HTMLInputElement>(".variable-name")?.focus();
-    last?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  });
-}
-
-function bindVariables() {
-  const add = () => addVariableAndFocus();
-  document.querySelector("#add-variable")?.addEventListener("click", add);
-  document.querySelector("#add-variable-empty")?.addEventListener("click", add);
-
-  document.querySelectorAll<HTMLElement>(".variable-item[data-variable-id]").forEach((row) => {
-    const variable = state.variables.find((item) => item.id === row.dataset.variableId);
-    if (!variable) return;
-
-    const syncToken = () => {
-      const tokenHost = row.querySelector(".variable-field-token");
-      if (!tokenHost) return;
-      const labels = t().variables;
-      const trimmed = variable.name.trim();
-      const tokenMarkup = trimmed
-        ? `<code class="variable-token">${escapeHtml(`\${${trimmed}}`)}</code>`
-        : `<span class="variable-token variable-token-empty">—</span>`;
-      tokenHost.innerHTML = `<span class="variable-field-label">${labels.tokenPreview}</span>${tokenMarkup}`;
-    };
-
-    row.querySelector<HTMLInputElement>(".variable-enabled")?.addEventListener("change", (event) => {
-      variable.enabled = (event.target as HTMLInputElement).checked;
-      row.classList.toggle("is-disabled", !variable.enabled);
-      scheduleSave();
-      const request = getActiveRequest();
-      if (request) updateUrlPreview(request);
-    });
-
-    row.querySelector<HTMLInputElement>(".variable-name")?.addEventListener("input", (event) => {
-      variable.name = (event.target as HTMLInputElement).value;
-      syncToken();
-      scheduleSave();
-      const request = getActiveRequest();
-      if (request) updateUrlPreview(request);
-    });
-
-    row.querySelector<HTMLInputElement>(".variable-value")?.addEventListener("input", (event) => {
-      variable.value = (event.target as HTMLInputElement).value;
-      scheduleSave();
-      const request = getActiveRequest();
-      if (request) updateUrlPreview(request);
-    });
-
-    row.querySelector(".remove-variable")?.addEventListener("click", () => {
-      state.variables = state.variables.filter((item) => item.id !== variable.id);
-      scheduleSave();
-      render();
-    });
-  });
 }
 
 function maybePrettifyRequestJson(request: SavedRequest) {
@@ -1817,8 +1834,8 @@ async function sendRequest() {
         request.headers
           .filter((header) => header.enabled && header.key.trim())
           .map((header) => [
-            applyVariables(header.key.trim(), state.variables),
-            applyVariables(header.value, state.variables)
+            applyVariables(header.key.trim(), getEffectiveVariables()),
+            applyVariables(header.value, getEffectiveVariables())
           ])
       )
     );
@@ -1839,11 +1856,11 @@ async function sendRequest() {
       request: {
         id: runId,
         method: request.method,
-        url: resolvedRequestUrl(request, state.variables).trim(),
+        url: resolvedRequestUrl(request, getEffectiveVariables()).trim(),
         headers,
         body_mode: request.bodyMode,
         raw_type: request.rawType,
-        body: request.bodyMode === "raw" ? applyVariables(request.body, state.variables) : "",
+        body: request.bodyMode === "raw" ? applyVariables(request.body, getEffectiveVariables()) : "",
         form: buildFormPayload(request),
         stream: request.streamResponse
       },

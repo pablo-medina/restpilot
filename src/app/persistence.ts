@@ -12,9 +12,11 @@ import {
   type FormPartType,
   type Pair,
   type RawType,
+  type Environment,
   type SavedRequest,
   type TreeItem,
-  type UserSettings
+  type UserSettings,
+  type Variable
 } from "../types";
 import { getRequestFrom, state } from "./state";
 
@@ -31,10 +33,34 @@ export function proxyPayload(proxy: UserSettings["proxy"]) {
   };
 }
 
+function normalizeVariable(variable: Variable): Variable {
+  return {
+    id: variable.id,
+    name: variable.name ?? "",
+    value: variable.value ?? "",
+    enabled: variable.enabled !== false
+  };
+}
+
+function normalizeEnvironment(environment: Environment): Environment {
+  return {
+    id: environment.id,
+    name: (environment.name ?? "").trim() || "Environment",
+    variables: (environment.variables ?? []).map(normalizeVariable)
+  };
+}
+
 export function normalizeConfig(config: AppConfig): AppConfig {
+  const environments = (config.environments ?? []).map(normalizeEnvironment);
+  let activeEnvironmentId = config.activeEnvironmentId ?? null;
+  if (activeEnvironmentId && !environments.some((env) => env.id === activeEnvironmentId)) {
+    activeEnvironmentId = null;
+  }
   return {
     items: (config.items ?? []).map(normalizeTreeItem),
-    variables: config.variables ?? [],
+    variables: (config.variables ?? []).map(normalizeVariable),
+    environments,
+    activeEnvironmentId,
     openTabs: config.openTabs ?? [],
     activeTabId: config.activeTabId ?? "",
     settings: {
@@ -44,6 +70,7 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       autoPrettifyJson: config.settings?.autoPrettifyJson !== false,
       requestTimeoutSecs: clampRequestTimeoutSecs(config.settings?.requestTimeoutSecs),
       followRedirects: config.settings?.followRedirects !== false,
+      clickToSelect: config.settings?.clickToSelect !== false,
       proxy: { ...defaultSettings().proxy, ...config.settings?.proxy }
     }
   };
@@ -123,6 +150,8 @@ export async function persistConfig() {
   const config: AppConfig = {
     items: sanitizeItemsForSave(state.items),
     variables: state.variables,
+    environments: state.environments,
+    activeEnvironmentId: state.activeEnvironmentId,
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
     settings: state.settings

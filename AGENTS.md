@@ -22,6 +22,10 @@
 - Dialogs:
   - `messageDialog` — kinds: `information`, `confirmation`, `warning`, `error` (fixed size)
   - `applicationDialog` — draggable; resizable when `resizable: true`; maximize/restore only when resizable
+- Popovers (compact overlays anchored to toolbar controls):
+  - Build markup with `renderPopoverShell()` in `src/components/popover.ts`
+  - Every popover **must** include the top-right close button (`data-popover-close`); do not rely on outside click alone
+  - Mount on `document.body`, close on Escape and via `closeRequestPopovers()` when leaving the request workspace
 
 ## Settings
 

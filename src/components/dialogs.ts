@@ -189,6 +189,7 @@ export function applicationDialog(options: {
   height?: number;
   actions?: DialogAction[];
   previewHtml?: string;
+  maximized?: boolean;
 }): Promise<string> {
   const labels = t().dialog;
   const mode = options.mode ?? "default";
@@ -204,20 +205,27 @@ export function applicationDialog(options: {
           { id: "import", label: labels.import, role: "primary" as const }
         ];
 
+  const width = options.width ?? 620;
+  const height = options.height ?? 420;
+  const x = 300;
+  const y = 120;
+  const maximized = Boolean(options.maximized);
+  const restoreBounds = maximized ? { x, y, width, height } : null;
+
   return openDialog({
     id: crypto.randomUUID(),
     variant: "application",
     title: options.title,
     body: options.body,
-    x: 300,
-    y: 120,
-    width: options.width ?? 620,
-    height: options.height ?? 420,
+    x: maximized ? 24 : x,
+    y: maximized ? 24 : y,
+    width: maximized ? Math.max(400, window.innerWidth - 48) : width,
+    height: maximized ? Math.max(260, window.innerHeight - 48) : height,
     minWidth: 400,
     minHeight: 260,
     resizable,
-    maximized: false,
-    restoreBounds: null,
+    maximized,
+    restoreBounds,
     actions: options.actions ?? defaultActions,
     data: { mode, value: options.value ?? "", previewHtml: options.previewHtml ?? "" }
   });
@@ -382,8 +390,8 @@ function renderDialog(dialog: DialogState): string {
           <button class="mini-btn dialog-window-btn" data-dialog-action="close" type="button" title="${labels.close}" aria-label="${labels.close}">×</button>
         </div>
       </div>
-      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}">
-        <p>${escapeHtml(dialog.body)}</p>
+      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}${previewHtml ? " dialog-body-rich" : ""}">
+        ${dialog.body ? `<p>${escapeHtml(dialog.body)}</p>` : ""}
         ${isInput ? `<input class="dialog-input" value="${escapeAttribute(String(dialog.data?.value ?? ""))}" spellcheck="false" />` : ""}
         ${previewHtml}
       </div>

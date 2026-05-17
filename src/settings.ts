@@ -4,18 +4,16 @@ import { clampRequestTimeoutSecs, type UserSettings } from "./types";
 export function renderSettings(settings: UserSettings): string {
   const labels = t().settings;
   const manualOpen = settings.proxy.mode === "manual";
+  const closeLabel = t().dialog.close;
 
   return `
     <section class="settings-view">
+      <div class="panel-close-sticky">
+        <button class="mini-btn panel-close-btn" id="settings-back" type="button" title="${closeLabel}" aria-label="${closeLabel}">×</button>
+      </div>
       <header class="settings-header">
-        <button class="settings-back" id="settings-back" type="button" aria-label="${t().nav.backToWorkspace}">
-          <span class="settings-back-icon" aria-hidden="true">←</span>
-          ${t().nav.backToWorkspace}
-        </button>
-        <div>
-          <h1>${labels.title}</h1>
-          <p>${labels.subtitle}</p>
-        </div>
+        <h1>${labels.title}</h1>
+        <p>${labels.subtitle}</p>
       </header>
 
       <div class="settings-grid">
@@ -38,18 +36,31 @@ export function renderSettings(settings: UserSettings): string {
           </label>
         </section>
 
-        <section class="settings-card">
+        <section class="settings-card settings-editing-card">
           <h2>${labels.editingSection}</h2>
-          <label class="settings-field">
-            <span>${labels.tabSize}</span>
-            <input id="setting-tab-size" type="number" min="1" max="8" step="1" value="${settings.tabSize}" />
-          </label>
-          <p class="hint settings-field-hint">${labels.tabSizeHint}</p>
-          <label class="settings-field settings-toggle">
-            <span>${labels.autoPrettifyJson}</span>
-            <input id="setting-auto-prettify-json" type="checkbox" ${settings.autoPrettifyJson ? "checked" : ""} />
-          </label>
-          <p class="hint settings-field-hint">${labels.autoPrettifyJsonHint}</p>
+          <div class="settings-options">
+            <div class="settings-option">
+              <label class="settings-field">
+                <span class="settings-option-label">${labels.tabSize}</span>
+                <input id="setting-tab-size" type="number" min="1" max="8" step="1" value="${settings.tabSize}" />
+              </label>
+              <p class="settings-option-hint">${labels.tabSizeHint}</p>
+            </div>
+            <div class="settings-option">
+              <label class="settings-toggle-row" for="setting-auto-prettify-json">
+                <span class="settings-option-label">${labels.autoPrettifyJson}</span>
+                <input id="setting-auto-prettify-json" type="checkbox" ${settings.autoPrettifyJson ? "checked" : ""} />
+              </label>
+              <p class="settings-option-hint">${labels.autoPrettifyJsonHint}</p>
+            </div>
+            <div class="settings-option">
+              <label class="settings-toggle-row" for="setting-click-to-select">
+                <span class="settings-option-label">${labels.clickToSelect}</span>
+                <input id="setting-click-to-select" type="checkbox" ${settings.clickToSelect ? "checked" : ""} />
+              </label>
+              <p class="settings-option-hint">${labels.clickToSelectHint}</p>
+            </div>
+          </div>
         </section>
 
         <section class="settings-card">
@@ -165,6 +176,11 @@ export function bindSettings(
 
   document.querySelector<HTMLInputElement>("#setting-auto-prettify-json")?.addEventListener("change", (event) => {
     settings.autoPrettifyJson = (event.target as HTMLInputElement).checked;
+    onChange();
+  });
+
+  document.querySelector<HTMLInputElement>("#setting-click-to-select")?.addEventListener("change", (event) => {
+    settings.clickToSelect = (event.target as HTMLInputElement).checked;
     onChange();
   });
 

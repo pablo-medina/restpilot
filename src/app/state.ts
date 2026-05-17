@@ -24,6 +24,9 @@ export type AppState = AppConfig & {
   pendingCurl: SavedRequest | null;
   contextMenu: ContextMenuState | null;
   previousPanel: ActivePanel;
+  openRequestPopover: "environment" | "variables" | null;
+  envManageSelectedId: string | null;
+  variablesWorkspaceTab: "globals" | "environments";
 };
 
 export const state: AppState = {
@@ -35,7 +38,10 @@ export const state: AppState = {
   autoTitleFromUrlId: null,
   pendingCurl: null,
   contextMenu: null,
-  previousPanel: "request"
+  previousPanel: "request",
+  openRequestPopover: null,
+  envManageSelectedId: null,
+  variablesWorkspaceTab: "globals"
 };
 
 const root = document.querySelector<HTMLDivElement>("#app");

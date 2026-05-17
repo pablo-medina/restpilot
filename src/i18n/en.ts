@@ -5,6 +5,7 @@ export const en = {
   },
   nav: {
     collection: "Collection",
+    workspace: "Workspace",
     variables: "Variables",
     settings: "Settings",
     backToWorkspace: "Back to workspace",
@@ -24,6 +25,7 @@ export const en = {
     newRequest: "New request",
     newFolder: "New folder",
     rename: "Rename",
+    show: "Show",
     duplicate: "Duplicate",
     copyCurl: "Copy as cURL",
     delete: "Delete"
@@ -78,8 +80,34 @@ export const en = {
     multipartFilesMissingBody:
       "The following file parts have no data loaded: {names}. Choose each file again before sending."
   },
+  environments: {
+    noEnvironment: "No environment",
+    chipTitle: "Active environment and variables",
+    popoverTitle: "Environment",
+    activeEnvironment: "Active environment",
+    manage: "Manage environments…",
+    manageTitle: "Variables & environments",
+    manageHint: "Create environments for dev, staging, or production. Variables in the active environment override globals with the same name.",
+    tabGlobals: "Global variables",
+    tabEnvironments: "Environments",
+    addVariable: "Add variable",
+    emptyEnvVars: "No variables in this environment yet.",
+    globalVariables: "Global variables",
+    environmentsSection: "Environments",
+    newEnvironment: "New environment",
+    environmentName: "Environment name",
+    rename: "Rename…",
+    deleteEnvironment: "Delete",
+    deleteEnvironmentTitle: "Delete environment",
+    deleteEnvironmentBody: 'Delete "{name}" and its variables?',
+    emptyEnvironments: "No environments yet. Create one to scope variables per stage.",
+    selectEnvironment: "Select an environment to edit its variables."
+  },
   variables: {
     title: "Variables",
+    popoverTitle: "Global variables",
+    popoverMeta: "{total} variables · {active} active",
+    popoverManage: "Manage variables…",
     description: "Reuse values across your collection without copying them into every request.",
     add: "Add variable",
     addFirst: "Create your first variable",
@@ -108,9 +136,12 @@ export const en = {
     maximizeOnStartup: "Maximize on startup",
     editingSection: "Editing",
     tabSize: "Tab spacing",
-    tabSizeHint: "Number of spaces inserted at the cursor when you press Tab in the request body editor.",
+    tabSizeHint: "Spaces inserted when you press Tab in the request body editor.",
     autoPrettifyJson: "Auto-format JSON",
-    autoPrettifyJsonHint: "When enabled, valid JSON is formatted on paste and when importing cURL. Use Ctrl+Shift+F in the body editor to format manually.",
+    autoPrettifyJsonHint: "Formats valid JSON on paste and cURL import. Ctrl+Shift+F to format manually.",
+    clickToSelect: "Click to select open requests",
+    clickToSelectHint:
+      "Shows a request that already has an open tab. Without a tab, use double-click, Enter, or Show in the context menu.",
     languageSection: "Language",
     language: "Display language",
     languageEn: "English",
@@ -156,7 +187,7 @@ export const en = {
     clearData: "Clear all data",
     clearDataTitle: "Clear all data",
     clearDataBody:
-      "This will permanently remove all requests, folders, variables, and open tabs. Application settings will be kept. This action cannot be undone."
+      "This will permanently remove all requests, folders, variables, environments, and open tabs. Application settings will be kept. This action cannot be undone."
   },
   dialog: {
     ok: "OK",

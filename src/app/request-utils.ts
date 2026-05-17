@@ -1,6 +1,7 @@
 import { applyVariables } from "../variables";
 import { clampRequestTimeoutSecs, type SavedRequest, type UserSettings } from "../types";
-import { id, state } from "./state";
+import { getEffectiveVariables } from "./environments";
+import { id } from "./state";
 
 export function networkPayload(settings: UserSettings, stream: boolean) {
   const base = clampRequestTimeoutSecs(settings.requestTimeoutSecs);
@@ -58,8 +59,8 @@ export function withContentType(request: SavedRequest, headers: Record<string, s
 
 export function buildFormPayload(request: SavedRequest) {
   return request.form.map((field) => ({
-    key: applyVariables(field.key, state.variables),
-    value: field.partType === "file" ? field.value : applyVariables(field.value, state.variables),
+    key: applyVariables(field.key, getEffectiveVariables()),
+    value: field.partType === "file" ? field.value : applyVariables(field.value, getEffectiveVariables()),
     enabled: field.enabled,
     part_type: field.partType ?? "text",
     file_name: field.fileName ?? null
