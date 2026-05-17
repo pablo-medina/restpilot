@@ -11,7 +11,7 @@ use curl::easy::{Auth, Easy, List};
 use reqwest::Method;
 use tauri::{AppHandle, Emitter};
 
-use crate::{proxy_uri, proxy_windows, ProxySettings, RestRequest, RestResponse, StreamEvent};
+use crate::{proxy_env, proxy_uri, proxy_windows, ProxySettings, RestRequest, RestResponse, StreamEvent};
 
 const STREAM_EVENT: &str = "restpilot:request-stream";
 
@@ -39,9 +39,12 @@ pub fn should_use_curl(proxy: Option<&ProxySettings>) -> bool {
     let Some(proxy) = proxy else {
         return false;
     };
+    if proxy.mode == "none" {
+        return false;
+    }
     match proxy.mode.as_str() {
         "manual" => proxy_auth_mode(proxy) != "basic" && has_manual_proxy(proxy),
-        "system" => proxy.use_curl_for_system.unwrap_or(false),
+        "system" => proxy_auth_mode(proxy) != "basic",
         _ => false,
     }
 }
@@ -146,6 +149,11 @@ fn configure_proxy(easy: &mut Easy, proxy: &ProxySettings, target_url: &str) -> 
     // Allow multi-step proxy auth (407 → NTLM) on CONNECT, same as Insomnia/libcurl.
     easy.unrestricted_auth(true)
         .map_err(|error| error.to_string())?;
+    let noproxy = proxy_env::merge_no_proxy_with_process(&proxy_env::no_proxy_list(Some(proxy)));
+    if !noproxy.is_empty() {
+        easy.noproxy(&noproxy)
+            .map_err(|error| error.to_string())?;
+    }
     Ok(())
 }
 

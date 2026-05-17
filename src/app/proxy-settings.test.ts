@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildProxyUrl, normalizeProxyAuthMode, normalizeProxySettings } from "./proxy-settings";
+import {
+  buildProxyUrl,
+  normalizeProxyAuthMode,
+  normalizeProxySettings,
+  proxyAuthModeForModeChange
+} from "./proxy-settings";
 
 describe("normalizeProxySettings", () => {
   it("migrates legacy host/port/credentials to http and https URLs", () => {
@@ -23,7 +28,13 @@ describe("normalizeProxySettings", () => {
     expect(proxy.httpProxy).toBe("http://a:1@p:99");
     expect(proxy.httpsProxy).toBe("https://b:2@p:99");
     expect(proxy.authMode).toBe("auto");
-    expect(proxy.useCurlForSystem).toBe(false);
+    expect(proxy.noProxy).toBe("localhost,127.0.0.1");
+  });
+
+  it("presets auth to auto when switching to system or manual", () => {
+    expect(proxyAuthModeForModeChange("system", "basic")).toBe("auto");
+    expect(proxyAuthModeForModeChange("manual", "basic")).toBe("auto");
+    expect(proxyAuthModeForModeChange("none", "basic")).toBe("basic");
   });
 
   it("normalizes proxy auth mode", () => {

@@ -13,8 +13,8 @@ export function proxySettingsForSave(proxy: UserSettings["proxy"]): UserSettings
     mode: proxy.mode,
     httpProxy: proxy.httpProxy.trim(),
     httpsProxy: proxy.httpsProxy.trim(),
-    authMode: proxy.authMode,
-    useCurlForSystem: proxy.useCurlForSystem
+    noProxy: proxy.noProxy.trim(),
+    authMode: proxy.authMode
   };
 }
 
@@ -24,8 +24,8 @@ export function proxyPayload(proxy: UserSettings["proxy"]) {
     mode: proxy.mode,
     http_proxy: proxy.httpProxy.trim() || null,
     https_proxy: proxy.httpsProxy.trim() || null,
-    auth_mode: proxy.authMode,
-    use_curl_for_system: proxy.useCurlForSystem
+    no_proxy: proxy.noProxy.trim() || null,
+    auth_mode: proxy.authMode
   };
 }
 

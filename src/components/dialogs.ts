@@ -2,7 +2,13 @@ import { t } from "../i18n";
 import type { DialogKind } from "../types";
 
 export type DialogAction = { id: string; label: string; role?: "primary" | "danger" };
-export type DialogMode = "default" | "input" | "curl-preview" | "collection-export" | "collection-import";
+export type DialogMode =
+  | "default"
+  | "input"
+  | "curl-preview"
+  | "proxy-test-log"
+  | "collection-export"
+  | "collection-import";
 export type DialogOutcome = { action: string; data?: Record<string, unknown> };
 
 export type DialogState = {
@@ -37,6 +43,44 @@ let onRender: (() => void) | null = null;
 let dragState: DragState | null = null;
 let boundGlobals = false;
 
+const VIEWPORT_MARGIN = 16;
+const DIALOG_MAX_MARGIN = 0;
+
+export function hasOpenDialogs(): boolean {
+  return dialogs.length > 0;
+}
+
+function applyDialogMaximizedBounds(dialog: DialogState) {
+  dialog.x = DIALOG_MAX_MARGIN;
+  dialog.y = DIALOG_MAX_MARGIN;
+  dialog.width = Math.max(dialog.minWidth, window.innerWidth - DIALOG_MAX_MARGIN * 2);
+  dialog.height = Math.max(dialog.minHeight, window.innerHeight - DIALOG_MAX_MARGIN * 2);
+}
+
+function syncDialogMaximizeButton(root: HTMLElement, dialog: DialogState) {
+  const maximizeBtn = root.querySelector<HTMLButtonElement>('[data-dialog-action="maximize"]');
+  if (!maximizeBtn) return;
+  const labels = t().dialog;
+  maximizeBtn.textContent = dialog.maximized ? "❐" : "□";
+  maximizeBtn.title = dialog.maximized ? labels.restore : labels.maximize;
+  maximizeBtn.setAttribute("aria-label", maximizeBtn.title);
+}
+
+function centerDialog(dialog: DialogState, measuredHeight?: number) {
+  const width = Math.min(dialog.width, window.innerWidth - VIEWPORT_MARGIN * 2);
+  const height =
+    dialog.height > 0
+      ? Math.min(dialog.height, window.innerHeight - VIEWPORT_MARGIN * 2)
+      : measuredHeight && measuredHeight > 0
+        ? Math.min(measuredHeight, window.innerHeight - VIEWPORT_MARGIN * 2)
+        : 0;
+
+  const layoutHeight = height > 0 ? height : Math.max(dialog.minHeight, 200);
+
+  dialog.x = Math.max(VIEWPORT_MARGIN, Math.round((window.innerWidth - width) / 2));
+  dialog.y = Math.max(VIEWPORT_MARGIN, Math.round((window.innerHeight - layoutHeight) / 2));
+}
+
 export function initDialogs(render: () => void) {
   onRender = render;
   if (!boundGlobals) {
@@ -63,11 +107,7 @@ export function bindDialogs() {
         if (actionId === "maximize") {
           toggleMaximize(dialog);
           updateDialogElement(dialog);
-          const maximizeBtn = action as HTMLButtonElement;
-          const labels = t().dialog;
-          maximizeBtn.textContent = dialog.maximized ? "❐" : "□";
-          maximizeBtn.title = dialog.maximized ? labels.restore : labels.maximize;
-          maximizeBtn.setAttribute("aria-label", maximizeBtn.title);
+          syncDialogMaximizeButton(element, dialog);
           return;
         }
         captureDialogForm(dialog, element);
@@ -75,7 +115,8 @@ export function bindDialogs() {
       });
     });
 
-    element.querySelector<HTMLElement>("[data-dialog-drag]")?.addEventListener("pointerdown", (event) => {
+    const titleBar = element.querySelector<HTMLElement>("[data-dialog-drag]");
+    titleBar?.addEventListener("pointerdown", (event) => {
       if (dialog.maximized) return;
       const target = event.target as HTMLElement;
       if (target.closest("[data-dialog-action]")) return;
@@ -83,6 +124,16 @@ export function bindDialogs() {
       dragState = { type: "move", id: dialogId, dx: event.clientX - dialog.x, dy: event.clientY - dialog.y };
       setDialogDragging(dialogId, true);
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    });
+
+    titleBar?.addEventListener("dblclick", (event) => {
+      if (!dialog.resizable) return;
+      if ((event.target as HTMLElement).closest("[data-dialog-action]")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleMaximize(dialog);
+      updateDialogElement(dialog);
+      syncDialogMaximizeButton(element, dialog);
     });
 
     element.tabIndex = -1;
@@ -122,6 +173,17 @@ export function bindDialogs() {
 
     if (dialogs[dialogs.length - 1]?.id === dialogId) {
       element.focus();
+      if (!dialog.maximized && dialog.height === 0) {
+        requestAnimationFrame(() => {
+          const current = dialogs.find((item) => item.id === dialogId);
+          const node = document.querySelector<HTMLElement>(`[data-dialog-id="${dialogId}"]`);
+          if (!current || !node) return;
+          const measured = node.getBoundingClientRect().height;
+          if (measured <= 0) return;
+          centerDialog(current, measured);
+          applyDialogBounds(node, current);
+        });
+      }
     }
   });
 }
@@ -176,8 +238,8 @@ export function messageDialog(kind: DialogKind, title: string, body: string): Pr
     kind,
     title,
     body,
-    x: 360,
-    y: 180,
+    x: 0,
+    y: 0,
     width: 400,
     height: 0,
     minWidth: 320,
@@ -222,20 +284,18 @@ export function applicationDialog(options: {
 
   const width = options.width ?? 620;
   const height = options.height ?? 420;
-  const x = 300;
-  const y = 120;
   const maximized = Boolean(options.maximized);
-  const restoreBounds = maximized ? { x, y, width, height } : null;
+  const restoreBounds = maximized ? { x: 0, y: 0, width, height } : null;
 
   return openDialog({
     id: crypto.randomUUID(),
     variant: "application",
     title: options.title,
     body: options.body,
-    x: maximized ? 24 : x,
-    y: maximized ? 24 : y,
-    width: maximized ? Math.max(400, window.innerWidth - 48) : width,
-    height: maximized ? Math.max(260, window.innerHeight - 48) : height,
+    x: maximized ? DIALOG_MAX_MARGIN : 0,
+    y: maximized ? DIALOG_MAX_MARGIN : 0,
+    width: maximized ? Math.max(400, window.innerWidth - DIALOG_MAX_MARGIN * 2) : width,
+    height: maximized ? Math.max(260, window.innerHeight - DIALOG_MAX_MARGIN * 2) : height,
     minWidth: 400,
     minHeight: 260,
     resizable,
@@ -251,8 +311,16 @@ export async function inputDialog(title: string, body: string, value: string): P
   return typeof result === "string" ? result : result.action;
 }
 
+function syncModalChromeState() {
+  document.documentElement.toggleAttribute("data-modal-open", dialogs.length > 0);
+}
+
 function openDialog(dialog: DialogState): Promise<string | DialogOutcome> {
+  if (!dialog.maximized) {
+    centerDialog(dialog);
+  }
   dialogs.push(dialog);
+  syncModalChromeState();
   requestRender();
   return new Promise((resolve) => resolvers.set(dialog.id, resolve));
 }
@@ -288,7 +356,9 @@ function closeDialog(dialogId: string, action: string) {
     result = "cancel";
   } else if (
     dialog?.variant === "application" &&
-    (dialog.data?.mode === "collection-export" || dialog.data?.mode === "collection-import")
+    (dialog.data?.mode === "collection-export" ||
+      dialog.data?.mode === "collection-import" ||
+      dialog.data?.mode === "proxy-test-log")
   ) {
     result = { action, data: { ...dialog.data } };
   } else {
@@ -297,26 +367,27 @@ function closeDialog(dialogId: string, action: string) {
 
   resolvers.get(dialogId)?.(result);
   resolvers.delete(dialogId);
+  syncModalChromeState();
   requestRender();
 }
 
 function toggleMaximize(dialog: DialogState) {
   if (dialog.maximized) {
-    const bounds = dialog.restoreBounds ?? { x: 300, y: 120, width: dialog.width, height: dialog.height };
-    dialog.x = bounds.x;
-    dialog.y = bounds.y;
-    dialog.width = bounds.width;
-    dialog.height = bounds.height;
+    if (dialog.restoreBounds) {
+      dialog.x = dialog.restoreBounds.x;
+      dialog.y = dialog.restoreBounds.y;
+      dialog.width = dialog.restoreBounds.width;
+      dialog.height = dialog.restoreBounds.height;
+    } else {
+      centerDialog(dialog);
+    }
     dialog.maximized = false;
     dialog.restoreBounds = null;
     return;
   }
 
   dialog.restoreBounds = { x: dialog.x, y: dialog.y, width: dialog.width, height: dialog.height };
-  dialog.x = 24;
-  dialog.y = 24;
-  dialog.width = Math.max(dialog.minWidth, window.innerWidth - 48);
-  dialog.height = Math.max(dialog.minHeight, window.innerHeight - 48);
+  applyDialogMaximizedBounds(dialog);
   dialog.maximized = true;
 }
 
@@ -431,7 +502,7 @@ function renderDialog(dialog: DialogState): string {
           <button class="mini-btn dialog-window-btn" data-dialog-action="close" type="button" title="${labels.close}" aria-label="${labels.close}">×</button>
         </div>
       </div>
-      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}${previewHtml ? " dialog-body-rich" : ""}">
+      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}${mode === "proxy-test-log" ? " dialog-body-proxy-test" : ""}${previewHtml ? " dialog-body-rich" : ""}">
         ${dialog.body ? `<p>${escapeHtml(dialog.body)}</p>` : ""}
         ${isInput ? `<input class="dialog-input" value="${escapeAttribute(String(dialog.data?.value ?? ""))}" spellcheck="false" />` : ""}
         ${previewHtml}

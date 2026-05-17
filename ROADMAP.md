@@ -41,6 +41,7 @@ Goal: faster iteration for power users without new concepts.
 | 1.3 | **Query params table** — parse/sync with URL (`?a=1&b=2`), same UX as headers | Request builder | done |
 | 1.4 | **Variable preview** — show resolved URL (and optional tooltip) before send | Uses existing `applyVariables` | done |
 | 1.5 | **Network settings** — request timeout, follow redirects on/off | `UserSettings` + Rust `send_request` | done |
+| 1.7 | **Manual proxy + NTLM (libcurl)** — Auto auth, vendored curl, Settings test | `http_curl.rs`, `.cargo/config.toml` | done |
 | 1.6 | **Multipart persistence UX** — warn when file parts are not saved; hint in UI | Settings copy + send guard | done |
 
 **Exit criteria:** Common flows doable without mouse; URL/query editing matches header table ergonomics.
@@ -112,6 +113,7 @@ Versions are indicative; ship when exit criteria for the theme are met.
 - **i18n:** every user string in `src/i18n/en.ts` and `src/i18n/es.ts`.
 - **Dialogs:** `messageDialog` / `applicationDialog` from `src/components/dialogs.ts`.
 - **HTTP:** Rust `send_request` in `src-tauri/src/lib.rs`; pass `proxy` from settings.
+- **Proxy (corporate NTLM):** documented in `AGENTS.md` → “Proxy (user settings)” / “Proxy (runtime behavior)”. Manual + auth **Auto** uses libcurl NTLM on CONNECT; requires vendored libcurl with `CURL_ENABLE_NTLM` (see `.cargo/config.toml`). **Do not change the HTTP/proxy stack without user confirmation.**
 - **Variables today:** global list + `applyVariables()` at send time — environments layer on top without breaking `${name}` syntax.
 
 ---

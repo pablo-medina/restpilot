@@ -7,6 +7,7 @@ type LegacyProxy = Partial<ProxySettings> & {
   password?: string;
   authMode?: string;
   useCurlForSystem?: boolean;
+  noProxy?: string;
 };
 
 /** Builds a proxy URL (`http(s)://user:pass@host:port`). */
@@ -36,16 +37,22 @@ export function normalizeProxyAuthMode(value: unknown): ProxyAuthMode {
   return "auto";
 }
 
+export function normalizeNoProxy(value: unknown): string {
+  if (typeof value !== "string") return "localhost,127.0.0.1";
+  const trimmed = value.trim();
+  return trimmed || "localhost,127.0.0.1";
+}
+
 export function normalizeProxySettings(proxy: LegacyProxy | undefined): ProxySettings {
   const mode = proxy?.mode ?? "none";
   const authMode = normalizeProxyAuthMode(proxy?.authMode);
-  const useCurlForSystem = proxy?.useCurlForSystem === true;
+  const noProxy = normalizeNoProxy(proxy?.noProxy);
   const defaults: ProxySettings = {
     mode: "none",
     httpProxy: "",
     httpsProxy: "",
-    authMode: "auto",
-    useCurlForSystem: false
+    noProxy: "localhost,127.0.0.1",
+    authMode: "auto"
   };
 
   if (!proxy) return defaults;
@@ -58,14 +65,14 @@ export function normalizeProxySettings(proxy: LegacyProxy | undefined): ProxySet
       httpProxy: httpFromFields,
       httpsProxy: httpsFromFields,
       authMode,
-      useCurlForSystem
+      noProxy
     };
   }
 
   // One-time migration from older host/port/user/pass fields still in config.json.
   const host = String(proxy.host ?? "").trim();
   if (!host) {
-    return { mode, httpProxy: "", httpsProxy: "", authMode, useCurlForSystem };
+    return { mode, httpProxy: "", httpsProxy: "", authMode, noProxy };
   }
 
   const port = typeof proxy.port === "number" && proxy.port > 0 ? proxy.port : 8080;
@@ -76,6 +83,12 @@ export function normalizeProxySettings(proxy: LegacyProxy | undefined): ProxySet
     httpProxy: "",
     httpsProxy: buildProxyUrl(host, port, username, password, "http"),
     authMode,
-    useCurlForSystem
+    noProxy
   };
+}
+
+/** When enabling system or manual proxy, default auth to automatic negotiation. */
+export function proxyAuthModeForModeChange(mode: ProxySettings["mode"], current: ProxyAuthMode): ProxyAuthMode {
+  if (mode === "system" || mode === "manual") return "auto";
+  return current;
 }

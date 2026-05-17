@@ -3471,17 +3471,105 @@ select,
   background: rgba(255, 255, 255, 0.88);
 }
 
-.settings-proxy-advanced,
-.settings-proxy-manual {
-  display: none;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  margin-top: 14px;
+.settings-network-general {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 12px 20px;
+  align-items: end;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(52, 48, 42, 0.1);
 }
 
-.settings-proxy-advanced.open,
-.settings-proxy-manual.open {
+.settings-network-toggle {
+  align-self: end;
+  margin-bottom: 2px;
+}
+
+.settings-field-compact input[type="number"] {
+  max-width: 100%;
+}
+
+.settings-network-proxy {
   display: grid;
+  gap: 14px;
+}
+
+.settings-proxy-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.settings-proxy-urls {
+  display: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-proxy-urls.open {
+  display: grid;
+}
+
+.settings-proxy-test {
+  margin-top: 2px;
+}
+
+.settings-proxy-test-outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.settings-proxy-test-outcome.is-hidden {
+  display: none;
+}
+
+.settings-proxy-test-summary.is-success {
+  color: var(--rp-success, #2f6f4d);
+}
+
+.settings-proxy-test-summary.is-error {
+  color: var(--field-remove-color, #b54a3a);
+}
+
+.settings-proxy-test-details-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #3d7f6f;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.settings-proxy-test-details-link:hover {
+  color: #2f5f54;
+}
+
+[data-theme="dark"] .settings-proxy-test-details-link {
+  color: #9fd4c4;
+}
+
+[data-theme="dark"] .settings-proxy-test-details-link:hover {
+  color: #d4eee6;
+}
+
+@media (max-width: 900px) {
+  .settings-network-general {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-proxy-head,
+  .settings-proxy-urls.open {
+    grid-template-columns: 1fr;
+  }
 }
 
 .settings-secret-input-row {
@@ -3551,17 +3639,19 @@ select,
   cursor: wait;
 }
 
-.settings-proxy-test-result {
-  margin-top: 6px;
+.dialog-body-proxy-test {
+  overflow: auto;
+  min-height: 0;
 }
 
-.settings-proxy-test-result.is-success {
-  color: var(--rp-success, #2f6f4d);
-}
-
-.settings-proxy-test-result.is-error {
-  color: var(--field-remove-color, #b54a3a);
+.proxy-test-log {
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.5;
   white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .settings-proxy-test-btn {
@@ -3699,7 +3789,12 @@ select,
 }
 
 .app-dialog.maximized {
-  border-radius: 10px;
+  border-radius: 0;
+}
+
+html[data-modal-open] .title-bar,
+html[data-modal-open] .title-bar * {
+  pointer-events: none !important;
 }
 
 [data-theme="dark"] {

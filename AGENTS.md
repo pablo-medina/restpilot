@@ -122,9 +122,64 @@ Use for deleting a row in params, headers, form, or closing a request tab when t
 - User preferences live in `AppConfig.settings` (theme, language, proxy).
 - Proxy modes: `none`, `system`, `manual`. Default: `none`.
 
+### Proxy (user settings)
+
+Settings UI: `src/settings.ts`. Persisted in `AppConfig.settings.proxy` via `proxyPayload()` in `src/app/persistence.ts`. Normalized in `normalizeProxySettings()` (`src/app/proxy-settings.ts`).
+
+| Field | Meaning |
+|-------|---------|
+| `mode` | `none` — direct connection. `system` — OS/PAC (Windows: WinHTTP). `manual` — full proxy URLs below. |
+| `httpProxy` / `httpsProxy` | Full URL, e.g. `http://user:pass@proxy.example.com:8080`. Manual mode only. For HTTPS targets, HTTPS proxy alone is enough. |
+| `noProxy` | Comma-separated hosts bypassing the proxy (e.g. `localhost,127.0.0.1`). Merged with process `NO_PROXY` when set. |
+| `authMode` | `auto` (default), `basic`, `ntlm`, `negotiate`. Preset to `auto` when switching to system or manual. |
+| `proxyTestUrl` | URL used by the Settings **Test** button (same stack as real requests). Test output is a step log dialog (redacted). |
+
+**Do not change proxy/HTTP connection behavior** (`src-tauri` HTTP stack, `curl` dependency, `.cargo/config.toml` NTLM flags) **without explicit user confirmation.** Documentation-only updates are fine.
+
+### Proxy (runtime behavior)
+
+**Engine selection** (`src-tauri/src/http_curl.rs`, `should_use_curl`):
+
+| Situation | Engine |
+|-----------|--------|
+| `mode === "none"` | reqwest, no proxy |
+| `mode === "manual"` + `authMode === "basic"` | reqwest + Basic proxy auth |
+| `mode === "manual"` + `authMode` auto / ntlm / negotiate | **libcurl** (blocking thread) |
+| `mode === "system"` + `authMode !== "basic"` | **libcurl** + PAC / `HTTP_PROXY` / `HTTPS_PROXY` |
+| `mode === "system"` + `authMode === "basic"` | reqwest + resolved system/PAC proxy |
+
+**Corporate gateways (407 + NTLM on CONNECT):** Many proxies answer the first `CONNECT` with `407` and `Proxy-Authenticate: NTLM`, then expect a **three-step** NTLM handshake on the tunnel before `200 Connection Established`. libcurl handles that when NTLM is enabled in the build.
+
+- **`authMode: auto`** — proxy auth is **NTLM only** (no Negotiate in auto; avoids SPNEGO token errors on domain proxies).
+- **`authMode: ntlm` / `negotiate`** — force that scheme via libcurl.
+- **`authMode: basic`** — reqwest only; fails on NTLM-only proxies.
+
+**Credentials:**
+
+- Parsed from the proxy URL (`src-tauri/src/proxy_uri.rs`): user, password, host, port. Password special characters (e.g. `$`) must survive URL encoding/decoding.
+- For NTLM (non-basic), username sent to libcurl as `DOMAIN\user`:
+  - Already `DOMAIN\user` or `user@DOMAIN` in the URL → kept/mapped.
+  - Otherwise on Windows → `USERDOMAIN\user` from the environment.
+- Do not log or document real customer hostnames, domains, or usernames in UI copy, examples, or tests. Use `proxy.example.com`, `CORP`, `alice`.
+
+**Build (libcurl + NTLM):**
+
+- Dependency: `curl` with `static-curl`, `ssl`, `ntlm` (`src-tauri/Cargo.toml`).
+- **Required:** `CURL_ENABLE_NTLM` when compiling vendored libcurl. The `curl-sys` `ntlm` feature compiles sources but omits this define unless set — without it, runtime error `[4]` (“feature not built-in”) and `Version::feature_ntlm() === false`.
+- Project fix: `.cargo/config.toml` sets `CFLAGS = "-DCURL_ENABLE_NTLM"`.
+- Guard: unit test `curl_build_tests::libcurl_includes_ntlm` in `src-tauri/src/lib.rs`; `ensure_curl_ntlm()` before curl proxy requests.
+
+**Diagnostics (Settings → Test):** `test_proxy_connection` uses the same path as `send_request`. Detail line may include mode, auth mode, `HTTP engine: libcurl`, redacted proxy URLs, TCP reachability — no domain\user principal line (avoid leaking AD names).
+
+**Platform notes:**
+
+- **Windows:** vendored libcurl + Schannel/SSPI; NTLM via `ntlm_sspi.c`. System PAC: `proxy_windows.rs` (WinHTTP).
+- **Linux / macOS:** vendored libcurl + OpenSSL; NTLM with explicit credentials in URL. Negotiate may need OS Kerberos; less common than on Windows AD proxies.
+
 ## HTTP
 
-- Requests are sent through Tauri/Rust (`send_request`). Pass `proxy` from frontend settings.
+- Requests are sent through Tauri/Rust (`send_request`). Pass `proxy` from frontend settings (`proxyPayload` in `src/app/persistence.ts`).
+- Proxy test and sends share libcurl vs reqwest rules above.
 
 ## Collection tree
 

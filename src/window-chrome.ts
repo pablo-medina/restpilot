@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { hasOpenDialogs } from "./components/dialogs";
 import { t } from "./i18n";
 
 export type WindowPlatform = "windows" | "macos" | "linux" | "web";
@@ -139,15 +140,16 @@ export function bindWindowChrome() {
   if (usesNativeTitleBarDoubleClickMaximize()) return;
 
   bar.addEventListener("dblclick", (event) => {
+    if (hasOpenDialogs()) return;
     if (isTitleBarDoubleClickIgnored(event.target)) return;
-    if (!(event.target as HTMLElement).closest("[data-tauri-drag-region], .title-bar-center")) return;
+    if (!(event.target as HTMLElement).closest("[data-tauri-drag-region], .title-bar-center, .title-bar-drag")) return;
     if (!isTauri()) return;
     void getCurrentWindow().toggleMaximize().then(() => syncMaximizeControl());
   });
 }
 
 async function runWindowAction(action: string | undefined) {
-  if (!isTauri() || !action) return;
+  if (!isTauri() || !action || hasOpenDialogs()) return;
   const window = getCurrentWindow();
   if (action === "minimize") {
     await window.minimize();

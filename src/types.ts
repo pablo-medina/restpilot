@@ -31,16 +31,18 @@ export type ProxyMode = "none" | "system" | "manual";
 export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
 export type ActivePanel = "request" | "variables" | "settings";
 
+export const DEFAULT_PROXY_TEST_URL = "https://jsonplaceholder.typicode.com/posts/1";
+
 export type ProxySettings = {
   mode: ProxyMode;
   /** Full proxy URL for HTTP requests (e.g. http://user:pass@proxy:8080). */
   httpProxy: string;
   /** Full proxy URL for HTTPS requests (e.g. https://user:pass@proxy:8080). */
   httpsProxy: string;
-  /** Auto negotiates Basic / NTLM / SPNEGO on 407 (libcurl). Basic uses reqwest only. */
+  /** Comma-separated hosts that bypass the proxy (e.g. localhost,127.0.0.1). */
+  noProxy: string;
+  /** Auto negotiates Basic / NTLM / SPNEGO on 407 (libcurl for manual and system). */
   authMode: ProxyAuthMode;
-  /** System/PAC proxy via libcurl (SSPI on Windows, GSS-API on macOS/Linux). */
-  useCurlForSystem: boolean;
 };
 
 export type UserSettings = {
@@ -157,8 +159,8 @@ export function defaultSettings(): UserSettings {
       mode: "none",
       httpProxy: "",
       httpsProxy: "",
-      authMode: "auto",
-      useCurlForSystem: false
+      noProxy: "localhost,127.0.0.1",
+      authMode: "auto"
     },
     maximizeOnStartup: true,
     tabSize: 2,
@@ -167,7 +169,7 @@ export function defaultSettings(): UserSettings {
     followRedirects: true,
     clickToSelect: true,
     duplicateNaming: "copyOf",
-    proxyTestUrl: ""
+    proxyTestUrl: DEFAULT_PROXY_TEST_URL
   };
 }
 

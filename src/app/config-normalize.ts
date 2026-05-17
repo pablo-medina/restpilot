@@ -5,6 +5,7 @@ import { hydrateRequestAuth } from "./request-auth";
 import { migrateRequestQuery } from "../url-params";
 import {
   clampRequestTimeoutSecs,
+  DEFAULT_PROXY_TEST_URL,
   defaultSettings,
   type ApiResponse,
   type AppConfig,
@@ -106,7 +107,9 @@ export function normalizeConfig(config: AppConfig): AppConfig {
         ...(config.settings?.proxy as Record<string, unknown> | undefined)
       }),
       proxyTestUrl:
-        typeof config.settings?.proxyTestUrl === "string" ? config.settings.proxyTestUrl : ""
+        typeof config.settings?.proxyTestUrl === "string" && config.settings.proxyTestUrl.trim()
+          ? config.settings.proxyTestUrl.trim()
+          : DEFAULT_PROXY_TEST_URL
     }
   };
 }

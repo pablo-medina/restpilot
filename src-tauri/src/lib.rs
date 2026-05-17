@@ -15,6 +15,8 @@ use tokio::time::{sleep, timeout, Duration};
 
 mod http_curl;
 mod http_errors;
+mod proxy_env;
+mod proxy_test;
 mod proxy_uri;
 mod proxy_windows;
 
@@ -44,7 +46,10 @@ struct ProxySettings {
     /// `auto` | `basic` | `ntlm` | `negotiate` — auto uses libcurl to negotiate on 407.
     #[serde(default)]
     auth_mode: Option<String>,
-    /// When true, system/PAC proxy requests use libcurl (NTLM/SPNEGO/SSPI on Windows).
+    /// Comma-separated hosts bypassing the proxy (e.g. localhost,127.0.0.1).
+    #[serde(default)]
+    no_proxy: Option<String>,
+    /// Legacy: merged into system + auth auto (libcurl).
     #[serde(default)]
     use_curl_for_system: Option<bool>,
 }
@@ -379,6 +384,15 @@ fn build_http_client(
     follow_redirects: bool,
     target_url: Option<&str>,
 ) -> Result<reqwest::Client, String> {
+    let no_proxy = proxy_env::no_proxy_list(proxy.as_ref());
+    proxy_env::with_merged_no_proxy(&no_proxy, || build_http_client_inner(proxy, follow_redirects, target_url))
+}
+
+fn build_http_client_inner(
+    proxy: Option<ProxySettings>,
+    follow_redirects: bool,
+    target_url: Option<&str>,
+) -> Result<reqwest::Client, String> {
     let redirect = if follow_redirects {
         reqwest::redirect::Policy::limited(10)
     } else {
@@ -435,7 +449,10 @@ struct TestProxyResult {
     duration_ms: u128,
     error: Option<String>,
     hint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     detail: Option<String>,
+    #[serde(default)]
+    log: Vec<String>,
 }
 
 const DEFAULT_PROXY_TEST_URL: &str = "https://jsonplaceholder.typicode.com/posts/1";
@@ -453,14 +470,16 @@ fn windows_proxy_detail() -> Option<String> {
     if enabled == 1 {
         let server: String = settings.get_value("ProxyServer").unwrap_or_default();
         if !server.trim().is_empty() {
-            return Some(format!("Windows proxy enabled: {}", server.trim()));
+            return Some(format!(
+                "Windows proxy enabled: {}",
+                redact_proxy_url(&format!("http://{}", server.trim()))
+            ));
         }
     }
 
     if let Ok(pac) = settings.get_value::<String, _>("AutoConfigURL") {
-        let pac = pac.trim();
-        if !pac.is_empty() {
-            return Some(format!("Windows PAC script: {pac}"));
+        if !pac.trim().is_empty() {
+            return Some("Windows PAC script configured.".to_string());
         }
     }
 
@@ -492,54 +511,6 @@ fn redact_proxy_url(url: &str) -> String {
     url.to_string()
 }
 
-fn proxy_test_detail(proxy: Option<&ProxySettings>) -> Option<String> {
-    let mode = proxy.map(|value| value.mode.as_str()).unwrap_or("none");
-    let mut parts = vec![format!("Mode: {mode}")];
-
-    if let Some(detail) = windows_proxy_detail() {
-        parts.push(detail);
-    }
-
-    if let Ok(value) = std::env::var("HTTPS_PROXY").or_else(|_| std::env::var("https_proxy")) {
-        if !value.trim().is_empty() {
-            parts.push(format!("HTTPS_PROXY={}", value.trim()));
-        }
-    }
-
-    if mode == "manual" || mode == "system" {
-        if let Some(proxy) = proxy {
-            parts.push(format!("Proxy auth: {}", http_curl::proxy_auth_mode(proxy)));
-            if http_curl::should_use_curl(Some(proxy)) {
-                parts.push("HTTP engine: libcurl".to_string());
-            }
-        }
-    }
-
-    if mode == "manual" {
-        if let Some(proxy) = proxy {
-            let (http, https) = manual_proxy_urls(proxy);
-            if let Some(url) = http {
-                parts.push(format!("HTTP proxy: {}", redact_proxy_url(&url)));
-            }
-            if let Some(url) = https {
-                parts.push(format!("HTTPS proxy: {}", redact_proxy_url(&url)));
-                if let Ok(uri) = proxy_uri::proxy_connect_uri(&url) {
-                    parts.push(format!("CONNECT target: {}", redact_proxy_url(&uri)));
-                }
-            }
-        }
-    }
-
-    #[cfg(windows)]
-    if mode == "system" {
-        if let Some(url) = proxy_windows::resolve_proxy_for_url(DEFAULT_PROXY_TEST_URL) {
-            parts.push(format!("PAC proxy for test URL: {url}"));
-        }
-    }
-
-    Some(parts.join(" · "))
-}
-
 #[tauri::command]
 async fn test_proxy_connection(payload: TestProxyPayload) -> TestProxyResult {
     let url = payload
@@ -547,32 +518,34 @@ async fn test_proxy_connection(payload: TestProxyPayload) -> TestProxyResult {
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_PROXY_TEST_URL.to_string());
     let timeout_secs = payload.timeout_secs.unwrap_or(30).clamp(5, 120);
-    let mut detail = proxy_test_detail(payload.proxy.as_ref());
+    let url_trimmed = url.trim().to_string();
+    let started = Instant::now();
+
+    let mut log = proxy_test::ProxyTestLog::new();
+    proxy_test::log_proxy_plan(&mut log, payload.proxy.as_ref(), &url_trimmed);
+    log.push("Sending test request.".to_string());
+
     if let Some(proxy) = payload.proxy.as_ref() {
         if proxy.mode == "manual" {
             let (_, https) = manual_proxy_urls(proxy);
             if let Some(proxy_url) = https {
                 if let Some(tcp) = tcp_probe_proxy(&proxy_url).await {
-                    detail = detail
-                        .map(|existing| format!("{existing} · {tcp}"))
-                        .or(Some(tcp));
+                    log.push(tcp);
                 }
             }
         }
     }
-    let started = Instant::now();
-    let url_trimmed = url.trim().to_string();
 
     if http_curl::should_use_curl(payload.proxy.as_ref()) {
         if let Err(message) = http_curl::ensure_curl_ntlm() {
-            return TestProxyResult {
-                ok: false,
-                status: None,
-                duration_ms: started.elapsed().as_millis(),
-                error: Some(message),
-                hint: Some("Install the latest RestPilot build.".to_string()),
-                detail,
-            };
+            return proxy_test::finish_result(
+                log,
+                false,
+                None,
+                started.elapsed().as_millis(),
+                Some(message),
+                Some("Install the latest RestPilot build.".to_string()),
+            );
         }
         let proxy = payload.proxy.clone();
         let auth_mode = payload
@@ -597,54 +570,54 @@ async fn test_proxy_connection(payload: TestProxyPayload) -> TestProxyResult {
                     );
                     (Some(message), hint)
                 };
-                TestProxyResult {
-                    ok: (200..300).contains(&status),
-                    status: Some(status),
+                proxy_test::finish_result(
+                    log,
+                    (200..300).contains(&status),
+                    Some(status),
                     duration_ms,
                     error,
                     hint,
-                    detail,
-                }
+                )
             }
-            Ok(Err(message)) => TestProxyResult {
-                ok: false,
-                status: None,
-                duration_ms: started.elapsed().as_millis(),
-                error: Some(http_errors::describe_curl_error(&message)),
-                hint: http_errors::curl_error_hint(&message, &auth_mode),
-                detail,
-            },
-            Err(join_error) => TestProxyResult {
-                ok: false,
-                status: None,
-                duration_ms: started.elapsed().as_millis(),
-                error: Some(join_error.to_string()),
-                hint: None,
-                detail,
-            },
+            Ok(Err(message)) => proxy_test::finish_result(
+                log,
+                false,
+                None,
+                started.elapsed().as_millis(),
+                Some(http_errors::describe_curl_error(&message)),
+                http_errors::curl_error_hint(&message, &auth_mode),
+            ),
+            Err(join_error) => proxy_test::finish_result(
+                log,
+                false,
+                None,
+                started.elapsed().as_millis(),
+                Some(join_error.to_string()),
+                None,
+            ),
         };
     }
 
-    let client = match build_http_client(payload.proxy, true, Some(url.trim())) {
+    let client = match build_http_client(payload.proxy.clone(), true, Some(url_trimmed.as_str())) {
         Ok(client) => client,
         Err(error) => {
-            return TestProxyResult {
-                ok: false,
-                status: None,
-                duration_ms: started.elapsed().as_millis(),
-                error: Some(error),
-                hint: Some(
+            return proxy_test::finish_result(
+                log,
+                false,
+                None,
+                started.elapsed().as_millis(),
+                Some(error),
+                Some(
                     "Check proxy mode and URLs in settings (HTTPS proxy is enough for https:// targets)."
                         .to_string(),
                 ),
-                detail,
-            };
+            );
         }
     };
 
     match timeout(
         Duration::from_secs(timeout_secs),
-        client.get(url.trim()).send(),
+        client.get(url_trimmed.as_str()).send(),
     )
     .await
     {
@@ -656,37 +629,37 @@ async fn test_proxy_connection(payload: TestProxyPayload) -> TestProxyResult {
                 let (message, hint) = http_errors::describe_status(status);
                 (Some(message), hint)
             };
-            TestProxyResult {
-                ok: status.is_success(),
-                status: Some(status.as_u16()),
-                duration_ms: started.elapsed().as_millis(),
+            proxy_test::finish_result(
+                log,
+                status.is_success(),
+                Some(status.as_u16()),
+                started.elapsed().as_millis(),
                 error,
                 hint,
-                detail,
-            }
+            )
         }
         Ok(Err(error)) => {
             let (message, hint) = http_errors::describe_http_error(&error);
-            TestProxyResult {
-                ok: false,
-                status: error.status().map(|value| value.as_u16()),
-                duration_ms: started.elapsed().as_millis(),
-                error: Some(message),
+            proxy_test::finish_result(
+                log,
+                false,
+                error.status().map(|value| value.as_u16()),
+                started.elapsed().as_millis(),
+                Some(message),
                 hint,
-                detail,
-            }
+            )
         }
-        Err(_) => TestProxyResult {
-            ok: false,
-            status: None,
-            duration_ms: started.elapsed().as_millis(),
-            error: Some(format!("Timed out after {timeout_secs} seconds.")),
-            hint: Some(
+        Err(_) => proxy_test::finish_result(
+            log,
+            false,
+            None,
+            started.elapsed().as_millis(),
+            Some(format!("Timed out after {timeout_secs} seconds.")),
+            Some(
                 "The proxy or server did not respond in time. Try a higher timeout in settings."
                     .to_string(),
             ),
-            detail,
-        },
+        ),
     }
 }
 
