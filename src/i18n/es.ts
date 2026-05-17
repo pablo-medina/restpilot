@@ -4,10 +4,15 @@ export const es = {
     tagline: "Su copiloto sobrio para APIs REST."
   },
   nav: {
+    activityBar: "Navegación principal",
     collection: "Colección",
     workspace: "Espacio de trabajo",
     variables: "Variables",
     settings: "Configuración",
+    showCollection: "Mostrar colección",
+    hideCollection: "Ocultar colección",
+    switchToLight: "Cambiar a tema claro",
+    switchToDark: "Cambiar a tema oscuro",
     backToWorkspace: "Volver al espacio de trabajo",
     newFolder: "Nueva carpeta",
     newRequest: "Nueva solicitud"

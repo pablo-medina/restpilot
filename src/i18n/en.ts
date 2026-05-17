@@ -4,10 +4,15 @@ export const en = {
     tagline: "Your calm co-pilot for REST APIs."
   },
   nav: {
+    activityBar: "Primary navigation",
     collection: "Collection",
     workspace: "Workspace",
     variables: "Variables",
     settings: "Settings",
+    showCollection: "Show collection",
+    hideCollection: "Hide collection",
+    switchToLight: "Switch to light theme",
+    switchToDark: "Switch to dark theme",
     backToWorkspace: "Back to workspace",
     newFolder: "New folder",
     newRequest: "New request"

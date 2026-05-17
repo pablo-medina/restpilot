@@ -26,47 +26,51 @@
       }
       .shell {
         display: grid;
-        grid-template-columns: 260px minmax(0, 1fr);
+        grid-template-columns: 48px minmax(0, 260px) minmax(0, 1fr);
         height: 100vh;
       }
-      .rail {
+      .shell.shell--activity-bar.is-collection-collapsed,
+      .shell.shell--activity-bar:has(.collection-sidebar.is-collapsed) {
+        grid-template-columns: 48px minmax(0, 1fr);
+      }
+      .activity-bar {
         display: flex;
         flex-direction: column;
+        width: 48px;
+        padding: 0;
+        border-right: 1px solid rgba(52, 48, 42, 0.1);
+        background: rgba(248, 246, 241, 0.95);
+      }
+      html[data-theme="dark"] .activity-bar,
+      html[data-theme="dark"] .collection-sidebar {
+        border-right-color: rgba(236, 231, 220, 0.1);
+        background: #181715;
+      }
+      .activity-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        color: #6f6a62;
+      }
+      .activity-brand-logo {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+      }
+      .activity-bar-spacer {
+        flex: 1;
+      }
+      .collection-sidebar {
+        width: 260px;
+        min-width: 0;
         padding: 14px;
         border-right: 1px solid rgba(52, 48, 42, 0.1);
         background: rgba(255, 252, 246, 0.72);
       }
-      html[data-theme="dark"] .rail {
-        border-right-color: rgba(236, 231, 220, 0.1);
-        background: #181715;
-      }
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 2px 14px;
-      }
-      .brand-logo {
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-      }
-      .brand-name {
-        font-size: 24px;
-        font-weight: 650;
-        letter-spacing: -0.04em;
-      }
-      .explorer-title {
-        display: block;
-        margin-bottom: 8px;
-        color: #6f6a62;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-      }
-      html[data-theme="dark"] .explorer-title {
-        color: #a8a093;
+      .collection-sidebar.is-collapsed {
+        display: none;
       }
       .collection-search-field {
         display: flex;
@@ -85,35 +89,12 @@
         color: #8a847c;
       }
       .tree-skeleton {
-        flex: 1;
         min-height: 120px;
         border-radius: 6px;
         background: rgba(52, 48, 42, 0.06);
       }
       html[data-theme="dark"] .tree-skeleton {
         background: rgba(255, 255, 255, 0.04);
-      }
-      .rail-nav {
-        display: grid;
-        gap: 4px;
-        margin-top: auto;
-        padding-top: 10px;
-        border-top: 1px solid rgba(52, 48, 42, 0.1);
-      }
-      html[data-theme="dark"] .rail-nav {
-        border-top-color: rgba(236, 231, 220, 0.1);
-      }
-      .rail-link {
-        display: flex;
-        align-items: center;
-        height: 34px;
-        padding: 0 10px;
-        border-radius: 8px;
-        color: #555048;
-        font-weight: 600;
-      }
-      html[data-theme="dark"] .rail-link {
-        color: #b8b2a6;
       }
       .workspace {
         display: flex;
@@ -146,21 +127,16 @@
   </head>
   <body>
     <div id="app">
-      <main class="shell" aria-busy="true" aria-label="Loading RestPilot">
-        <aside class="rail">
-          <div class="brand">
-            <img class="brand-logo" src="/favicon.svg" width="32" height="32" alt="" />
-            <span class="brand-name">RestPilot</span>
-          </div>
-          <section class="rail-collection" style="display: flex; flex: 1; flex-direction: column; min-height: 0">
-            <strong class="explorer-title">Collection</strong>
-            <div class="collection-search-field" aria-hidden="true">Search collection</div>
-            <div class="tree-skeleton" aria-hidden="true"></div>
-          </section>
-          <nav class="rail-nav" aria-hidden="true">
-            <span class="rail-link">Variables</span>
-            <span class="rail-link">Settings</span>
-          </nav>
+      <main class="shell shell--activity-bar" aria-busy="true" aria-label="Loading RestPilot">
+        <nav class="activity-bar" aria-hidden="true">
+          <span class="activity-item"><img class="activity-brand-logo" src="/favicon.svg" width="28" height="28" alt="" /></span>
+          <span class="activity-item" style="opacity: 0.35">···</span>
+          <span class="activity-bar-spacer"></span>
+          <span class="activity-item" style="opacity: 0.35">⚙</span>
+        </nav>
+        <aside class="collection-sidebar" aria-hidden="true">
+          <div class="collection-search-field">Search collection</div>
+          <div class="tree-skeleton"></div>
         </aside>
         <section class="workspace">
           <div class="workspace-skeleton" aria-hidden="true"></div>

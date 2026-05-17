@@ -27,6 +27,7 @@ import {
 } from "./curl";
 import { mountHeadersTable } from "./headers-table";
 import { getEditorRuntime, preloadEditorRuntime } from "./app/editor-runtime";
+import { renderActivityBarMarkup, renderCollectionSidebarShell } from "./app/shell-ui";
 import {
   iconChevronLeft,
   iconChevronRight,
@@ -38,10 +39,11 @@ import {
   iconRemove,
   iconRename,
   iconRequestAdd,
-  iconSearch
+  iconMoon,
+  iconSearch,
+  iconSun
 } from "./icons";
 import { exportCollection, importCollection } from "./app/collection-io";
-import { brandLogo } from "./logo";
 import { getLocale, setLocale, t } from "./i18n";
 import { bindSettings, renderSettings } from "./settings";
 import {
@@ -205,54 +207,17 @@ function focusUrlOnStartup() {
   focusRequestUrl();
 }
 
-function renderRailNav(labels: ReturnType<typeof t>) {
-  return `
-    <div class="rail-stack">
-      <section class="rail-collection">
-        <div class="explorer-head">
-          <strong class="explorer-title">${labels.nav.collection}</strong>
-          <div class="rail-actions">
-            <button class="mini-btn tool-icon" id="export-collection" type="button" title="${labels.collection.exportCollection}" aria-label="${labels.collection.exportCollection}">${iconExport}</button>
-            <button class="mini-btn tool-icon" id="import-collection" type="button" title="${labels.collection.importCollection}" aria-label="${labels.collection.importCollection}">${iconImport}</button>
-            <button class="mini-btn tool-icon" id="new-folder" type="button" title="${labels.nav.newFolder}" aria-label="${labels.nav.newFolder}">${iconFolderAdd}</button>
-            <button class="mini-btn tool-icon" id="new-request" type="button" title="${labels.nav.newRequest}" aria-label="${labels.nav.newRequest}">${iconRequestAdd}</button>
-          </div>
-        </div>
-        <label class="collection-search">
-          <span class="sr-only">${labels.collection.search}</span>
-          <div class="collection-search-field">
-            <input
-              id="collection-search"
-              type="search"
-              value="${escapeAttribute(state.collectionSearchQuery)}"
-              placeholder="${labels.collection.searchPlaceholder}"
-              spellcheck="false"
-              autocomplete="off"
-            />
-            <button
-              class="mini-btn collection-search-clear${state.collectionSearchQuery.trim() ? "" : " is-hidden"}"
-              id="collection-search-clear"
-              type="button"
-              title="${labels.collection.searchClear}"
-              aria-label="${labels.collection.searchClear}"
-            >×</button>
-            <button
-              class="mini-btn collection-search-submit"
-              id="collection-search-submit"
-              type="button"
-              title="${labels.collection.search}"
-              aria-label="${labels.collection.search}"
-            >${iconSearch}</button>
-          </div>
-        </label>
-        <section class="tree" tabindex="0" aria-label="${labels.nav.collection}">${renderExplorerTree(null, 0)}</section>
-      </section>
-      <nav class="rail-nav">
-        <button class="rail-link${state.activePanel === "variables" ? " active" : ""}" type="button" data-rail-nav="variables">${labels.nav.variables}</button>
-        <button class="rail-link${state.activePanel === "settings" ? " active" : ""}" type="button" data-rail-nav="settings">${labels.nav.settings}</button>
-      </nav>
-    </div>
-  `;
+function renderShellChrome(labels: ReturnType<typeof t>) {
+  return `${renderActivityBarMarkup(labels, state.activePanel, state.settings.theme)}${renderCollectionSidebarShell(
+    labels,
+    {
+      activePanel: state.activePanel,
+      collectionSidebarOpen: state.collectionSidebarOpen,
+      collectionSearchQuery: state.collectionSearchQuery,
+      treeHtml: renderExplorerTree(null, 0),
+      escapeAttribute
+    }
+  )}`;
 }
 
 function openVariablesWorkspace(tab: "globals" | "environments" = "globals") {
@@ -293,13 +258,73 @@ function updateTabStripActive() {
   });
 }
 
-function updateRailNavActive() {
-  document.querySelectorAll<HTMLButtonElement>("[data-rail-nav]").forEach((button) => {
-    const nav = button.dataset.railNav;
+function updateActivityBarActive() {
+  document.querySelectorAll<HTMLButtonElement>("[data-activity]").forEach((button) => {
+    const activity = button.dataset.activity;
+    if (activity === "theme") return;
     const active =
-      nav === "variables" ? state.activePanel === "variables" : nav === "settings" ? state.activePanel === "settings" : false;
-    button.classList.toggle("active", active);
+      activity === "request"
+        ? state.activePanel === "request"
+        : activity === "variables"
+          ? state.activePanel === "variables"
+          : activity === "settings"
+            ? state.activePanel === "settings"
+            : false;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-current", active ? "page" : "false");
   });
+  syncCollectionSidebarDom();
+  updateThemeToggleIcon();
+}
+
+function syncCollectionSidebarDom() {
+  const sidebar = document.querySelector(".collection-sidebar");
+  const shell = document.querySelector<HTMLElement>(".shell.shell--activity-bar");
+  if (!sidebar) {
+    shell?.classList.remove("is-collection-collapsed");
+    return;
+  }
+  const open = state.collectionSidebarOpen;
+  sidebar.classList.toggle("is-collapsed", !open);
+  shell?.classList.toggle("is-collection-collapsed", !open);
+  sidebar.setAttribute("aria-hidden", state.activePanel !== "request" || !open ? "true" : "false");
+  const toggle = document.querySelector<HTMLButtonElement>("#toggle-collection-sidebar");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    const labels = t();
+    toggle.title = labels.nav.hideCollection;
+    toggle.setAttribute("aria-label", labels.nav.hideCollection);
+  }
+}
+
+function updateThemeToggleIcon() {
+  const button = document.querySelector<HTMLButtonElement>("#activity-theme-toggle");
+  if (!button) return;
+  const labels = t();
+  const isDark = state.settings.theme === "dark";
+  button.innerHTML = isDark ? iconSun : iconMoon;
+  const label = isDark ? labels.nav.switchToLight : labels.nav.switchToDark;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+}
+
+function toggleCollectionSidebar() {
+  state.collectionSidebarOpen = !state.collectionSidebarOpen;
+  if (document.querySelector(".collection-sidebar")) {
+    syncCollectionSidebarDom();
+    return;
+  }
+  render();
+}
+
+function toggleThemeFromActivityBar() {
+  state.settings.theme = state.settings.theme === "dark" ? "light" : "dark";
+  applyUserSettings(state.settings);
+  scheduleSave();
+  updateThemeToggleIcon();
+  const themeSelect = document.querySelector<HTMLSelectElement>("#setting-theme");
+  if (themeSelect) themeSelect.value = state.settings.theme;
+  if (state.activePanel === "request") renderWorkspace();
 }
 
 /** Leave settings/variables and return to the request workspace. */
@@ -651,7 +676,7 @@ function activateRequestTab(requestId: string) {
   if (panelChanged) refreshTabBar();
   updateTabStripActive();
   updateTreeRowActive();
-  updateRailNavActive();
+  updateActivityBarActive();
   renderWorkspace();
 }
 
@@ -663,14 +688,8 @@ function renderApp() {
   unmountTabDisplay(state.activeTabId);
 
   appRoot.innerHTML = `
-    <main class="shell">
-      <aside class="rail">
-        <div class="brand">
-          ${brandLogo}
-          <span class="brand-name">${labels.app.name}</span>
-        </div>
-        ${renderRailNav(labels)}
-      </aside>
+    <main class="shell shell--activity-bar${state.activePanel === "request" && !state.collectionSidebarOpen ? " is-collection-collapsed" : ""}">
+      ${renderShellChrome(labels)}
       <section class="workspace">
         ${state.activePanel === "request" ? renderTabBar(request, tab) : ""}
         <div class="workspace-body">${renderWorkspaceMarkup()}</div>
@@ -680,6 +699,7 @@ function renderApp() {
   `;
 
   bindEvents();
+  syncCollectionSidebarDom();
   syncContextMenu();
   if (state.openRequestPopover) syncRequestPopover();
   const active = getActiveRequest();
@@ -1220,7 +1240,7 @@ function bindCollectionSearch() {
 function bindEvents() {
   bindTree();
   bindDialogs();
-  bindRailNav();
+  bindActivityBar();
   bindTabBar();
   bindTabStripScroll();
   bindCollectionSearch();
@@ -1234,13 +1254,30 @@ function bindEvents() {
   bindWorkspace();
 }
 
-function bindRailNav() {
-  document.querySelector<HTMLButtonElement>('[data-rail-nav="variables"]')?.addEventListener("click", () => {
-    openVariablesWorkspace("globals");
+function bindActivityBar() {
+  document.querySelectorAll<HTMLButtonElement>("[data-activity]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const activity = button.dataset.activity;
+      if (activity === "theme") {
+        toggleThemeFromActivityBar();
+        return;
+      }
+      if (activity === "request") {
+        if (state.activePanel === "request") {
+          toggleCollectionSidebar();
+          return;
+        }
+        openPanel("request");
+        return;
+      }
+      if (activity === "variables") openVariablesWorkspace("globals");
+      if (activity === "settings") openPanel("settings");
+    });
   });
 
-  document.querySelector<HTMLButtonElement>('[data-rail-nav="settings"]')?.addEventListener("click", () => {
-    openPanel("settings");
+  document.querySelector("#toggle-collection-sidebar")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (state.collectionSidebarOpen) toggleCollectionSidebar();
   });
 }
 
@@ -1262,6 +1299,7 @@ function onSettingsChanged() {
   const languageChanged = getLocale() !== state.settings.language;
   applyUserSettings(state.settings);
   scheduleSave();
+  updateThemeToggleIcon();
   if (languageChanged) render();
   else if (state.activePanel === "request") renderWorkspace();
 }

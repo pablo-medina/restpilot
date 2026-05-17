@@ -29,6 +29,7 @@ export type AppState = AppConfig & {
   envManageSelectedId: string | null;
   variablesWorkspaceTab: "globals" | "environments";
   collectionSearchQuery: string;
+  collectionSidebarOpen: boolean;
 };
 
 export const state: AppState = {
@@ -44,7 +45,8 @@ export const state: AppState = {
   openRequestPopover: null,
   envManageSelectedId: null,
   variablesWorkspaceTab: "globals",
-  collectionSearchQuery: ""
+  collectionSearchQuery: "",
+  collectionSidebarOpen: true
 };
 
 const root = document.querySelector<HTMLDivElement>("#app");
