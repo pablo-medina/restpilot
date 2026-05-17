@@ -2,6 +2,8 @@ import {
   iconChevronLeft,
   iconExport,
   iconFolderAdd,
+  iconFunction,
+  iconFunctionAdd,
   iconImport,
   iconMoon,
   iconRequestAdd,
@@ -10,6 +12,7 @@ import {
   iconSun,
   iconVariables
 } from "../icons";
+
 import type { TranslationTree } from "../i18n";
 import type { ActivePanel, ThemeMode } from "../types";
 
@@ -27,6 +30,16 @@ export function renderActivityBarMarkup(labels: TranslationTree, activePanel: Ac
         aria-current="${activePanel === "request" ? "page" : "false"}">
         <img class="activity-brand-logo" src="/favicon.svg" width="28" height="28" alt="" />
       </button>
+      <button
+        class="activity-item${activePanel === "functions" ? " is-active" : ""}"
+        type="button"
+        data-activity="functions"
+        title="${labels.nav.functions}"
+        aria-label="${labels.nav.functions}"
+        aria-current="${activePanel === "functions" ? "page" : "false"}">
+        ${iconFunction}
+      </button>
+
       <button
         class="activity-item${activePanel === "variables" ? " is-active" : ""}"
         type="button"
@@ -127,3 +140,70 @@ export function renderCollectionSidebarShell(
     </aside>
   `;
 }
+
+export function renderFunctionsSidebarShell(
+  labels: TranslationTree,
+  options: {
+    activePanel: ActivePanel;
+    collectionSidebarOpen: boolean;
+    functionSearchQuery: string;
+    functionsHtml: string;
+    escapeAttribute: (value: string) => string;
+  }
+) {
+  if (options.activePanel !== "functions") return "";
+  const open = options.collectionSidebarOpen;
+  const toggleLabel = labels.nav.hideCollection;
+  return `
+    <aside
+      class="collection-sidebar${open ? "" : " is-collapsed"}"
+      aria-label="${labels.nav.functions}"
+      aria-hidden="${open ? "false" : "true"}">
+      <div class="collection-sidebar-panel">
+        <div class="collection-sidebar-toolbar">
+          <div class="rail-actions collection-sidebar-actions">
+            <button
+              type="button"
+              id="toggle-collection-sidebar"
+              class="mini-btn tool-icon collection-sidebar-toggle"
+              title="${toggleLabel}"
+              aria-label="${toggleLabel}"
+              aria-expanded="${open}">
+              ${iconChevronLeft}
+            </button>
+            <button class="mini-btn tool-icon" id="new-function" type="button" title="${labels.nav.newFunction}" aria-label="${labels.nav.newFunction}">${iconFunctionAdd}</button>
+          </div>
+        </div>
+        <label class="collection-search">
+          <span class="sr-only">${labels.functions.search}</span>
+          <div class="collection-search-field">
+            <input
+              id="function-search"
+              type="search"
+              value="${options.escapeAttribute(options.functionSearchQuery)}"
+              placeholder="${labels.functions.searchPlaceholder}"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <button
+              class="mini-btn collection-search-clear${options.functionSearchQuery.trim() ? "" : " is-hidden"}"
+              id="function-search-clear"
+              type="button"
+              title="${labels.collection.searchClear}"
+              aria-label="${labels.collection.searchClear}"
+            >×</button>
+            <button
+              class="mini-btn collection-search-submit"
+              id="function-search-submit"
+              type="button"
+              title="${labels.functions.search}"
+              aria-label="${labels.functions.search}"
+            >${iconSearch}</button>
+          </div>
+        </label>
+        <section class="tree" tabindex="0" aria-label="${labels.nav.functions}">${options.functionsHtml}</section>
+      </div>
+    </aside>
+  `;
+}
+

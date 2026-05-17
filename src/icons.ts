@@ -39,3 +39,8 @@ export const iconSearch = `<svg viewBox="0 0 16 16" width="16" height="16" aria-
 export const iconEye = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" d="M1.5 8s2.5-4.5 6.5-4.5 6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.35"/></svg>`;
 
 export const iconEyeOff = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M2 2l12 12"/><path fill="none" stroke="currentColor" stroke-width="1.35" d="M1.5 8s2.5-4.5 6.5-4.5c1.6 0 3 .55 4.1 1.35M14.5 8s-2.5 4.5-6.5 4.5c-1.6 0-3-.55-4.1-1.35"/><path fill="none" stroke="currentColor" stroke-width="1.35" d="M6.2 6.45A2.05 2.05 0 0 0 8 6c1.15 0 2.08.93 2.08 2.08 0 .7-.35 1.32-.88 1.7"/></svg>`;
+
+export const iconFunction = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M6 2l-2.2 12M12.2 2L10 14M2.5 5.5h11M1.5 10.5h11"/></svg>`;
+
+export const iconFunctionAdd = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M5.5 2.5l-1.5 11M10.5 2.5l-1.5 11M2.5 5.5h10M1.5 9.5h10"/><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M13 10v4M11 12h4"/></svg>`;
+

@@ -24,7 +24,10 @@ export const en = {
     switchToDark: "Switch to dark theme",
     backToWorkspace: "Back to workspace",
     newFolder: "New folder at collection root",
-    newRequest: "New request at collection root"
+    newRequest: "New request at collection root",
+    functions: "Functions",
+    newFunction: "New function"
+
   },
   contextMenu: {
     cut: "Cut",
@@ -85,6 +88,22 @@ export const en = {
     searchPlaceholder: "Search by name, method, or URL…",
     searchClear: "Clear search"
   },
+  functions: {
+    search: "Search functions",
+    searchPlaceholder: "Search by name…",
+    noFunctionSelected: "Select or create a function",
+    functionType: "Function Type",
+    testFunction: "Test Function",
+    testing: "Testing...",
+    extractorCode: "Extractor Script",
+    testResult: "Test Result",
+    rawResponse: "Raw Response",
+    emptyTestResult: "No test results yet. Click 'Test Function' to run.",
+    extractedValueLabel: "Extracted Value",
+    success: "Success",
+    failure: "Failure"
+  },
+
   request: {
     duplicate: "Duplicate",
     clear: "Clear",

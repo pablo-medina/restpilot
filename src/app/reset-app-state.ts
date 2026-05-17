@@ -17,7 +17,15 @@ export function defaultRuntimeState(): Pick<
   | "variablesWorkspaceTab"
   | "collectionSearchQuery"
   | "collectionSidebarOpen"
+  | "editingFunctionId"
+  | "functionSearchQuery"
+  | "activeFunctionRequestTab"
+  | "activeFunctionConsoleTab"
+  | "activeFunctionConsoleLoading"
+  | "activeFunctionPopover"
+  | "activeSidebarFunctionPlayLoading"
 > {
+
   return {
     tabs: {},
     activePanel: "request",
@@ -31,9 +39,17 @@ export function defaultRuntimeState(): Pick<
     envManageSelectedId: null,
     variablesWorkspaceTab: "globals",
     collectionSearchQuery: "",
-    collectionSidebarOpen: true
+    collectionSidebarOpen: true,
+    editingFunctionId: null,
+    functionSearchQuery: "",
+    activeFunctionRequestTab: "params",
+    activeFunctionConsoleTab: "test-result",
+    activeFunctionConsoleLoading: false,
+    activeFunctionPopover: null,
+    activeSidebarFunctionPlayLoading: null
   };
 }
+
 
 /** Full factory defaults for persisted config (collections + settings). */
 export function defaultPersistedConfig(): AppConfig {
@@ -52,6 +68,9 @@ export function resetAppStateToDefaults(target: AppState): void {
   target.openTabs = fresh.openTabs;
   target.activeTabId = fresh.activeTabId;
   target.settings = fresh.settings;
+  target.functions = fresh.functions;
+  target.activeFunctionId = fresh.activeFunctionId;
 
   Object.assign(target, runtime);
 }
+

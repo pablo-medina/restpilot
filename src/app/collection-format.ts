@@ -76,7 +76,9 @@ export function parseCollectionExport(raw: string, settings: UserSettings): Coll
     activeEnvironmentId: (collection as CollectionSnapshot).activeEnvironmentId ?? null,
     openTabs: [],
     activeTabId: "",
-    settings
+    settings,
+    functions: [],
+    activeFunctionId: null
   });
 
   return {

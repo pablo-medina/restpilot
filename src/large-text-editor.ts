@@ -1,6 +1,7 @@
 import { tryPrettifyJson } from "./content-display";
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
+import { javascript } from "@codemirror/lang-javascript";
 import { defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { history, historyKeymap } from "@codemirror/commands";
 import { tags } from "@lezer/highlight";
@@ -8,11 +9,11 @@ import { EditorSelection, EditorState, Transaction, type ChangeSpec } from "@cod
 import { EditorView, keymap } from "@codemirror/view";
 import { clampTabSize, type RawType } from "./types";
 
-export type ViewerMode = RawType;
+export type ViewerMode = RawType | "javascript";
 
 export type BodyEditorOptions = {
   tabSize: number;
-  rawType: RawType;
+  rawType: ViewerMode;
   autoPrettifyJson?: boolean;
   onChange: (value: string) => void;
   onSend?: () => void;
@@ -97,7 +98,7 @@ function sendKeymap(onSend?: () => void) {
   ]);
 }
 
-function prettifyJsonKeymap(rawType: RawType, onChange: (value: string) => void) {
+function prettifyJsonKeymap(rawType: ViewerMode, onChange: (value: string) => void) {
   return keymap.of([
     {
       key: "Mod-Shift-f",
@@ -117,7 +118,7 @@ function prettifyJsonKeymap(rawType: RawType, onChange: (value: string) => void)
   ]);
 }
 
-function bodyPasteHandler(rawType: RawType, autoPrettifyJson: boolean, onChange: (value: string) => void) {
+function bodyPasteHandler(rawType: ViewerMode, autoPrettifyJson: boolean, onChange: (value: string) => void) {
   return EditorView.domEventHandlers({
     paste(event, view) {
       if (!autoPrettifyJson || rawType !== "json") return false;
@@ -156,6 +157,7 @@ function baseExtensions(editable: boolean, tabSize: number) {
 function languageExtension(mode: ViewerMode) {
   if (mode === "json") return json();
   if (mode === "xml") return xml();
+  if (mode === "javascript") return javascript();
   return [];
 }
 

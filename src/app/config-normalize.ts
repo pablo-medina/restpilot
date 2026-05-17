@@ -1,7 +1,7 @@
 import { clampTabSize } from "../types";
 import { normalizeProxySettings } from "./proxy-settings";
 import { normalizeDuplicateNaming } from "./collection-names";
-import { hydrateRequestAuth } from "./request-auth";
+import { hydrateRequestAuth, normalizeRequestAuth } from "./request-auth";
 import { migrateRequestQuery } from "../url-params";
 import {
   clampRequestTimeoutSecs,
@@ -9,6 +9,7 @@ import {
   defaultSettings,
   type ApiResponse,
   type AppConfig,
+  type AppFunction,
   type BodyMode,
   type Environment,
   type FormPartType,
@@ -20,7 +21,49 @@ import {
   type Variable
 } from "../types";
 
+function normalizeFunction(func: any): AppFunction {
+  const form = (func.form ?? []).map((field: any) => ({
+    id: String(field.id || crypto.randomUUID()),
+    key: String(field.key ?? ""),
+    value: String(field.value ?? ""),
+    enabled: field.enabled !== false,
+    partType: (field.partType === "file" ? "file" : "text") as FormPartType,
+    fileName: field.fileName ? String(field.fileName) : undefined
+  }));
+  const queryParams = (func.queryParams ?? []).map((field: any) => ({
+    id: String(field.id || crypto.randomUUID()),
+    key: String(field.key ?? ""),
+    value: String(field.value ?? ""),
+    enabled: field.enabled !== false
+  }));
+  const headers = (func.headers ?? []).map((field: any) => ({
+    id: String(field.id || crypto.randomUUID()),
+    key: String(field.key ?? ""),
+    value: String(field.value ?? ""),
+    enabled: field.enabled !== false
+  }));
+
+  return {
+    id: String(func.id),
+    name: String(func.name ?? "Function").trim() || "Function",
+    code: String(func.code ?? ""),
+    functionType: "http",
+    method: String(func.method ?? "GET"),
+    url: String(func.url ?? "https://jsonplaceholder.typicode.com/todos/1"),
+    queryParams,
+    headers,
+    bodyMode: migrateBodyMode(String(func.bodyMode ?? "none"), form),
+    rawType: normalizeRawType(func.rawType),
+    body: String(func.body ?? ""),
+    form,
+    auth: normalizeRequestAuth(func.auth),
+    extractorCode: String(func.extractorCode ?? `// Extract data from the response\nif (response.status === 200) {\n  return response.body;\n}\nreturn undefined;\n`),
+    lastTestResult: func.lastTestResult ?? null
+  };
+}
+
 function normalizeVariable(variable: Variable): Variable {
+
   return {
     id: variable.id,
     name: variable.name ?? "",
@@ -90,6 +133,8 @@ export function normalizeConfig(config: AppConfig): AppConfig {
     activeEnvironmentId,
     openTabs: config.openTabs ?? [],
     activeTabId: config.activeTabId ?? "",
+    functions: (config.functions ?? []).map(normalizeFunction),
+    activeFunctionId: config.activeFunctionId ?? null,
     settings: {
       ...defaultSettings(),
       ...config.settings,
@@ -113,6 +158,7 @@ export function normalizeConfig(config: AppConfig): AppConfig {
     }
   };
 }
+
 
 export function isSeedConfig(config: AppConfig) {
   const hasOnlySeedItems =

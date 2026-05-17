@@ -59,6 +59,8 @@ export async function persistConfig() {
     activeEnvironmentId: state.activeEnvironmentId,
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
+    functions: state.functions,
+    activeFunctionId: state.activeFunctionId,
     settings: {
       ...state.settings,
       proxy: proxySettingsForSave(state.settings.proxy)
@@ -66,6 +68,7 @@ export async function persistConfig() {
   };
   await invoke("save_app_config", { config });
 }
+
 
 export async function loadStoredConfig(): Promise<{ config: AppConfig; persist: boolean } | null> {
   const stored = await invoke<AppConfig | null>("load_app_config");

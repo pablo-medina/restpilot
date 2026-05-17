@@ -29,7 +29,32 @@ export type Locale = "en" | "es";
 export type ProxyMode = "none" | "system" | "manual";
 /** Proxy authentication negotiated by libcurl (manual) or forced scheme. */
 export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
-export type ActivePanel = "request" | "variables" | "settings";
+export type ActivePanel = "request" | "variables" | "settings" | "functions";
+
+export type AppFunction = {
+  id: string;
+  name: string;
+  code: string;
+  functionType: "http";
+  method: string;
+  url: string;
+  queryParams: Pair[];
+  headers: Pair[];
+  bodyMode: BodyMode;
+  rawType: RawType;
+  body: string;
+  form: Pair[];
+  auth: RequestAuth;
+  extractorCode: string;
+  lastTestResult?: {
+    success: boolean;
+    extractedValue?: any;
+    responseStatus?: number;
+    responseBody?: string;
+    error?: string;
+  } | null;
+};
+
 
 export const DEFAULT_PROXY_TEST_URL = "https://jsonplaceholder.typicode.com/posts/1";
 
@@ -149,7 +174,10 @@ export type AppConfig = {
   openTabs: string[];
   activeTabId: string;
   settings: UserSettings;
+  functions: AppFunction[];
+  activeFunctionId: string | null;
 };
+
 
 export function defaultSettings(): UserSettings {
   return {
@@ -193,6 +221,9 @@ export function defaultConfig(): AppConfig {
     activeEnvironmentId: null,
     openTabs: [],
     activeTabId: "",
-    settings: defaultSettings()
+    settings: defaultSettings(),
+    functions: [],
+    activeFunctionId: null
   };
 }
+

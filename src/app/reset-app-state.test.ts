@@ -30,7 +30,32 @@ function mockPopulatedState(): AppState {
     envManageSelectedId: "e1",
     variablesWorkspaceTab: "environments",
     collectionSearchQuery: "find me",
-    collectionSidebarOpen: false
+    collectionSidebarOpen: false,
+    functions: [{
+      id: "f1",
+      name: "myFunc",
+      code: "print('hello')",
+      functionType: "http",
+      method: "GET",
+      url: "https://jsonplaceholder.typicode.com/todos/1",
+      queryParams: [],
+      headers: [],
+      bodyMode: "none",
+      rawType: "json",
+      body: "",
+      form: [],
+      auth: { type: "none" },
+      extractorCode: `if (response.status === 200) { return response.body.title; }`,
+      lastTestResult: null
+    }],
+    activeFunctionId: "f1",
+    editingFunctionId: "f1",
+    functionSearchQuery: "find func",
+    activeFunctionRequestTab: "params",
+    activeFunctionConsoleTab: "test-result",
+    activeFunctionConsoleLoading: false,
+    activeFunctionPopover: null,
+    activeSidebarFunctionPlayLoading: null
   };
 }
 
@@ -44,7 +69,9 @@ describe("resetAppStateToDefaults", () => {
     expect(state.environments).toEqual(expected.environments);
     expect(state.settings).toEqual(expected.settings);
     expect(state.openTabs).toEqual(expected.openTabs);
+    expect(state.functions).toEqual(expected.functions);
   });
+
 
   it("resets runtime-only fields", () => {
     const state = mockPopulatedState();

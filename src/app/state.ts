@@ -11,6 +11,7 @@ import type {
 
 export type ContextMenuState =
   | { kind: "tree"; x: number; y: number; itemId: string | null }
+  | { kind: "functions-tree"; x: number; y: number; functionId: string | null }
   | { kind: "response-copy"; x: number; y: number; requestId: string; canCopySelection?: boolean }
   | { kind: "request-actions"; x: number; y: number; requestId: string }
   | { kind: "request-tab"; x: number; y: number; requestId: string }
@@ -30,7 +31,15 @@ export type AppState = AppConfig & {
   variablesWorkspaceTab: "globals" | "environments";
   collectionSearchQuery: string;
   collectionSidebarOpen: boolean;
+  editingFunctionId: string | null;
+  functionSearchQuery: string;
+  activeFunctionRequestTab: "params" | "headers" | "body" | "auth";
+  activeFunctionConsoleTab: "test-result" | "raw-response";
+  activeFunctionConsoleLoading: boolean;
+  activeFunctionPopover: "params" | "headers" | "body" | "auth" | null;
+  activeSidebarFunctionPlayLoading: string | null;
 };
+
 
 export const state: AppState = {
   ...defaultConfig(),
@@ -46,8 +55,16 @@ export const state: AppState = {
   envManageSelectedId: null,
   variablesWorkspaceTab: "globals",
   collectionSearchQuery: "",
-  collectionSidebarOpen: true
+  collectionSidebarOpen: true,
+  editingFunctionId: null,
+  functionSearchQuery: "",
+  activeFunctionRequestTab: "params",
+  activeFunctionConsoleTab: "test-result",
+  activeFunctionConsoleLoading: false,
+  activeFunctionPopover: null,
+  activeSidebarFunctionPlayLoading: null
 };
+
 
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("App root was not found.");

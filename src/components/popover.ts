@@ -6,19 +6,26 @@ export type PopoverShellOptions = {
   bodyHtml: string;
   footerHtml?: string;
   ariaLabel?: string;
+  resizable?: boolean;
 };
 
 /** All floating popovers must include a top-right close control (see AGENTS.md). */
 export function renderPopoverShell(options: PopoverShellOptions): string {
   const labels = t().dialog;
   const extraClass = options.className ? ` ${options.className}` : "";
+  const resizeStyle = options.resizable
+    ? ` style="resize: both; overflow: hidden; display: flex; flex-direction: column; min-width: 320px; min-height: 200px; width: 420px; height: 380px;"`
+    : "";
+  const bodyStyle = options.resizable
+    ? ` style="flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 12px;"`
+    : "";
   return `
-    <div class="app-popover${extraClass}" role="dialog" aria-label="${options.ariaLabel ?? options.title}">
+    <div class="app-popover${extraClass}" role="dialog" aria-label="${options.ariaLabel ?? options.title}"${resizeStyle}>
       <header class="app-popover-head">
         <strong class="app-popover-title">${options.title}</strong>
         <button class="mini-btn app-popover-close" type="button" data-popover-close aria-label="${labels.close}">×</button>
       </header>
-      <div class="app-popover-body">${options.bodyHtml}</div>
+      <div class="app-popover-body"${bodyStyle}>${options.bodyHtml}</div>
       ${options.footerHtml ? `<footer class="app-popover-footer">${options.footerHtml}</footer>` : ""}
     </div>
   `;

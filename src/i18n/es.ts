@@ -24,7 +24,10 @@ export const es = {
     switchToDark: "Cambiar a tema oscuro",
     backToWorkspace: "Volver al espacio de trabajo",
     newFolder: "Nueva carpeta en la raíz de la colección",
-    newRequest: "Nueva solicitud en la raíz de la colección"
+    newRequest: "Nueva solicitud en la raíz de la colección",
+    functions: "Funciones",
+    newFunction: "Nueva función"
+
   },
   contextMenu: {
     cut: "Cortar",
@@ -85,6 +88,22 @@ export const es = {
     searchPlaceholder: "Buscar por nombre, método o URL…",
     searchClear: "Borrar búsqueda"
   },
+  functions: {
+    search: "Buscar funciones",
+    searchPlaceholder: "Buscar por nombre…",
+    noFunctionSelected: "Seleccione o cree una función",
+    functionType: "Tipo de Función",
+    testFunction: "Probar Función",
+    testing: "Probando...",
+    extractorCode: "Script Extractor",
+    testResult: "Resultado de Prueba",
+    rawResponse: "Respuesta Raw",
+    emptyTestResult: "Aún no hay resultados de prueba. Haga clic en 'Probar Función' para ejecutar.",
+    extractedValueLabel: "Valor Extraído",
+    success: "Éxito",
+    failure: "Error"
+  },
+
   request: {
     duplicate: "Duplicar",
     clear: "Limpiar",

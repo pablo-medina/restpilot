@@ -262,22 +262,26 @@ button {
   display: none;
 }
 
-/* Request workspace: collection spans the title row; tabs live in the title bar. */
-#app.app-frame--request {
+/* Request & Functions workspace: collection/functions sidebar spans the title row; tabs/title live in the title bar. */
+#app.app-frame--request,
+#app.app-frame--functions {
   grid-template-columns: 48px minmax(0, 260px) minmax(0, 1fr);
   grid-template-areas: none;
 }
 
-#app.app-frame--request.is-collection-collapsed {
+#app.app-frame--request.is-collection-collapsed,
+#app.app-frame--functions.is-collection-collapsed {
   grid-template-columns: 48px minmax(0, 1fr);
 }
 
-#app.app-frame--request .activity-bar {
+#app.app-frame--request .activity-bar,
+#app.app-frame--functions .activity-bar {
   grid-column: 1;
   grid-row: 1 / -1;
 }
 
-#app.app-frame--request .collection-sidebar {
+#app.app-frame--request .collection-sidebar,
+#app.app-frame--functions .collection-sidebar {
   grid-column: 2;
   grid-row: 1 / -1;
   align-self: stretch;
@@ -285,29 +289,35 @@ button {
   height: auto;
 }
 
-#app.app-frame--request.is-collection-collapsed .collection-sidebar {
+#app.app-frame--request.is-collection-collapsed .collection-sidebar,
+#app.app-frame--functions.is-collection-collapsed .collection-sidebar {
   display: none;
 }
 
-#app.app-frame--request .title-bar {
+#app.app-frame--request .title-bar,
+#app.app-frame--functions .title-bar {
   grid-column: 3;
   grid-row: 1;
 }
 
-#app.app-frame--request.is-collection-collapsed .title-bar {
+#app.app-frame--request.is-collection-collapsed .title-bar,
+#app.app-frame--functions.is-collection-collapsed .title-bar {
   grid-column: 2;
 }
 
-#app.app-frame--request .shell {
+#app.app-frame--request .shell,
+#app.app-frame--functions .shell {
   grid-column: 3;
   grid-row: 2;
   min-height: 0;
   overflow: hidden;
 }
 
-#app.app-frame--request.is-collection-collapsed .shell {
+#app.app-frame--request.is-collection-collapsed .shell,
+#app.app-frame--functions.is-collection-collapsed .shell {
   grid-column: 2;
 }
+
 
 .title-bar--tabs {
   display: flex;

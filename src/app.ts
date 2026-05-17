@@ -27,7 +27,7 @@ import {
 } from "./curl";
 import { mountHeadersTable } from "./headers-table";
 import { getEditorRuntime, preloadEditorRuntime } from "./app/editor-runtime";
-import { renderActivityBarMarkup, renderCollectionSidebarShell } from "./app/shell-ui";
+import { renderActivityBarMarkup, renderCollectionSidebarShell, renderFunctionsSidebarShell } from "./app/shell-ui";
 import {
   iconChevronLeft,
   iconChevronRight,
@@ -35,6 +35,8 @@ import {
   iconDuplicate,
   iconExport,
   iconFolderAdd,
+  iconFunction,
+  iconFunctionAdd,
   iconImport,
   iconRemove,
   iconRename,
@@ -43,6 +45,7 @@ import {
   iconSearch,
   iconSun
 } from "./icons";
+
 import { exportCollection, importCollection } from "./app/collection-io";
 import { getLocale, setLocale, t } from "./i18n";
 import { bindSettings, renderSettings, resetSettingsSessionState } from "./settings";
@@ -55,10 +58,17 @@ import {
   syncRequestPopover
 } from "./request-popovers";
 import { bindVariablesWorkspace, renderVariablesWorkspace } from "./variables-workspace";
-import { environmentChipLabel, getEffectiveVariables } from "./app/environments";
+import { environmentChipLabel, getEffectiveVariables, getActiveEnvironment, activeEnvironmentVariables } from "./app/environments";
 import { buildRequestUrl, ingestUrlIntoRequest, migrateRequestQuery } from "./url-params";
-import { resolvedOutboundUrl } from "./app/request-auth";
+import { resolvedOutboundUrl, normalizeRequestAuth, defaultRequestAuth } from "./app/request-auth";
+import { hiddenClass } from "./ui/visibility";
 import { bindAuthPanel, renderAuthPanel } from "./request-auth-panel";
+import {
+  removePopovers,
+  renderPopoverShell,
+  mountPopover,
+  bindPopoverClose
+} from "./components/popover";
 import {
   applyVariables,
   displayRequestUrl,
@@ -73,15 +83,18 @@ import {
   defaultConfig,
   type ActivePanel,
   type ApiResponse,
+  type AppFunction,
   type BodyMode,
   type FormPartType,
   type Pair,
   type RawType,
+  type RequestAuth,
   type RequestTab,
   type ResponseTab,
   type SavedRequest,
   type TabState,
-  type TreeItem
+  type TreeItem,
+  type Variable
 } from "./types";
 import { duplicateFolderItem, duplicateRequestItem } from "./app/collection-duplicate";
 import {
@@ -172,6 +185,44 @@ export async function startApp(
     },
     focusUrl: () => focusRequestUrl()
   });
+  document.addEventListener("keydown", (event) => {
+    if (state.activePanel !== "functions" || !state.activeFunctionId) return;
+    const isF9 = event.key === "F9";
+    const isCtrlEnter = (event.ctrlKey || event.metaKey) && event.key === "Enter";
+    if (isF9 || isCtrlEnter) {
+      const inCodeMirror = Boolean((event.target as HTMLElement).closest(".cm-editor"));
+      if (isCtrlEnter && inCodeMirror) return;
+      event.preventDefault();
+      const activeId = state.activeFunctionId;
+      const func = state.functions.find((f) => f.id === activeId);
+      if (func) {
+        void testFunction(func);
+      }
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.activeFunctionPopover) {
+      event.stopPropagation();
+      state.activeFunctionPopover = null;
+      removePopovers();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!state.activeFunctionPopover) return;
+    const target = event.target as HTMLElement;
+    if (target.closest(".app-popover")) return;
+    if (target.closest("#func-popover-params-btn") ||
+        target.closest("#func-popover-headers-btn") ||
+        target.closest("#func-popover-body-btn") ||
+        target.closest("#func-popover-auth-btn")) {
+      return;
+    }
+    state.activeFunctionPopover = null;
+    removePopovers();
+  }, true);
+
   setRenderApp(renderApp);
   setRequestPopoverHooks({
     onVariablesChanged: onEffectiveVariablesChanged,
@@ -192,10 +243,13 @@ export async function startApp(
         activeEnvironmentId: migrated.activeEnvironmentId ?? null,
         openTabs: (migrated.openTabs ?? []).filter((tabId) => Boolean(getRequestFrom(migrated.items, tabId))),
         activeTabId: "",
-        settings: migrated.settings
+        settings: migrated.settings,
+        functions: migrated.functions ?? [],
+        activeFunctionId: migrated.activeFunctionId ?? null
       });
       state.activeTabId = state.openTabs.includes(migrated.activeTabId) ? migrated.activeTabId : (state.openTabs[0] ?? "");
       if (persist) scheduleSave();
+
     }
   } catch {
     configLoadFailed = true;
@@ -249,21 +303,29 @@ function renderWorkspaceMarkup() {
   const tab = request ? ensureTab(request.id) : null;
   if (state.activePanel === "variables") return renderVariablesWorkspace();
   if (state.activePanel === "settings") return renderSettings(state.settings);
+  if (state.activePanel === "functions") {
+    const activeId = state.activeFunctionId;
+    const func = activeId ? state.functions.find((f) => f.id === activeId) : null;
+    return func ? renderFunctionWorkspace(func) : renderEmpty();
+  }
   if (request && tab) return renderRequest(request, tab);
   return renderEmpty();
 }
 
-function renderWorkspace() {
+function renderWorkspace(): any {
   const panel = document.querySelector<HTMLElement>(".workspace-body");
   if (!panel) {
     render();
-    return;
+    return Promise.resolve();
   }
   unmountTabDisplay(state.activeTabId);
+  unmountFunctionEditors();
   panel.innerHTML = renderWorkspaceMarkup();
-  bindWorkspace();
+  const res = bindWorkspace();
   if (state.openRequestPopover) requestAnimationFrame(() => syncRequestPopover());
+  return res || Promise.resolve();
 }
+
 
 function updateTabStripActive() {
   document.querySelectorAll<HTMLElement>("[data-open-tab]").forEach((element) => {
@@ -283,9 +345,11 @@ function updateActivityBarActive() {
         ? state.activePanel === "request"
         : activity === "variables"
           ? state.activePanel === "variables"
-          : activity === "settings"
-            ? state.activePanel === "settings"
-            : false;
+          : activity === "functions"
+            ? state.activePanel === "functions"
+            : activity === "settings"
+              ? state.activePanel === "settings"
+              : false;
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-current", active ? "page" : "false");
   });
@@ -295,9 +359,11 @@ function updateActivityBarActive() {
 
 function syncAppFrameLayout() {
   const isRequest = state.activePanel === "request";
-  const collectionCollapsed = isRequest && !state.collectionSidebarOpen;
+  const isFunctions = state.activePanel === "functions";
+  const collectionCollapsed = (isRequest || isFunctions) && !state.collectionSidebarOpen;
   appRoot.classList.add("app-frame");
   appRoot.classList.toggle("app-frame--request", isRequest);
+  appRoot.classList.toggle("app-frame--functions", isFunctions);
   appRoot.classList.toggle("is-collection-collapsed", collectionCollapsed);
 }
 
@@ -306,7 +372,7 @@ function syncCollectionSidebarDom() {
   if (sidebar) {
     const open = state.collectionSidebarOpen;
     sidebar.classList.toggle("is-collapsed", !open);
-    sidebar.setAttribute("aria-hidden", state.activePanel !== "request" || !open ? "true" : "false");
+    sidebar.setAttribute("aria-hidden", (state.activePanel !== "request" && state.activePanel !== "functions") || !open ? "true" : "false");
     const toggle = document.querySelector<HTMLButtonElement>("#toggle-collection-sidebar");
     if (toggle) {
       toggle.setAttribute("aria-expanded", open ? "true" : "false");
@@ -317,6 +383,7 @@ function syncCollectionSidebarDom() {
   }
   syncAppFrameLayout();
 }
+
 
 function updateThemeToggleIcon() {
   const button = document.querySelector<HTMLButtonElement>("#activity-theme-toggle");
@@ -779,6 +846,7 @@ function activateRequestTab(requestId: string) {
 function resolveTitleBarCenter(): string {
   if (state.activePanel === "settings") return t().settings.title;
   if (state.activePanel === "variables") return t().nav.variables;
+  if (state.activePanel === "functions") return "";
   const request = getActiveRequest();
   if (request?.title.trim()) return request.title.trim();
   return t().app.name;
@@ -791,16 +859,29 @@ function renderApp() {
   const isRequest = state.activePanel === "request";
 
   unmountTabDisplay(state.activeTabId);
+  unmountFunctionEditors();
   syncAppFrameLayout();
 
   const titleBar = isRequest
     ? renderWindowChromeTabsMarkup(renderTabBar(request, tab))
     : renderWindowChromeMarkup({ center: resolveTitleBarCenter() });
 
+  const sidebar = isRequest
+    ? renderShellChrome(labels)
+    : state.activePanel === "functions"
+      ? renderFunctionsSidebarShell(labels, {
+          activePanel: state.activePanel,
+          collectionSidebarOpen: state.collectionSidebarOpen,
+          functionSearchQuery: state.functionSearchQuery,
+          functionsHtml: renderFunctionsList(),
+          escapeAttribute
+        })
+      : "";
+
   appRoot.innerHTML = `
       ${renderActivityBarMarkup(labels, state.activePanel, state.settings.theme)}
       ${titleBar}
-      ${isRequest ? renderShellChrome(labels) : ""}
+      ${sidebar}
       <main class="shell shell--workspace-only">
         <section class="workspace">
           <div class="workspace-body">${renderWorkspaceMarkup()}</div>
@@ -816,14 +897,42 @@ function renderApp() {
   const active = getActiveRequest();
   const activeTab = active ? ensureTab(active.id) : null;
   if (active && activeTab) void mountWorkspaceDisplays(active, activeTab);
+  
+  if (state.activePanel === "functions") {
+    const activeId = state.activeFunctionId;
+    const func = activeId ? state.functions.find((f) => f.id === activeId) : null;
+    if (func) void mountFunctionEditor(func);
+  }
 }
+
 
 function buildContextMenuMarkup() {
   if (!state.contextMenu) return "";
   if (state.contextMenu.kind === "text") {
     return renderTextContextMenuMarkup(state.contextMenu);
   }
+  if (state.contextMenu.kind === "functions-tree") {
+    const labels = t().tree;
+    const funcId = state.contextMenu.functionId;
+    const func = funcId ? state.functions.find((f) => f.id === funcId) : null;
+    return `
+      <div class="context-menu" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
+        ${contextMenuButton("new-function", t().nav.newFunction)}
+        ${
+          func
+            ? `<hr>${contextMenuButton("rename", labels.rename, { shortcut: menuShortcuts.rename() })}`
+            : ""
+        }
+        ${
+          func
+            ? contextMenuButton("delete", labels.delete, { shortcut: menuShortcuts.delete(), danger: true })
+            : ""
+        }
+      </div>
+    `;
+  }
   if (state.contextMenu.kind === "request-tab") {
+
     const labels = t();
     return `
       <div class="context-menu" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
@@ -1178,7 +1287,8 @@ function renderExplorerTree(parentId: string | null, depth: number): string {
 }
 
 function renderEmpty() {
-  return `<div class="empty-editor"><span>${t().request.noTab}</span></div>`;
+  const text = state.activePanel === "functions" ? t().functions.noFunctionSelected : t().request.noTab;
+  return `<div class="empty-editor"><span>${text}</span></div>`;
 }
 
 function bindWorkspace() {
@@ -1195,7 +1305,18 @@ function bindWorkspace() {
     return;
   }
 
+  if (state.activePanel === "functions") {
+    const activeId = state.activeFunctionId;
+    const func = activeId ? state.functions.find((f) => f.id === activeId) : null;
+    if (func) {
+      bindFunctionWorkspace(func);
+      return mountFunctionEditor(func);
+    }
+    return Promise.resolve();
+  }
+
   if (!request || !tab) return;
+
 
   if (request.bodyMode === "form") ensureFormRow(request);
 
@@ -1356,11 +1477,14 @@ function bindEvents() {
   bindTabBar();
   bindTabStripScroll();
   bindCollectionSearch();
+  bindFunctionsSearch();
+  bindFunctions();
 
   document.querySelector("#export-collection")?.addEventListener("click", () => void exportCollection());
   document.querySelector("#import-collection")?.addEventListener("click", () => void importCollection());
   document.querySelector("#new-folder")?.addEventListener("click", () => createFolder(null));
   document.querySelector("#new-request")?.addEventListener("click", () => createRequest(null));
+  document.querySelector("#new-function")?.addEventListener("click", () => createNewFunction());
   document.querySelector("#panel-back")?.addEventListener("click", backToWorkspace);
   bindTabBarToolButtons();
   bindWorkspace();
@@ -1382,6 +1506,14 @@ function bindActivityBar() {
         openPanel("request");
         return;
       }
+      if (activity === "functions") {
+        if (state.activePanel === "functions") {
+          toggleCollectionSidebar();
+          return;
+        }
+        openPanel("functions");
+        return;
+      }
       if (activity === "variables") openVariablesWorkspace("globals");
       if (activity === "settings") openPanel("settings");
     });
@@ -1392,6 +1524,7 @@ function bindActivityBar() {
     if (state.collectionSidebarOpen) toggleCollectionSidebar();
   });
 }
+
 
 function openPanel(panel: ActivePanel) {
   if (panel !== state.activePanel && (panel === "settings" || panel === "variables")) {
@@ -1471,6 +1604,17 @@ function contextMenuAnchor(element: HTMLElement) {
 function resolveContextMenuTarget(focused: HTMLElement): HTMLElement {
   if (focused.closest(".context-menu, [data-copy-menu-trigger], [data-request-actions-trigger]")) return focused;
 
+  if (state.activePanel === "functions" && focused.closest(".tree")) {
+    return (
+      focused.closest<HTMLElement>("[data-function-id]") ??
+      (state.activeFunctionId
+        ? (document.querySelector<HTMLElement>(`[data-function-id="${state.activeFunctionId}"]`) ?? undefined)
+        : undefined) ??
+      focused.closest<HTMLElement>(".tree") ??
+      focused
+    );
+  }
+
   if (focused.closest(".tree")) {
     return (
       focused.closest<HTMLElement>("[data-tree-id]") ??
@@ -1490,6 +1634,15 @@ function resolveContextMenuTarget(focused: HTMLElement): HTMLElement {
 
 function openContextMenuForTarget(target: HTMLElement, x: number, y: number) {
   if (target.closest(".context-menu, [data-copy-menu-trigger], [data-request-actions-trigger]")) return;
+
+  if (state.activePanel === "functions" && target.closest(".tree")) {
+    const row = target.closest<HTMLElement>("[data-function-id]");
+    const functionId = row?.dataset.functionId ?? null;
+    state.contextMenu = { kind: "functions-tree", x, y, functionId };
+    if (functionId) selectFunction(functionId);
+    syncContextMenu();
+    return;
+  }
 
   if (target.closest(".tree")) {
     const row = target.closest<HTMLElement>("[data-tree-id]");
@@ -1597,9 +1750,17 @@ function ensureContextMenuHandlers() {
     const menu = state.contextMenu;
     const action = button.dataset.menuAction ?? "";
     closeContextMenu();
+    if (menu.kind === "functions-tree") {
+      const funcId = menu.functionId;
+      if (action === "new-function") createNewFunction();
+      if (action === "rename" && funcId) startFuncRename(funcId);
+      if (action === "delete" && funcId) void deleteFunction(funcId);
+      return;
+    }
     if (menu.kind === "tree") {
       const itemId = menu.itemId;
       if (action === "new-request") createRequest(parentIdForTreeCreate(itemId));
+
       if (action === "new-folder") createFolder(parentIdForTreeCreate(itemId));
       if (action === "rename" && itemId) startTreeRename(itemId);
       if (action === "show" && itemId && getRequest(itemId)) openRequest(itemId);
@@ -2606,3 +2767,1678 @@ function syncRequestTitle(requestId: string) {
   const tabLabel = document.querySelector(`[data-open-tab="${requestId}"] .tab-label`);
   if (tabLabel) tabLabel.textContent = request.title;
 }
+
+let functionEditorUnmount: (() => void) | undefined;
+
+let functionBodyEditorUnmount: (() => void) | undefined;
+let functionExtractorEditorUnmount: (() => void) | undefined;
+
+function unmountFunctionEditors() {
+  functionBodyEditorUnmount?.();
+  functionBodyEditorUnmount = undefined;
+  functionExtractorEditorUnmount?.();
+  functionExtractorEditorUnmount = undefined;
+}
+
+async function mountFunctionEditor(func: AppFunction) {
+  unmountFunctionEditors();
+
+  const editors = await getEditorRuntime();
+
+  // 1. Mount Body Editor (if bodyMode === "raw")
+  const bodyHost = document.getElementById("function-body-editor");
+  if (bodyHost && func.bodyMode === "raw") {
+    functionBodyEditorUnmount = editors.mountBodyEditor(bodyHost, func.body, {
+      tabSize: state.settings.tabSize,
+      rawType: func.rawType,
+      onChange: (value) => {
+        func.body = value;
+        scheduleSave();
+      },
+      onSend: () => {
+        void testFunction(func);
+      }
+    });
+  }
+
+  // 2. Mount Extractor Editor (JavaScript editor)
+  const extractorHost = document.getElementById("function-extractor-editor");
+  if (extractorHost) {
+    functionExtractorEditorUnmount = editors.mountBodyEditor(extractorHost, func.extractorCode, {
+      tabSize: state.settings.tabSize,
+      rawType: "javascript",
+      onChange: (value) => {
+        func.extractorCode = value;
+        scheduleSave();
+      },
+      onSend: () => {
+        void testFunction(func);
+      }
+    });
+  }
+}
+
+function renderFuncPair(pair: Pair, scope: "query" | "header" | "form") {
+  const labels = t().pairs;
+  const keyPlaceholder =
+    scope === "header" ? labels.header : scope === "query" ? labels.param : "Name";
+  return `
+    <div class="pair-row" data-func-${scope}-id="${pair.id}">
+      <input class="func-${scope}-enabled" type="checkbox" ${pair.enabled ? "checked" : ""} />
+      <input class="func-${scope}-key" value="${escapeAttribute(pair.key)}" placeholder="${keyPlaceholder}" spellcheck="false" />
+      <input class="func-${scope}-value" value="${escapeAttribute(pair.value)}" placeholder="${labels.value}" spellcheck="false" />
+      <button class="mini-btn field-remove-btn remove-func-${scope}" type="button" aria-label="${t().tree.delete}">×</button>
+    </div>
+  `;
+}
+
+function renderFuncMultipartPair(pair: Pair) {
+  const labels = t().request;
+  const pairLabels = t().pairs;
+  const partType = pair.partType === "file" ? "file" : "text";
+  const valueField =
+    partType === "file"
+      ? `<label class="multipart-file-picker"><input class="func-form-file" data-func-form-id="${pair.id}" type="file" hidden /><span class="multipart-file-name">${escapeHtml(pair.fileName || labels.chooseFile)}</span></label>`
+      : `<input class="func-form-value" value="${escapeAttribute(pair.value)}" placeholder="${pairLabels.value}" spellcheck="false" style="padding: 4px 8px; font-size: 13px;" />`;
+  return `
+    <div class="pair-row multipart-row" data-func-form-id="${pair.id}">
+      <input class="func-form-enabled" type="checkbox" ${pair.enabled ? "checked" : ""} />
+      <input class="func-form-key" value="${escapeAttribute(pair.key)}" placeholder="Name" spellcheck="false" />
+      <select class="func-form-part-type" data-func-form-id="${pair.id}">
+        <option value="text" ${partType === "text" ? "selected" : ""}>${labels.partText}</option>
+        <option value="file" ${partType === "file" ? "selected" : ""}>${labels.partFile}</option>
+      </select>
+      ${valueField}
+      <button class="mini-btn field-remove-btn remove-func-form" type="button" aria-label="${t().tree.delete}">×</button>
+    </div>
+  `;
+}
+
+function renderFuncBodyToolbarTrailing(func: AppFunction, labels: ReturnType<typeof t>["request"]) {
+  if (func.bodyMode === "raw") {
+    return `
+      <label class="raw-type-select-wrap body-toolbar-trailing" style="margin-left: auto;">
+        <span class="raw-type-select-label" style="font-size: 11px;">${labels.rawFormat}</span>
+        <select id="func-raw-type" class="raw-type-select" aria-label="${labels.rawFormat}" style="font-size: 11px; padding: 2px 4px;">
+          <option value="text" ${func.rawType === "text" ? "selected" : ""}>${labels.rawText}</option>
+          <option value="json" ${func.rawType === "json" ? "selected" : ""}>${labels.rawJson}</option>
+          <option value="xml" ${func.rawType === "xml" ? "selected" : ""}>${labels.rawXml}</option>
+        </select>
+      </label>
+    `;
+  }
+  return "";
+}
+
+function renderFuncBodyEditor(func: AppFunction, labels: ReturnType<typeof t>["request"]) {
+  if (func.bodyMode === "raw") {
+    const modeClass =
+      func.rawType === "json" ? "json-mode" : func.rawType === "xml" ? "xml-mode" : "text-mode";
+    return `<div class="code-editor ${modeClass}" id="function-body-editor" data-body-editor-host="true" style="flex: 1; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden; min-height: 120px;"></div>`;
+  }
+  if (func.bodyMode === "none") {
+    return `
+      <div class="flex items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); min-height: 120px;">
+        ${labels.none}
+      </div>
+    `;
+  }
+  const isMultipart = func.bodyMode === "multipart";
+  const rows = func.form
+    .map((pair) => (isMultipart ? renderFuncMultipartPair(pair) : renderFuncPair(pair, "form")))
+    .join("");
+  const multipartHint = isMultipart
+    ? `<p class="hint multipart-hint">${labels.multipartFilesHint}</p>`
+    : "";
+  const actions = isMultipart
+    ? `<div class="form-actions" style="margin-top: 8px; display: flex; gap: 8px;"><button class="quiet-button add-form" id="func-add-form" type="button" style="padding: 4px 8px; font-size: 12px;">${labels.addField}</button><button class="quiet-button add-form" id="func-add-multipart-file" type="button" style="padding: 4px 8px; font-size: 12px;">${labels.addFile}</button></div>`
+    : `<div class="form-actions" style="margin-top: 8px;"><button class="quiet-button add-form" id="func-add-form" type="button" style="padding: 4px 8px; font-size: 12px;">${labels.addField}</button></div>`;
+  return `
+    <div class="flex flex-col flex-1 min-h-0 overflow-y-auto" style="border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); padding: 8px;">
+      ${multipartHint}
+      <div class="headers-list form-list" style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px;">${rows}</div>
+      ${actions}
+    </div>
+  `;
+}
+
+function renderFuncAuthPanel(func: AppFunction) {
+  const labels = t().request.auth;
+  const auth = normalizeRequestAuth(func.auth);
+
+  return `
+    <div class="request-tab-panel request-auth-panel flex flex-col flex-1" style="padding: 0; align-content: start; align-items: start; display: grid; gap: 12px;">
+      <label class="auth-field" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+        <span class="auth-field-label" style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${labels.type}</span>
+        <select id="func-auth-type" data-func-auth-field="type" style="padding: 6px 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); font-weight: 500;">
+          <option value="none" ${auth.type === "none" ? "selected" : ""}>${labels.typeNone}</option>
+          <option value="bearer" ${auth.type === "bearer" ? "selected" : ""}>${labels.typeBearer}</option>
+          <option value="basic" ${auth.type === "basic" ? "selected" : ""}>${labels.typeBasic}</option>
+          <option value="apikey" ${auth.type === "apikey" ? "selected" : ""}>${labels.typeApiKey}</option>
+        </select>
+      </label>
+      <div class="auth-fields${hiddenClass(auth.type !== "bearer")}" data-func-auth-panel="bearer" style="width: 100%;">
+        <label class="auth-field" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+          <span class="auth-field-label" style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${labels.bearerToken}</span>
+          <input id="func-auth-bearer-token" type="password" value="${escapeAttribute(auth.bearerToken ?? "")}" placeholder="${labels.bearerPlaceholder}" spellcheck="false" autocomplete="off" class="url-send-input" style="padding: 6px 12px;" />
+        </label>
+      </div>
+      <div class="auth-fields${hiddenClass(auth.type !== "basic")}" data-func-auth-panel="basic" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+        <label class="auth-field" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+          <span class="auth-field-label" style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${labels.basicUsername}</span>
+          <input id="func-auth-basic-username" value="${escapeAttribute(auth.basicUsername ?? "")}" placeholder="${labels.basicUsernamePlaceholder}" spellcheck="false" autocomplete="username" class="url-send-input" style="padding: 6px 12px;" />
+        </label>
+        <label class="auth-field" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+          <span class="auth-field-label" style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${labels.basicPassword}</span>
+          <input id="func-auth-basic-password" type="password" value="${escapeAttribute(auth.basicPassword ?? "")}" placeholder="${labels.basicPasswordPlaceholder}" spellcheck="false" autocomplete="current-password" class="url-send-input" style="padding: 6px 12px;" />
+        </label>
+      </div>
+      <div class="auth-fields${hiddenClass(auth.type !== "apikey")}" data-func-auth-panel="apikey" style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+        <label class="auth-field" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+          <span class="auth-field-label" style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${labels.apiKeyName}</span>
+          <input id="func-auth-api-key-name" value="${escapeAttribute(auth.apiKeyName ?? "")}" placeholder="${labels.apiKeyNamePlaceholder}" spellcheck="false" autocomplete="off" class="url-send-input" style="padding: 6px 12px;" />
+        </label>
+        <label class="auth-field" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+          <span class="auth-field-label" style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${labels.apiKeyValue}</span>
+          <input id="func-auth-api-key-value" type="password" value="${escapeAttribute(auth.apiKeyValue ?? "")}" placeholder="${labels.apiKeyValuePlaceholder}" spellcheck="false" autocomplete="off" class="url-send-input" style="padding: 6px 12px;" />
+        </label>
+        <div class="auth-field" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+          <span class="auth-field-label" style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${labels.apiKeyIn}</span>
+          <div class="segmented func-auth-key-location" style="width: fit-content;">
+            <button type="button" class="${auth.apiKeyIn !== "query" ? "active" : ""}" data-func-auth-key-in="header">${labels.apiKeyHeader}</button>
+            <button type="button" class="${auth.apiKeyIn === "query" ? "active" : ""}" data-func-auth-key-in="query">${labels.apiKeyQuery}</button>
+          </div>
+        </div>
+      </div>
+      <p class="auth-hint" style="font-size: 11px; color: var(--rp-text-muted); margin-top: 8px;">${labels.hint}</p>
+    </div>
+  `;
+}
+
+function bindFuncAuthPanel(func: AppFunction, onChange: () => void) {
+  func.auth = normalizeRequestAuth(func.auth);
+
+  const readFuncAuthFromForm = (): RequestAuth => {
+    const type = (document.querySelector<HTMLSelectElement>("#func-auth-type")?.value ?? "none") as RequestAuth["type"];
+    if (type === "bearer") {
+      return {
+        type,
+        bearerToken: document.querySelector<HTMLInputElement>("#func-auth-bearer-token")?.value ?? ""
+      };
+    }
+    if (type === "basic") {
+      return {
+        type,
+        basicUsername: document.querySelector<HTMLInputElement>("#func-auth-basic-username")?.value ?? "",
+        basicPassword: document.querySelector<HTMLInputElement>("#func-auth-basic-password")?.value ?? ""
+      };
+    }
+    if (type === "apikey") {
+      const active = document.querySelector<HTMLButtonElement>("[data-func-auth-key-in].active");
+      return {
+        type,
+        apiKeyName: document.querySelector<HTMLInputElement>("#func-auth-api-key-name")?.value ?? "",
+        apiKeyValue: document.querySelector<HTMLInputElement>("#func-auth-api-key-value")?.value ?? "",
+        apiKeyIn: active?.dataset.funcAuthKeyIn === "query" ? "query" : "header"
+      };
+    }
+    return defaultRequestAuth();
+  };
+
+  const persist = () => {
+    func.auth = normalizeRequestAuth(readFuncAuthFromForm());
+    onChange();
+  };
+
+  document.querySelector<HTMLSelectElement>("#func-auth-type")?.addEventListener("change", (event) => {
+    const type = (event.target as HTMLSelectElement).value as RequestAuth["type"];
+    document.querySelectorAll<HTMLElement>("[data-func-auth-panel]").forEach((panel) => {
+      panel.classList.toggle("is-hidden", panel.dataset.funcAuthPanel !== type);
+    });
+    persist();
+  });
+
+  document.querySelectorAll("#func-auth-type ~ div input, [data-func-auth-panel] input").forEach((input) => {
+    input.addEventListener("input", persist);
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-func-auth-key-in]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll<HTMLButtonElement>("[data-func-auth-key-in]").forEach((entry) => {
+        entry.classList.toggle("active", entry === button);
+      });
+      persist();
+    });
+  });
+}
+
+function renderFunctionWorkspace(func: AppFunction) {
+  const labels = t().request;
+  const funcLabels = t().functions;
+
+  // Render Console Output Panels
+  const res = func.lastTestResult;
+
+  // 1. Raw Response Panel (Left Panel bottom)
+  let rawResponsePanel = "";
+  if (state.activeFunctionConsoleLoading) {
+    rawResponsePanel = `
+      <div class="flex flex-col items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; height: 180px; min-height: 180px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
+        <span class="send-icon-spin" style="margin-bottom: 8px; width: 16px; height: 16px; border: 2px solid var(--rp-text-muted); border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;"></span>
+        ${funcLabels.testing}
+      </div>
+    `;
+  } else if (!res) {
+    rawResponsePanel = `
+      <div class="flex items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; text-align: center; padding: 24px; height: 180px; min-height: 180px; border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
+        No response body yet.
+      </div>
+    `;
+  } else {
+    rawResponsePanel = `
+      <div class="flex flex-col flex-1 min-h-0" style="padding: 12px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); font-family: monospace; font-size: 13px; overflow-y: auto; text-align: left; height: 180px; min-height: 180px;">
+        <pre style="margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--rp-text-muted);">${escapeHtml(res.responseBody || "No response body.")}</pre>
+      </div>
+    `;
+  }
+
+  // 2. Extracted Outcome Panel (Right Panel bottom)
+  let extractedOutcomePanel = "";
+  if (state.activeFunctionConsoleLoading) {
+    extractedOutcomePanel = `
+      <div class="flex flex-col items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; height: 180px; min-height: 180px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
+        <span class="send-icon-spin" style="margin-bottom: 8px; width: 16px; height: 16px; border: 2px solid var(--rp-text-muted); border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;"></span>
+        ${funcLabels.testing}
+      </div>
+    `;
+  } else if (!res) {
+    extractedOutcomePanel = `
+      <div class="flex items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; text-align: center; padding: 24px; height: 180px; min-height: 180px; border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
+        ${funcLabels.emptyTestResult}
+      </div>
+    `;
+  } else if (res.success) {
+    let formattedVal = "";
+    try {
+      formattedVal = typeof res.extractedValue === "object" ? JSON.stringify(res.extractedValue, null, 2) : String(res.extractedValue);
+    } catch {
+      formattedVal = String(res.extractedValue);
+    }
+    extractedOutcomePanel = `
+      <div class="flex flex-col flex-1 min-h-0" style="padding: 12px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); font-family: monospace; font-size: 13px; overflow-y: auto; text-align: left; height: 180px; min-height: 180px;">
+        <div style="margin-bottom: 8px; font-weight: 600; color: #4b8b3b; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4b8b3b;"></span>
+          ${funcLabels.success}
+        </div>
+        <pre style="margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--rp-text);">${escapeHtml(formattedVal)}</pre>
+      </div>
+    `;
+  } else {
+    extractedOutcomePanel = `
+      <div class="flex flex-col flex-1 min-h-0" style="padding: 12px; border: 1px solid #b54a3a33; border-radius: var(--rp-radius); background: #b54a3a0a; font-family: monospace; font-size: 13px; overflow-y: auto; text-align: left; height: 180px; min-height: 180px;">
+        <div style="margin-bottom: 8px; font-weight: 600; color: #b54a3a; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b54a3a;"></span>
+          ${funcLabels.failure}
+        </div>
+        <pre style="margin: 0; white-space: pre-wrap; color: #b54a3a;">${escapeHtml(res.error || "Unknown error occurred.")}</pre>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="request-editor" style="height: 100%; display: flex; flex-direction: column;">
+      <div class="editor-grid" style="grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; height: 100%;">
+        
+        <!-- Left Panel: HTTP Request Builder & Raw Response Body -->
+        <div class="request-card flex flex-col h-full" style="padding: var(--workspace-panel-inset-block) var(--workspace-panel-inset-inline); min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
+          
+          <!-- Header -->
+          <div class="flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border);">
+            <span style="font-weight: 600; font-size: 13px; color: var(--rp-text);">${funcLabels.functionType}: HTTP Request</span>
+          </div>
+
+          <!-- URL Bar -->
+          <div class="url-send-row flex-shrink-0" style="margin-bottom: 12px; display: flex; gap: 8px; width: 100%;">
+            <select id="func-method" class="url-method-select" aria-label="HTTP Method" style="font-weight: 700; width: 100px; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);">
+              <option value="GET" ${func.method === "GET" ? "selected" : ""}>GET</option>
+              <option value="POST" ${func.method === "POST" ? "selected" : ""}>POST</option>
+              <option value="PUT" ${func.method === "PUT" ? "selected" : ""}>PUT</option>
+              <option value="DELETE" ${func.method === "DELETE" ? "selected" : ""}>DELETE</option>
+              <option value="PATCH" ${func.method === "PATCH" ? "selected" : ""}>PATCH</option>
+              <option value="OPTIONS" ${func.method === "OPTIONS" ? "selected" : ""}>OPTIONS</option>
+              <option value="HEAD" ${func.method === "HEAD" ? "selected" : ""}>HEAD</option>
+            </select>
+            <input
+              id="func-url"
+              class="url-send-input"
+              value="${escapeAttribute(func.url)}"
+              placeholder="https://api.example.com/endpoint"
+              spellcheck="false"
+              autocomplete="off"
+              style="flex: 1; min-width: 0; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);"
+            />
+          </div>
+
+          <!-- Popover Badge Buttons Row (Guaranteed horizontal stack with flex row) -->
+          <div style="display: flex; flex-direction: row; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; width: 100%;" class="flex-shrink-0">
+            <button type="button" class="segmented-btn" id="func-popover-params-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+              ${labels.params} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.queryParams.length}</span>
+            </button>
+            <button type="button" class="segmented-btn" id="func-popover-headers-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+              ${labels.headers} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.headers.length}</span>
+            </button>
+            <button type="button" class="segmented-btn" id="func-popover-body-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+              ${labels.body} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.bodyMode === "none" ? "none" : func.rawType}</span>
+            </button>
+            <button type="button" class="segmented-btn" id="func-popover-auth-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+              ${labels.authTab} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.auth.type}</span>
+            </button>
+          </div>
+
+          <!-- Summary Dashboard -->
+          <div class="flex-1 min-h-0 overflow-y-auto" style="display: flex; flex-direction: column; gap: 16px; margin-top: 4px; padding-top: 4px; margin-bottom: 8px;">
+            <!-- Active Parameters Summary -->
+            <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+              <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Query Parameters</span>
+              <div id="func-summary-query-params" style="display: flex; flex-direction: column; gap: 4px;">
+                ${func.queryParams.filter(p => p.enabled && p.key.trim()).length === 0
+                  ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active parameters</span>`
+                  : func.queryParams.filter(p => p.enabled && p.key.trim()).map(p => `
+                    <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
+                      <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(p.key)}</span>
+                      <span style="color: var(--rp-text-muted);">${escapeHtml(p.value)}</span>
+                    </div>
+                  `).join("")
+                }
+              </div>
+            </div>
+
+            <!-- Active Headers Summary -->
+            <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+              <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Request Headers</span>
+              <div id="func-summary-headers" style="display: flex; flex-direction: column; gap: 4px;">
+                ${func.headers.filter(h => h.enabled && h.key.trim()).length === 0
+                  ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active headers</span>`
+                  : func.headers.filter(h => h.enabled && h.key.trim()).map(h => `
+                    <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
+                      <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(h.key)}</span>
+                      <span style="color: var(--rp-text-muted);">${escapeHtml(h.value)}</span>
+                    </div>
+                  `).join("")
+                }
+              </div>
+            </div>
+
+            <!-- Body and Auth Summary -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Body Mode</span>
+                <span id="func-summary-body-mode" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.bodyMode === "none" ? "None" : func.rawType.toUpperCase()}</span>
+              </div>
+              <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Auth Type</span>
+                <span id="func-summary-auth-type" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.auth.type === "none" ? "No Auth" : func.auth.type.toUpperCase()}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Divider & Raw Response Title -->
+          <div class="flex-shrink-0" style="margin-top: 16px; margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Raw Response Body</span>
+            ${res ? `<span style="font-size: 11px; font-weight: 600; color: #4b8b3b; font-family: monospace;">HTTP ${res.responseStatus}</span>` : ""}
+          </div>
+
+          <!-- Raw Response Content -->
+          <div class="flex-shrink-0 flex flex-col" style="height: 180px; min-height: 180px; display: flex; flex-direction: column;">
+            ${rawResponsePanel}
+          </div>
+        </div>
+
+        <!-- Right Panel: Extractor Script with green Play action in header -->
+        <div class="request-card flex flex-col h-full" style="padding: var(--workspace-panel-inset-block) var(--workspace-panel-inset-inline); min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
+          
+          <!-- Header -->
+          <div class="flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border); display: flex; align-items: center; justify-content: space-between; height: 28px;">
+            <span style="font-weight: 600; font-size: 13px; color: var(--rp-text);">${funcLabels.extractorCode} (JavaScript)</span>
+            <button class="quiet-button ${state.activeFunctionConsoleLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
+              <span class="send-icon-spin" style="display: ${state.activeFunctionConsoleLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+              <svg style="display: ${state.activeFunctionConsoleLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- CodeMirror JS Editor Container -->
+          <div class="flex-1 min-h-0 flex flex-col" style="position: relative; display: flex; flex-direction: column; height: 100%; margin-bottom: 8px;">
+            <div
+              id="function-extractor-editor"
+              data-body-editor-host="true"
+              style="flex: 1; min-height: 0; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden; height: 100%;"
+            ></div>
+          </div>
+
+          <!-- Extracted Outcome Title -->
+          <div class="flex-shrink-0" style="margin-top: 16px; margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center;">
+            <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Extracted Outcome</span>
+          </div>
+
+          <!-- Extracted Outcome Content -->
+          <div class="flex-shrink-0 flex flex-col" style="height: 180px; min-height: 180px; display: flex; flex-direction: column;">
+            ${extractedOutcomePanel}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
+function bindFunctionWorkspace(func: AppFunction) {
+  // A. Handle Method and URL changes
+  const methodSelect = document.querySelector<HTMLSelectElement>("#func-method");
+  if (methodSelect) {
+    methodSelect.addEventListener("change", () => {
+      func.method = methodSelect.value;
+      scheduleSave();
+    });
+  }
+
+  const urlInput = document.querySelector<HTMLInputElement>("#func-url");
+  if (urlInput) {
+    urlInput.addEventListener("input", () => {
+      func.url = urlInput.value;
+      scheduleSave();
+    });
+  }
+
+  // B. Handle Popover Badge Buttons Clicking
+  ["params", "headers", "body", "auth"].forEach((kind: any) => {
+    const btn = document.getElementById(`func-popover-${kind}-btn`);
+    btn?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (state.activeFunctionPopover === kind) {
+        state.activeFunctionPopover = null;
+        removePopovers();
+      } else {
+        state.activeFunctionPopover = kind;
+        syncFunctionPopover();
+      }
+    });
+  });
+
+  // C. Handle Tab Switcher for Console Output (Right Panel)
+  document.querySelectorAll<HTMLButtonElement>("[data-func-console-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetTab = button.dataset.funcConsoleTab as any;
+      state.activeFunctionConsoleTab = targetTab;
+      renderWorkspace();
+    });
+  });
+
+  // I. Test Function button trigger
+  const testBtn = document.querySelector<HTMLButtonElement>("#test-function-btn");
+  if (testBtn) {
+    testBtn.addEventListener("click", () => {
+      void testFunction(func);
+    });
+  }
+}
+
+function updateFunctionSummaryDashboard(func: AppFunction) {
+  // Update query params count badge
+  const paramsBtn = document.getElementById("func-popover-params-btn");
+  if (paramsBtn) {
+    const badge = paramsBtn.querySelector(".badge");
+    if (badge) badge.textContent = String(func.queryParams.length);
+  }
+
+  // Update headers count badge
+  const headersBtn = document.getElementById("func-popover-headers-btn");
+  if (headersBtn) {
+    const badge = headersBtn.querySelector(".badge");
+    if (badge) badge.textContent = String(func.headers.length);
+  }
+
+  // Update body mode badge
+  const bodyBtn = document.getElementById("func-popover-body-btn");
+  if (bodyBtn) {
+    const badge = bodyBtn.querySelector(".badge");
+    if (badge) badge.textContent = func.bodyMode === "none" ? "none" : func.rawType;
+  }
+
+  // Update auth badge
+  const authBtn = document.getElementById("func-popover-auth-btn");
+  if (authBtn) {
+    const badge = authBtn.querySelector(".badge");
+    if (badge) badge.textContent = func.auth.type;
+  }
+
+  // Update Query Params Summary container
+  const querySummary = document.getElementById("func-summary-query-params");
+  if (querySummary) {
+    const activeParams = func.queryParams.filter(p => p.enabled && p.key.trim());
+    querySummary.innerHTML = activeParams.length === 0
+      ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active parameters</span>`
+      : activeParams.map(p => `
+        <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
+          <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(p.key)}</span>
+          <span style="color: var(--rp-text-muted);">${escapeHtml(p.value)}</span>
+        </div>
+      `).join("");
+  }
+
+  // Update Headers Summary container
+  const headersSummary = document.getElementById("func-summary-headers");
+  if (headersSummary) {
+    const activeHeaders = func.headers.filter(h => h.enabled && h.key.trim());
+    headersSummary.innerHTML = activeHeaders.length === 0
+      ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active headers</span>`
+      : activeHeaders.map(h => `
+        <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
+          <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(h.key)}</span>
+          <span style="color: var(--rp-text-muted);">${escapeHtml(h.value)}</span>
+        </div>
+      `).join("");
+  }
+
+  // Update Body Mode Summary text
+  const bodySummary = document.getElementById("func-summary-body-mode");
+  if (bodySummary) {
+    bodySummary.textContent = func.bodyMode === "none" ? "None" : func.rawType.toUpperCase();
+  }
+
+  // Update Auth Type Summary text
+  const authSummary = document.getElementById("func-summary-auth-type");
+  if (authSummary) {
+    authSummary.textContent = func.auth.type === "none" ? "No Auth" : func.auth.type.toUpperCase();
+  }
+}
+
+function syncFunctionPopover() {
+  removePopovers();
+  const kind = state.activeFunctionPopover;
+  if (!kind || state.activePanel !== "functions" || !state.activeFunctionId) return;
+
+  const func = state.functions.find(f => f.id === state.activeFunctionId);
+  if (!func) return;
+
+  const btnId = `func-popover-${kind}-btn`;
+  const anchor = document.getElementById(btnId);
+  if (!anchor) {
+    state.activeFunctionPopover = null;
+    return;
+  }
+
+  const labels = t().request;
+  let title = "";
+  let bodyHtml = "";
+
+  if (kind === "params") {
+    title = labels.params;
+    bodyHtml = `
+      <div class="request-tab-panel flex flex-col flex-1 min-h-0" style="padding: 0; width: 100%; height: 100%; display: flex; flex-direction: column;">
+        <div class="request-tab-toolbar flex-shrink-0" style="margin-bottom: 8px; display: flex; justify-content: flex-end;">
+          <button class="mini-btn" id="func-add-query" type="button" aria-label="${labels.addField}">+</button>
+        </div>
+        <div class="headers-list request-pairs-list flex-1 overflow-y-auto" style="min-height: 0; display: flex; flex-direction: column; gap: 4px;">
+          ${func.queryParams.length === 0 
+            ? `<div style="padding: 16px; text-align: center; color: var(--rp-text-muted); font-size: 12px; font-style: italic;">No parameters</div>`
+            : func.queryParams.map((pair) => renderFuncPair(pair, "query")).join("")
+          }
+        </div>
+      </div>
+    `;
+  } else if (kind === "headers") {
+    title = labels.headers;
+    bodyHtml = `
+      <div class="request-tab-panel flex flex-col flex-1 min-h-0" style="padding: 0; width: 100%; height: 100%; display: flex; flex-direction: column;">
+        <div class="request-tab-toolbar flex-shrink-0" style="margin-bottom: 8px; display: flex; justify-content: flex-end;">
+          <button class="mini-btn" id="func-add-header" type="button" aria-label="${labels.addField}">+</button>
+        </div>
+        <div class="headers-list request-pairs-list flex-1 overflow-y-auto" style="min-height: 0; display: flex; flex-direction: column; gap: 4px;">
+          ${func.headers.length === 0 
+            ? `<div style="padding: 16px; text-align: center; color: var(--rp-text-muted); font-size: 12px; font-style: italic;">No headers</div>`
+            : func.headers.map((pair) => renderFuncPair(pair, "header")).join("")
+          }
+        </div>
+      </div>
+    `;
+  } else if (kind === "body") {
+    title = labels.body;
+    bodyHtml = `
+      <div class="request-tab-panel flex flex-col flex-1 min-h-0" style="padding: 0; width: 100%; height: 100%; display: flex; flex-direction: column;">
+        <div class="body-toolbar flex-shrink-0" style="margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <div class="segmented body-mode-switch" style="display: flex; gap: 2px;">
+            <button class="${func.bodyMode === "raw" ? "active" : ""}" data-func-body-mode="raw" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.raw}</button>
+            <button class="${func.bodyMode === "form" ? "active" : ""}" data-func-body-mode="form" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.form}</button>
+            <button class="${func.bodyMode === "multipart" ? "active" : ""}" data-func-body-mode="multipart" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.multipart}</button>
+            <button class="${func.bodyMode === "none" ? "active" : ""}" data-func-body-mode="none" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.none}</button>
+          </div>
+          ${renderFuncBodyToolbarTrailing(func, labels)}
+        </div>
+        <div class="flex-1 min-h-0 flex flex-col" style="position: relative; min-height: 150px; display: flex; flex-direction: column;">
+          ${renderFuncBodyEditor(func, labels)}
+        </div>
+      </div>
+    `;
+  } else if (kind === "auth") {
+    title = labels.authTab;
+    bodyHtml = `
+      <div class="request-tab-panel flex flex-col flex-1 min-h-0" style="padding: 0; width: 100%; height: 100%; display: flex; flex-direction: column;">
+        ${renderFuncAuthPanel(func)}
+      </div>
+    `;
+  }
+
+  const html = renderPopoverShell({
+    className: `func-${kind}-popover`,
+    title,
+    bodyHtml,
+    resizable: true
+  });
+
+  const popover = mountPopover(html, anchor);
+  anchor.setAttribute("aria-expanded", "true");
+  anchor.classList.add("is-active");
+
+  bindPopoverClose(popover, () => {
+    state.activeFunctionPopover = null;
+    removePopovers();
+    anchor.setAttribute("aria-expanded", "false");
+    anchor.classList.remove("is-active");
+  });
+
+  bindFuncPopoverEvents(popover, func, kind);
+}
+
+function bindFuncPopoverEvents(popover: HTMLElement, func: AppFunction, kind: "params" | "headers" | "body" | "auth") {
+  const labels = t().request;
+  const onChange = () => {
+    scheduleSave();
+    updateFunctionSummaryDashboard(func);
+  };
+
+  if (kind === "params") {
+    const addQueryBtn = popover.querySelector<HTMLButtonElement>("#func-add-query");
+    if (addQueryBtn) {
+      addQueryBtn.addEventListener("click", () => {
+        func.queryParams.push({ id: id(), key: "", value: "", enabled: true });
+        onChange();
+        syncFunctionPopover();
+      });
+    }
+
+    popover.querySelectorAll<HTMLInputElement>(".func-query-enabled").forEach((checkbox) => {
+      const row = checkbox.closest<HTMLElement>("[data-func-query-id]");
+      const paramId = row?.dataset.funcQueryId;
+      checkbox.addEventListener("change", () => {
+        const param = func.queryParams.find((p) => p.id === paramId);
+        if (param) {
+          param.enabled = checkbox.checked;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLInputElement>(".func-query-key").forEach((input) => {
+      const row = input.closest<HTMLElement>("[data-func-query-id]");
+      const paramId = row?.dataset.funcQueryId;
+      input.addEventListener("input", () => {
+        const param = func.queryParams.find((p) => p.id === paramId);
+        if (param) {
+          param.key = input.value;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLInputElement>(".func-query-value").forEach((input) => {
+      const row = input.closest<HTMLElement>("[data-func-query-id]");
+      const paramId = row?.dataset.funcQueryId;
+      input.addEventListener("input", () => {
+        const param = func.queryParams.find((p) => p.id === paramId);
+        if (param) {
+          param.value = input.value;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLButtonElement>(".remove-func-query").forEach((btn) => {
+      const row = btn.closest<HTMLElement>("[data-func-query-id]");
+      const paramId = row?.dataset.funcQueryId;
+      btn.addEventListener("click", () => {
+        func.queryParams = func.queryParams.filter((p) => p.id !== paramId);
+        onChange();
+        syncFunctionPopover();
+      });
+    });
+  }
+
+  if (kind === "headers") {
+    const addHeaderBtn = popover.querySelector<HTMLButtonElement>("#func-add-header");
+    if (addHeaderBtn) {
+      addHeaderBtn.addEventListener("click", () => {
+        func.headers.push({ id: id(), key: "", value: "", enabled: true });
+        onChange();
+        syncFunctionPopover();
+      });
+    }
+
+    popover.querySelectorAll<HTMLInputElement>(".func-header-enabled").forEach((checkbox) => {
+      const row = checkbox.closest<HTMLElement>("[data-func-header-id]");
+      const headerId = row?.dataset.funcHeaderId;
+      checkbox.addEventListener("change", () => {
+        const head = func.headers.find((h) => h.id === headerId);
+        if (head) {
+          head.enabled = checkbox.checked;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLInputElement>(".func-header-key").forEach((input) => {
+      const row = input.closest<HTMLElement>("[data-func-header-id]");
+      const headerId = row?.dataset.funcHeaderId;
+      input.addEventListener("input", () => {
+        const head = func.headers.find((h) => h.id === headerId);
+        if (head) {
+          head.key = input.value;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLInputElement>(".func-header-value").forEach((input) => {
+      const row = input.closest<HTMLElement>("[data-func-header-id]");
+      const headerId = row?.dataset.funcHeaderId;
+      input.addEventListener("input", () => {
+        const head = func.headers.find((h) => h.id === headerId);
+        if (head) {
+          head.value = input.value;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLButtonElement>(".remove-func-header").forEach((btn) => {
+      const row = btn.closest<HTMLElement>("[data-func-header-id]");
+      const headerId = row?.dataset.funcHeaderId;
+      btn.addEventListener("click", () => {
+        func.headers = func.headers.filter((h) => h.id !== headerId);
+        onChange();
+        syncFunctionPopover();
+      });
+    });
+  }
+
+  if (kind === "body") {
+    popover.querySelectorAll<HTMLButtonElement>("[data-func-body-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        func.bodyMode = btn.dataset.funcBodyMode as any;
+        if (func.bodyMode === "form" && func.form.length === 0) {
+          func.form.push({ id: id(), key: "", value: "", enabled: true });
+        }
+        onChange();
+        syncFunctionPopover();
+      });
+    });
+
+    const rawTypeSelect = popover.querySelector<HTMLSelectElement>("#func-raw-type");
+    if (rawTypeSelect) {
+      rawTypeSelect.addEventListener("change", () => {
+        func.rawType = rawTypeSelect.value as any;
+        onChange();
+        syncFunctionPopover();
+      });
+    }
+
+    const addFormBtn = popover.querySelector<HTMLButtonElement>("#func-add-form");
+    if (addFormBtn) {
+      addFormBtn.addEventListener("click", () => {
+        func.form.push({ id: id(), key: "", value: "", enabled: true });
+        onChange();
+        syncFunctionPopover();
+      });
+    }
+
+    const addMultipartBtn = popover.querySelector<HTMLButtonElement>("#func-add-multipart-file");
+    if (addMultipartBtn) {
+      addMultipartBtn.addEventListener("click", () => {
+        func.form.push({ id: id(), key: "", value: "", enabled: true, partType: "file", fileName: "" });
+        onChange();
+        syncFunctionPopover();
+      });
+    }
+
+    popover.querySelectorAll<HTMLInputElement>(".func-form-enabled").forEach((checkbox) => {
+      const row = checkbox.closest<HTMLElement>("[data-func-form-id]");
+      const formId = row?.dataset.funcFormId;
+      checkbox.addEventListener("change", () => {
+        const field = func.form.find((f) => f.id === formId);
+        if (field) {
+          field.enabled = checkbox.checked;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLInputElement>(".func-form-key").forEach((input) => {
+      const row = input.closest<HTMLElement>("[data-func-form-id]");
+      const formId = row?.dataset.funcFormId;
+      input.addEventListener("input", () => {
+        const field = func.form.find((f) => f.id === formId);
+        if (field) {
+          field.key = input.value;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLInputElement>(".func-form-value").forEach((input) => {
+      const row = input.closest<HTMLElement>("[data-func-form-id]");
+      const formId = row?.dataset.funcFormId;
+      input.addEventListener("input", () => {
+        const field = func.form.find((f) => f.id === formId);
+        if (field) {
+          field.value = input.value;
+          onChange();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLSelectElement>(".func-form-part-type").forEach((select) => {
+      const formId = select.dataset.funcFormId;
+      select.addEventListener("change", () => {
+        const field = func.form.find((f) => f.id === formId);
+        if (field) {
+          field.partType = select.value as any;
+          if (field.partType === "file") {
+            field.fileName = "";
+            field.value = "";
+          }
+          onChange();
+          syncFunctionPopover();
+        }
+      });
+    });
+
+    popover.querySelectorAll<HTMLButtonElement>(".remove-func-form").forEach((btn) => {
+      const row = btn.closest<HTMLElement>("[data-func-form-id]");
+      const formId = row?.dataset.funcFormId;
+      btn.addEventListener("click", () => {
+        func.form = func.form.filter((f) => f.id !== formId);
+        onChange();
+        syncFunctionPopover();
+      });
+    });
+
+    // Mount CodeMirror inside body popover if mode === raw
+    const bodyHost = popover.querySelector<HTMLElement>("#function-body-editor");
+    if (bodyHost && func.bodyMode === "raw") {
+      void getEditorRuntime().then((editors) => {
+        // Clean up previous unmount listener
+        functionBodyEditorUnmount?.();
+        functionBodyEditorUnmount = editors.mountBodyEditor(bodyHost, func.body, {
+          tabSize: state.settings.tabSize,
+          rawType: func.rawType,
+          onChange: (value) => {
+            func.body = value;
+            onChange();
+          },
+          onSend: () => {
+            void testFunction(func);
+          }
+        });
+      });
+    }
+  }
+
+  if (kind === "auth") {
+    bindFuncAuthPanel(func, () => {
+      onChange();
+    });
+  }
+}
+
+async function testFunction(func: AppFunction) {
+  if (state.activeFunctionConsoleLoading) return;
+
+  // Save focus, selection range, and scroll position
+  let focusKind: "extractor" | "body" | null = null;
+  let selectionRange: any = null;
+  let scrollTopValue = 0;
+
+  const extractorHost = document.getElementById("function-extractor-editor");
+  const bodyHost = document.getElementById("function-body-editor");
+
+  const extractorView = extractorHost ? (extractorHost as any).__cmView : null;
+  const bodyView = bodyHost ? (bodyHost as any).__cmView : null;
+
+  if (extractorView && extractorView.hasFocus) {
+    focusKind = "extractor";
+    selectionRange = extractorView.state.selection;
+    scrollTopValue = extractorView.scrollDOM?.scrollTop ?? 0;
+  } else if (bodyView && bodyView.hasFocus) {
+    focusKind = "body";
+    selectionRange = bodyView.state.selection;
+    scrollTopValue = bodyView.scrollDOM?.scrollTop ?? 0;
+  }
+
+  state.activeFunctionConsoleLoading = true;
+  await renderWorkspace();
+
+  try {
+    // 1. Prepare and compile request details
+    // We can simulate an outbound SavedRequest from the AppFunction
+    const fakeRequest: SavedRequest = {
+      id: func.id,
+      kind: "request",
+      parentId: null,
+      title: func.name,
+      method: func.method,
+      url: func.url,
+      queryParams: func.queryParams,
+      headers: func.headers,
+      bodyMode: func.bodyMode,
+      rawType: func.rawType,
+      body: func.body,
+      form: func.form,
+      auth: func.auth,
+      streamResponse: false,
+      lastResponse: null,
+      lastError: null
+    };
+
+    // Use RestPilot's standard resolvers for variables and headers!
+    const effectiveVariables = getEffectiveVariables();
+    const headers = withContentType(fakeRequest, buildRequestHeaders(fakeRequest));
+    const resolvedUrl = resolvedOutboundUrl(fakeRequest, effectiveVariables).trim();
+
+    const payload = {
+      request: {
+        id: func.id,
+        method: func.method,
+        url: resolvedUrl,
+        headers,
+        body_mode: func.bodyMode,
+        raw_type: func.rawType,
+        body: func.bodyMode === "raw" ? applyVariables(func.body, effectiveVariables) : "",
+        form: buildFormPayload(fakeRequest),
+        stream: false
+      },
+      proxy: proxyPayload(state.settings.proxy),
+      network: networkPayload(state.settings, false)
+    };
+
+    // 2. Dispatch to Tauri backend
+    const response = await invoke<ApiResponse>("send_request", { payload });
+
+    // 3. Evaluate the JavaScript Extractor Code inside a safe Function context
+    const codeToEval = func.extractorCode;
+    let parsedBody = response.body;
+    if (typeof response.body === "string") {
+      try {
+        parsedBody = JSON.parse(response.body);
+      } catch {
+        // stay as string
+      }
+    }
+
+    const extractorFunc = new Function("__rawResponse__", "__parsedBody__", `
+      "use strict";
+      const response = {
+        status: __rawResponse__.status,
+        statusText: __rawResponse__.status_text,
+        headers: __rawResponse__.headers,
+        body: __parsedBody__
+      };
+      
+      try {
+        ${codeToEval}
+      } catch(e) {
+        throw new Error("Extractor error: " + e.message);
+      }
+    `);
+
+    const extractedResult = extractorFunc(response, parsedBody);
+
+    // Update func.lastTestResult
+    func.lastTestResult = {
+      success: true,
+      extractedValue: extractedResult,
+      responseStatus: response.status,
+      responseBody: response.body
+    };
+  } catch (error: any) {
+    func.lastTestResult = {
+      success: false,
+      error: error.message || String(error)
+    };
+  } finally {
+    state.activeFunctionConsoleLoading = false;
+    await renderWorkspace();
+
+    // Restore focus, selection and scroll position
+    if (focusKind === "extractor") {
+      const newExtractorHost = document.getElementById("function-extractor-editor");
+      const newExtractorView = newExtractorHost ? (newExtractorHost as any).__cmView : null;
+      if (newExtractorView) {
+        newExtractorView.focus();
+        if (selectionRange) {
+          newExtractorView.dispatch({ selection: selectionRange });
+        }
+        if (scrollTopValue > 0 && newExtractorView.scrollDOM) {
+          newExtractorView.scrollDOM.scrollTop = scrollTopValue;
+        }
+      }
+    } else if (focusKind === "body") {
+      // Re-open body popover
+      state.activeFunctionPopover = "body";
+      syncFunctionPopover();
+
+      const newBodyHost = document.getElementById("function-body-editor");
+      const newBodyView = newBodyHost ? (newBodyHost as any).__cmView : null;
+      if (newBodyView) {
+        newBodyView.focus();
+        if (selectionRange) {
+          newBodyView.dispatch({ selection: selectionRange });
+        }
+        if (scrollTopValue > 0 && newBodyView.scrollDOM) {
+          newBodyView.scrollDOM.scrollTop = scrollTopValue;
+        }
+      }
+    }
+  }
+}
+
+function renderFunctionsList(): string {
+  const labels = t().tree;
+  const query = state.functionSearchQuery.toLowerCase().trim();
+  const filtered = state.functions.filter((func) =>
+    func.name.toLowerCase().includes(query)
+  );
+
+  if (!filtered.length) {
+    return `<div class="tree-empty" style="padding: 8px 12px; color: var(--rp-text-muted); font-size: 13px;">${t().functions.noFunctionSelected}</div>`;
+  }
+
+  return filtered
+    .map((func) => {
+      const active = func.id === state.activeFunctionId;
+      const editing = func.id === state.editingFunctionId;
+      const classes = ["tree-row", "tree-row--request"];
+      if (active) classes.push("is-selected");
+      if (editing) classes.push("is-editing");
+
+      const isPlayLoading = state.activeSidebarFunctionPlayLoading === func.id;
+
+      return `
+        <div class="${classes.join(" ")}" tabindex="0" data-function-id="${func.id}" style="--depth:0">
+          <span class="tree-chevron"></span>
+          <span class="tree-item-icon" style="color: var(--rp-text-muted); display: flex; align-items: center;">${iconFunction}</span>
+          <div class="tree-main">
+            ${
+              editing
+                ? `<input class="tree-rename-input function-rename-input" value="${escapeAttribute(func.name)}" spellcheck="false" aria-label="${labels.rename}" />`
+                : `<span class="tree-title">${escapeHtml(func.name)}</span>`
+            }
+          </div>
+          ${
+            editing
+              ? ""
+              : `<span class="tree-row-actions">
+                  <button class="mini-btn tree-action-btn" data-func-action="play" data-func-id="${func.id}" type="button" title="Run & Save Variable" aria-label="Run & Save Variable" style="color: #2ecc71; display: inline-flex; align-items: center; justify-content: center; position: relative;">
+                    ${isPlayLoading
+                      ? `<span class="send-icon-spin" style="width: 10px; height: 10px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;"></span>`
+                      : `<svg style="width: 12px; height: 12px;" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`
+                    }
+                  </button>
+                  <button class="mini-btn tree-action-btn" data-func-action="rename" data-func-id="${func.id}" type="button" title="${labels.rename}" aria-label="${labels.rename}">${iconRename}</button>
+                  <button class="mini-btn tree-action-btn danger" data-func-action="delete" data-func-id="${func.id}" type="button" title="${labels.delete}" aria-label="${labels.delete}">${iconRemove}</button>
+                </span>`
+          }
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function bindFunctions() {
+  if (state.activePanel !== "functions") return;
+
+  document.querySelectorAll<HTMLElement>(".tree-row[data-function-id]").forEach((row) => {
+    const funcId = row.dataset.functionId ?? "";
+    
+    row.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-func-action]") || target.closest(".function-rename-input")) return;
+      selectFunction(funcId);
+    });
+
+    row.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      startFuncRename(funcId);
+    });
+
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-func-action]") || target.closest(".function-rename-input")) return;
+        selectFunction(funcId);
+      }
+    });
+
+    const renameInput = row.querySelector<HTMLInputElement>(".function-rename-input");
+    if (renameInput) {
+      renameInput.focus();
+      renameInput.select();
+      renameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          commitFuncRename(funcId);
+        } else if (event.key === "Escape") {
+          cancelFuncRename();
+        }
+      });
+      renameInput.addEventListener("blur", () => {
+        commitFuncRename(funcId);
+      });
+    }
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-func-action]").forEach((button) => {
+    const action = button.dataset.funcAction;
+    const funcId = button.dataset.funcId ?? "";
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (action === "rename") {
+        startFuncRename(funcId);
+      } else if (action === "delete") {
+        void deleteFunction(funcId);
+      } else if (action === "play") {
+        void runSidebarFunction(funcId, button);
+      }
+    });
+  });
+
+  const nameEditorInput = document.querySelector<HTMLInputElement>("#function-editor-name");
+  if (nameEditorInput) {
+    nameEditorInput.addEventListener("input", () => {
+      const activeId = state.activeFunctionId;
+      if (activeId) {
+        const func = state.functions.find((f) => f.id === activeId);
+        if (func) {
+          func.name = nameEditorInput.value;
+          const sidebarRow = document.querySelector(`.tree-row[data-function-id="${activeId}"] .tree-title`);
+          if (sidebarRow) sidebarRow.textContent = nameEditorInput.value;
+          scheduleSave();
+        }
+      }
+    });
+  }
+}
+
+function bindFunctionsSearch() {
+  const searchInput = document.querySelector<HTMLInputElement>("#function-search");
+  if (!searchInput) return;
+
+  searchInput.addEventListener("input", () => {
+    state.functionSearchQuery = searchInput.value;
+    const clearBtn = document.querySelector("#function-search-clear");
+    if (clearBtn) {
+      clearBtn.classList.toggle("is-hidden", !searchInput.value.trim());
+    }
+    const list = document.querySelector(".collection-sidebar-panel .tree");
+    if (list) {
+      list.innerHTML = renderFunctionsList();
+      bindFunctions();
+    }
+  });
+
+  document.querySelector("#function-search-clear")?.addEventListener("click", () => {
+    state.functionSearchQuery = "";
+    searchInput.value = "";
+    searchInput.focus();
+    const clearBtn = document.querySelector("#function-search-clear");
+    if (clearBtn) clearBtn.classList.add("is-hidden");
+    const list = document.querySelector(".collection-sidebar-panel .tree");
+    if (list) {
+      list.innerHTML = renderFunctionsList();
+      bindFunctions();
+    }
+  });
+}
+
+function startFuncRename(funcId: string) {
+  state.editingFunctionId = funcId;
+  state.activeFunctionId = funcId;
+  render();
+  focusFuncRenameInput(funcId);
+}
+
+function commitFuncRename(funcId: string) {
+  const func = state.functions.find((f) => f.id === funcId);
+  const input = document.querySelector<HTMLInputElement>(`.tree-row[data-function-id="${funcId}"] .function-rename-input`);
+  const nextName = input?.value.trim() ?? func?.name ?? "";
+  state.editingFunctionId = null;
+  if (!func) {
+    render();
+    return;
+  }
+  if (nextName) func.name = nextName;
+  scheduleSave();
+  render();
+  focusFuncSelection();
+}
+
+function cancelFuncRename() {
+  const editingId = state.editingFunctionId;
+  if (editingId) {
+    const func = state.functions.find((f) => f.id === editingId);
+    if (func && func.name === "New function" && !func.code.trim()) {
+      state.functions = state.functions.filter((f) => f.id !== editingId);
+      if (state.activeFunctionId === editingId) state.activeFunctionId = state.functions[0]?.id ?? null;
+      scheduleSave();
+    }
+  }
+  state.editingFunctionId = null;
+  render();
+  focusFuncSelection();
+}
+
+function focusFuncRenameInput(funcId: string) {
+  const input = document.querySelector<HTMLInputElement>(`.tree-row[data-function-id="${funcId}"] .function-rename-input`);
+  if (!input) return;
+  input.focus();
+  input.select();
+}
+
+function focusFuncSelection() {
+  if (state.editingFunctionId) {
+    focusFuncRenameInput(state.editingFunctionId);
+    return;
+  }
+  if (state.activeFunctionId) {
+    const row = document.querySelector<HTMLElement>(`.tree-row[data-function-id="${state.activeFunctionId}"]`);
+    row?.focus();
+  }
+}
+
+function selectFunction(funcId: string | null) {
+  state.activeFunctionId = funcId;
+  state.editingFunctionId = null;
+  scheduleSave();
+  render();
+}
+
+function createNewFunction() {
+  const newFunc: AppFunction = {
+    id: id(),
+    name: "New function",
+    code: "",
+    functionType: "http",
+    method: "GET",
+    url: "https://jsonplaceholder.typicode.com/todos/1",
+    queryParams: [],
+    headers: [],
+    bodyMode: "none",
+    rawType: "json",
+    body: "",
+    form: [],
+    auth: { type: "none" },
+    extractorCode: `// Extract data from the response\nif (response.status === 200) {\n  return response.body.title;\n}\nreturn undefined;\n`,
+    lastTestResult: null
+  };
+  state.functions.push(newFunc);
+  state.activeFunctionId = newFunc.id;
+  scheduleSave();
+  startFuncRename(newFunc.id);
+}
+
+async function deleteFunction(funcId: string) {
+  const func = state.functions.find((f) => f.id === funcId);
+  if (!func) return;
+  const confirmed = await messageDialog("confirmation", t().tree.delete, `Are you sure you want to delete ${func.name}?`);
+  if (!confirmed) return;
+
+  state.functions = state.functions.filter((f) => f.id !== funcId);
+  if (state.activeFunctionId === funcId) {
+    state.activeFunctionId = state.functions[0]?.id ?? null;
+  }
+  scheduleSave();
+  render();
+}
+
+async function runSidebarFunction(funcId: string, anchorButton: HTMLButtonElement) {
+  if (state.activeSidebarFunctionPlayLoading) return;
+
+  const func = state.functions.find((f) => f.id === funcId);
+  if (!func) return;
+
+  state.activeSidebarFunctionPlayLoading = funcId;
+  // Trigger immediate render to show the loading spinner on the tree row
+  const sidebarList = document.querySelector(".collection-sidebar-panel .tree");
+  if (sidebarList) {
+    sidebarList.innerHTML = renderFunctionsList();
+    bindFunctions();
+  }
+
+  try {
+    const fakeRequest: SavedRequest = {
+      id: func.id,
+      kind: "request",
+      parentId: null,
+      title: func.name,
+      method: func.method,
+      url: func.url,
+      queryParams: func.queryParams,
+      headers: func.headers,
+      bodyMode: func.bodyMode,
+      rawType: func.rawType,
+      body: func.body,
+      form: func.form,
+      auth: func.auth,
+      streamResponse: false,
+      lastResponse: null,
+      lastError: null
+    };
+
+    const effectiveVariables = getEffectiveVariables();
+    const headers = withContentType(fakeRequest, buildRequestHeaders(fakeRequest));
+    const resolvedUrl = resolvedOutboundUrl(fakeRequest, effectiveVariables).trim();
+
+    const payload = {
+      request: {
+        id: func.id,
+        method: func.method,
+        url: resolvedUrl,
+        headers,
+        body_mode: func.bodyMode,
+        raw_type: func.rawType,
+        body: func.bodyMode === "raw" ? applyVariables(func.body, effectiveVariables) : "",
+        form: buildFormPayload(fakeRequest),
+        stream: false
+      },
+      proxy: proxyPayload(state.settings.proxy),
+      network: networkPayload(state.settings, false)
+    };
+
+    const response = await invoke<ApiResponse>("send_request", { payload });
+
+    const codeToEval = func.extractorCode;
+    let parsedBody = response.body;
+    if (typeof response.body === "string") {
+      try {
+        parsedBody = JSON.parse(response.body);
+      } catch {
+        // stay as string
+      }
+    }
+
+    const extractorFunc = new Function("__rawResponse__", "__parsedBody__", `
+      "use strict";
+      const response = {
+        status: __rawResponse__.status,
+        statusText: __rawResponse__.status_text,
+        headers: __rawResponse__.headers,
+        body: __parsedBody__
+      };
+      
+      try {
+        ${codeToEval}
+      } catch(e) {
+        throw new Error("Extractor error: " + e.message);
+      }
+    `);
+
+    const extractedResult = extractorFunc(response, parsedBody);
+
+    // Save to test result for the main view too, so they are in sync!
+    func.lastTestResult = {
+      success: true,
+      extractedValue: extractedResult,
+      responseStatus: response.status,
+      responseBody: response.body
+    };
+
+    // Render workspace only if we are currently looking at this active function
+    if (state.activeFunctionId === funcId) {
+      await renderWorkspace();
+    }
+
+    // Now, show popover
+    const popoverHtml = renderSidebarFunctionResultPopover(func, true, extractedResult);
+    const popover = mountPopover(popoverHtml, anchorButton);
+    bindPopoverClose(popover, () => {
+      removePopovers();
+    });
+    bindSidebarFunctionResultPopover(popover, func, true, extractedResult);
+
+  } catch (error: any) {
+    const errorMsg = error.message || String(error);
+    func.lastTestResult = {
+      success: false,
+      error: errorMsg
+    };
+
+    if (state.activeFunctionId === funcId) {
+      await renderWorkspace();
+    }
+
+    // Show failure popover
+    const popoverHtml = renderSidebarFunctionResultPopover(func, false, null, errorMsg);
+    const popover = mountPopover(popoverHtml, anchorButton);
+    bindPopoverClose(popover, () => {
+      removePopovers();
+    });
+    bindSidebarFunctionResultPopover(popover, func, false, null);
+
+  } finally {
+    state.activeSidebarFunctionPlayLoading = null;
+    // Re-render functions list to restore Play button icon
+    const sidebarList = document.querySelector(".collection-sidebar-panel .tree");
+    if (sidebarList) {
+      sidebarList.innerHTML = renderFunctionsList();
+      bindFunctions();
+    }
+  }
+}
+
+function renderSidebarFunctionResultPopover(func: AppFunction, success: boolean, value: any, error?: string): string {
+  const activeEnv = getActiveEnvironment();
+  
+  let outcomeHtml = "";
+  if (success) {
+    let formattedVal = "";
+    try {
+      formattedVal = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+    } catch {
+      formattedVal = String(value);
+    }
+    outcomeHtml = `
+      <div style="margin-bottom: 12px; font-family: monospace; font-size: 13px; text-align: left;">
+        <div style="font-weight: 600; color: #4b8b3b; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #4b8b3b;"></span>
+          Extracted Value
+        </div>
+        <pre style="margin: 0; padding: 8px; background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 4px; max-height: 80px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--rp-text);">${escapeHtml(formattedVal)}</pre>
+      </div>
+    `;
+  } else {
+    outcomeHtml = `
+      <div style="margin-bottom: 12px; font-family: monospace; font-size: 13px; text-align: left;">
+        <div style="font-weight: 600; color: #b54a3a; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #b54a3a;"></span>
+          Execution Failure
+        </div>
+        <pre style="margin: 0; padding: 8px; background: #b54a3a0a; border: 1px solid #b54a3a33; border-radius: 4px; max-height: 80px; overflow-y: auto; white-space: pre-wrap; color: #b54a3a;">${escapeHtml(error || "Unknown error")}</pre>
+      </div>
+    `;
+  }
+
+  let bodyHtml = outcomeHtml;
+
+  if (success) {
+    bodyHtml += `
+      <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;">
+        <div style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em; margin-top: 4px;">Inject into Variable</div>
+        
+        <!-- Mini-Search input -->
+        <div style="position: relative; display: flex; align-items: center; width: 100%;">
+          <input
+            id="var-popover-search"
+            placeholder="Search variables..."
+            spellcheck="false"
+            style="width: 100%; padding: 6px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);"
+          />
+        </div>
+
+        <!-- Scrollable Variables List -->
+        <div id="var-popover-list" style="flex: 1; min-height: 100px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rp-border); border-radius: 4px; padding: 6px; background: var(--rp-surface-low);">
+          <!-- Dynamic -->
+        </div>
+
+        <!-- Create New Variable Inline Form -->
+        <div style="border-top: 1px solid var(--rp-border); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
+          <div style="font-weight: 700; font-size: 10px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Or Create New Variable</div>
+          <div style="display: flex; gap: 6px; width: 100%;">
+            <input
+              id="var-popover-new-name"
+              placeholder="Variable name..."
+              spellcheck="false"
+              style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);"
+            />
+            ${activeEnv ? `
+              <select id="var-popover-new-scope" style="font-size: 11px; padding: 4px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);">
+                <option value="global">Global</option>
+                <option value="env">${activeEnv.name}</option>
+              </select>
+            ` : ""}
+            <button id="var-popover-new-submit" class="segmented-btn" type="button" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; white-space: nowrap;">
+              Create
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return renderPopoverShell({
+    title: `${func.name} - Result`,
+    bodyHtml,
+    resizable: success
+  });
+}
+
+function bindSidebarFunctionResultPopover(popover: HTMLElement, func: AppFunction, success: boolean, value: any) {
+  if (!success) return;
+
+  const searchInput = popover.querySelector<HTMLInputElement>("#var-popover-search");
+  const listContainer = popover.querySelector<HTMLElement>("#var-popover-list");
+  const newNameInput = popover.querySelector<HTMLInputElement>("#var-popover-new-name");
+  const newScopeSelect = popover.querySelector<HTMLSelectElement>("#var-popover-new-scope");
+  const newSubmitBtn = popover.querySelector<HTMLButtonElement>("#var-popover-new-submit");
+
+  if (!listContainer) return;
+
+  const activeEnv = getActiveEnvironment();
+  
+  // Combine all variables for search
+  const allVars = [
+    ...state.variables.map((v: Variable) => ({ ...v, scope: "global", envName: undefined as string | undefined })),
+    ...activeEnvironmentVariables().map((v: Variable) => ({ ...v, scope: "env", envName: activeEnv?.name as string | undefined }))
+  ];
+
+  function renderList(query: string) {
+    const filtered = allVars.filter(v => 
+      v.name.toLowerCase().includes(query.toLowerCase())
+    );
+
+    const itemsHtml = filtered.map(v => {
+      const scopeBadge = v.scope === "env" 
+        ? `<span style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Env: ${escapeHtml(v.envName ?? "")}</span>` 
+        : `<span style="background: rgba(52, 152, 219, 0.15); color: #3498db; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Global</span>`;
+      
+      let displayValue = v.value;
+      if (v.secret) {
+        displayValue = "••••••••";
+      }
+
+      return `
+        <button class="var-popover-item" data-var-id="${v.id}" data-var-scope="${v.scope}" type="button" style="text-align: left; background: transparent; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--rp-text); width: 100%; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s;" onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
+          <span style="font-family: monospace; font-weight: 600;">\${${escapeHtml(v.name || "unnamed")}}</span>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span style="color: var(--rp-text-muted); font-size: 11px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(displayValue || "")}</span>
+            ${scopeBadge}
+          </div>
+        </button>
+      `;
+    }).join("");
+
+    listContainer!.innerHTML = itemsHtml || `<div style="text-align: center; padding: 12px; font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No variables found</div>`;
+
+    // Bind item click listeners
+    listContainer!.querySelectorAll<HTMLButtonElement>(".var-popover-item").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const varId = btn.dataset.varId;
+        const varScope = btn.dataset.varScope;
+
+        if (varScope === "global") {
+          const v = state.variables.find((item: Variable) => item.id === varId);
+          if (v) {
+            v.value = typeof value === "object" ? JSON.stringify(value) : String(value);
+            v.enabled = true;
+          }
+        } else if (varScope === "env" && activeEnv) {
+          const v = activeEnv.variables.find((item: Variable) => item.id === varId);
+          if (v) {
+            v.value = typeof value === "object" ? JSON.stringify(value) : String(value);
+            v.enabled = true;
+          }
+        }
+
+        scheduleSave();
+        removePopovers();
+        void messageDialog("information", "Variable Saved", `Successfully saved result into variable.`);
+        void renderWorkspace();
+      });
+    });
+  }
+
+  // Initial render
+  renderList("");
+
+  // Search input event
+  searchInput?.addEventListener("input", () => {
+    renderList(searchInput.value.trim());
+  });
+
+  // Submit Handler for New Variable
+  function handleCreateNew() {
+    const varName = newNameInput?.value.trim() ?? "";
+    if (!varName) return;
+
+    const valStr = typeof value === "object" ? JSON.stringify(value) : String(value);
+    const newVar = { id: id(), name: varName, value: valStr, enabled: true };
+
+    const scope = newScopeSelect?.value ?? "global";
+    if (scope === "global") {
+      state.variables.push(newVar);
+    } else if (scope === "env" && activeEnv) {
+      activeEnv.variables.push(newVar);
+    }
+
+    scheduleSave();
+    removePopovers();
+    void messageDialog("information", "Variable Created", `Variable \${${varName}} has been successfully created and saved.`);
+    void renderWorkspace();
+  }
+
+  newSubmitBtn?.addEventListener("click", handleCreateNew);
+  newNameInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      handleCreateNew();
+    }
+  });
+}
+
