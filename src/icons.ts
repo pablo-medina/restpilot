@@ -35,3 +35,7 @@ export const iconChevronRight = `<svg viewBox="0 0 16 16" width="14" height="14"
 export const iconChevronLeft = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M10 4l-4 4 4 4"/></svg>`;
 
 export const iconSearch = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.35"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M10.2 10.2 13.5 13.5"/></svg>`;
+
+export const iconEye = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" d="M1.5 8s2.5-4.5 6.5-4.5 6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.35"/></svg>`;
+
+export const iconEyeOff = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M2 2l12 12"/><path fill="none" stroke="currentColor" stroke-width="1.35" d="M1.5 8s2.5-4.5 6.5-4.5c1.6 0 3 .55 4.1 1.35M14.5 8s-2.5 4.5-6.5 4.5c-1.6 0-3-.55-4.1-1.35"/><path fill="none" stroke="currentColor" stroke-width="1.35" d="M6.2 6.45A2.05 2.05 0 0 0 8 6c1.15 0 2.08.93 2.08 2.08 0 .7-.35 1.32-.88 1.7"/></svg>`;

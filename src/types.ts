@@ -27,14 +27,20 @@ export type DialogKind = "information" | "confirmation" | "warning" | "error";
 export type ThemeMode = "light" | "dark";
 export type Locale = "en" | "es";
 export type ProxyMode = "none" | "system" | "manual";
+/** Proxy authentication negotiated by libcurl (manual) or forced scheme. */
+export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
 export type ActivePanel = "request" | "variables" | "settings";
 
 export type ProxySettings = {
   mode: ProxyMode;
-  host: string;
-  port: number;
-  username: string;
-  password: string;
+  /** Full proxy URL for HTTP requests (e.g. http://user:pass@proxy:8080). */
+  httpProxy: string;
+  /** Full proxy URL for HTTPS requests (e.g. https://user:pass@proxy:8080). */
+  httpsProxy: string;
+  /** Auto negotiates Basic / NTLM / SPNEGO on 407 (libcurl). Basic uses reqwest only. */
+  authMode: ProxyAuthMode;
+  /** System/PAC proxy via libcurl (SSPI on Windows, GSS-API on macOS/Linux). */
+  useCurlForSystem: boolean;
 };
 
 export type UserSettings = {
@@ -54,6 +60,8 @@ export type UserSettings = {
   clickToSelect: boolean;
   /** How duplicated folder and request titles are named. */
   duplicateNaming: DuplicateNamingMode;
+  /** Last URL used in Settings → network proxy test. */
+  proxyTestUrl: string;
 };
 
 export type DuplicateNamingMode = "original" | "copyOf" | "numbered";
@@ -145,14 +153,21 @@ export function defaultSettings(): UserSettings {
   return {
     theme: "light",
     language: "en",
-    proxy: { mode: "none", host: "", port: 8080, username: "", password: "" },
+    proxy: {
+      mode: "none",
+      httpProxy: "",
+      httpsProxy: "",
+      authMode: "auto",
+      useCurlForSystem: false
+    },
     maximizeOnStartup: true,
     tabSize: 2,
     autoPrettifyJson: true,
     requestTimeoutSecs: 60,
     followRedirects: true,
     clickToSelect: true,
-    duplicateNaming: "copyOf"
+    duplicateNaming: "copyOf",
+    proxyTestUrl: ""
   };
 }
 

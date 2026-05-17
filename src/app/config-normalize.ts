@@ -1,4 +1,5 @@
 import { clampTabSize } from "../types";
+import { normalizeProxySettings } from "./proxy-settings";
 import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth } from "./request-auth";
 import { migrateRequestQuery } from "../url-params";
@@ -100,7 +101,12 @@ export function normalizeConfig(config: AppConfig): AppConfig {
         config.settings?.duplicateNaming,
         (config.settings as { numberDuplicateNames?: boolean } | undefined)?.numberDuplicateNames
       ),
-      proxy: { ...defaultSettings().proxy, ...config.settings?.proxy }
+      proxy: normalizeProxySettings({
+        ...defaultSettings().proxy,
+        ...(config.settings?.proxy as Record<string, unknown> | undefined)
+      }),
+      proxyTestUrl:
+        typeof config.settings?.proxyTestUrl === "string" ? config.settings.proxyTestUrl : ""
     }
   };
 }

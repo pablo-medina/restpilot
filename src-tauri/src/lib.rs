@@ -13,6 +13,11 @@ use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager};
 use tokio::time::{sleep, timeout, Duration};
 
+mod http_curl;
+mod http_errors;
+mod proxy_uri;
+mod proxy_windows;
+
 const STREAM_EVENT: &str = "restpilot:request-stream";
 
 #[derive(Default)]
@@ -20,13 +25,28 @@ struct RuntimeState {
     cancellations: Mutex<HashSet<String>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct ProxySettings {
     mode: String,
+    #[serde(default)]
+    http_proxy: Option<String>,
+    #[serde(default)]
+    https_proxy: Option<String>,
+    // Legacy (migrated from older configs).
+    #[serde(default)]
     host: Option<String>,
+    #[serde(default)]
     port: Option<u16>,
+    #[serde(default)]
     username: Option<String>,
+    #[serde(default)]
     password: Option<String>,
+    /// `auto` | `basic` | `ntlm` | `negotiate` — auto uses libcurl to negotiate on 407.
+    #[serde(default)]
+    auth_mode: Option<String>,
+    /// When true, system/PAC proxy requests use libcurl (NTLM/SPNEGO/SSPI on Windows).
+    #[serde(default)]
+    use_curl_for_system: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -233,56 +253,441 @@ async fn send_request(
     }
 }
 
+fn legacy_proxy_urls(proxy: &ProxySettings) -> (Option<String>, Option<String>) {
+    let host = proxy.host.as_deref().unwrap_or("").trim();
+    if host.is_empty() {
+        return (None, None);
+    }
+    let port = proxy.port.unwrap_or(8080);
+    let host_only = host
+        .strip_prefix("http://")
+        .or_else(|| host.strip_prefix("https://"))
+        .unwrap_or(host)
+        .trim_end_matches('/');
+    if host_only.is_empty() {
+        return (None, None);
+    }
+    let authority = if host_only.contains(':') {
+        host_only.to_string()
+    } else {
+        format!("{host_only}:{port}")
+    };
+    let user = proxy.username.as_deref().unwrap_or("").trim();
+    let pass = proxy.password.as_deref().unwrap_or("");
+    let creds = if user.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "{}:{}@",
+            urlencoding::encode(user),
+            urlencoding::encode(pass)
+        )
+    };
+    (
+        Some(format!("http://{creds}{authority}")),
+        Some(format!("https://{creds}{authority}")),
+    )
+}
+
+pub(crate) fn manual_proxy_urls(proxy: &ProxySettings) -> (Option<String>, Option<String>) {
+    let http = proxy
+        .http_proxy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let https = proxy
+        .https_proxy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if http.is_some() || https.is_some() {
+        return (http, https);
+    }
+    legacy_proxy_urls(proxy)
+}
+
+fn build_reqwest_proxy(parsed: &proxy_uri::ParsedProxy, for_https: bool, use_all: bool) -> Result<reqwest::Proxy, String> {
+    let mut proxy = if use_all {
+        reqwest::Proxy::all(&parsed.endpoint)
+    } else if for_https {
+        reqwest::Proxy::https(&parsed.endpoint)
+    } else {
+        reqwest::Proxy::http(&parsed.endpoint)
+    }
+    .map_err(|error| error.to_string())?;
+
+    if !parsed.username.is_empty() {
+        proxy = proxy.basic_auth(&parsed.username, &parsed.password);
+    }
+
+    Ok(proxy)
+}
+
+fn reqwest_proxy_from_url(raw: &str, for_https: bool) -> Result<reqwest::Proxy, String> {
+    let parsed = proxy_uri::parse_proxy(raw)?;
+    build_reqwest_proxy(&parsed, for_https, false)
+}
+
+fn apply_manual_proxies(
+    builder: reqwest::ClientBuilder,
+    proxy: &ProxySettings,
+) -> Result<reqwest::ClientBuilder, String> {
+    let (http, https) = manual_proxy_urls(proxy);
+    if http.is_none() && https.is_none() {
+        return Err("At least one proxy URL is required (HTTP and/or HTTPS).".to_string());
+    }
+
+    if http.is_none() {
+        if let Some(url) = https {
+            let parsed = proxy_uri::parse_proxy(&url)?;
+            return Ok(builder.proxy(build_reqwest_proxy(&parsed, true, true)?));
+        }
+    }
+    if https.is_none() {
+        if let Some(url) = http {
+            let parsed = proxy_uri::parse_proxy(&url)?;
+            return Ok(builder.proxy(build_reqwest_proxy(&parsed, false, true)?));
+        }
+    }
+
+    let mut builder = builder;
+    if let Some(url) = http {
+        builder = builder.proxy(reqwest_proxy_from_url(&url, false)?);
+    }
+    if let Some(url) = https {
+        builder = builder.proxy(reqwest_proxy_from_url(&url, true)?);
+    }
+    Ok(builder)
+}
+
+async fn tcp_probe_proxy(raw: &str) -> Option<String> {
+    let uri = proxy_uri::proxy_connect_uri(raw).ok()?;
+    let parsed = reqwest::Url::parse(&uri).ok()?;
+    let host = parsed.host_str()?;
+    let port = parsed.port()?;
+    match timeout(Duration::from_secs(5), tokio::net::TcpStream::connect((host, port))).await {
+        Ok(Ok(_)) => Some(format!("TCP {host}:{port}: reachable")),
+        Ok(Err(error)) => Some(format!("TCP {host}:{port}: {error}")),
+        Err(_) => Some(format!("TCP {host}:{port}: timeout")),
+    }
+}
+
 fn build_http_client(
     proxy: Option<ProxySettings>,
     follow_redirects: bool,
+    target_url: Option<&str>,
 ) -> Result<reqwest::Client, String> {
     let redirect = if follow_redirects {
         reqwest::redirect::Policy::limited(10)
     } else {
         reqwest::redirect::Policy::none()
     };
-    let mut builder = reqwest::Client::builder().redirect(redirect);
+    let mut builder = reqwest::Client::builder()
+        .redirect(redirect)
+        .http1_only();
 
-    if let Some(proxy) = proxy {
-        match proxy.mode.as_str() {
-            "system" => {
-                if let Ok(proxy_url) = std::env::var("HTTPS_PROXY")
-                    .or_else(|_| std::env::var("https_proxy"))
-                    .or_else(|_| std::env::var("HTTP_PROXY"))
-                    .or_else(|_| std::env::var("http_proxy"))
-                {
-                    if !proxy_url.trim().is_empty() {
-                        let proxy = reqwest::Proxy::all(proxy_url.trim())
-                            .map_err(|error| error.to_string())?;
-                        builder = builder.proxy(proxy);
-                    }
-                }
-            }
-            "manual" => {
-                let host = proxy.host.unwrap_or_default().trim().to_string();
-                if !host.is_empty() {
-                    let port = proxy.port.unwrap_or(8080);
-                    let scheme = if host.starts_with("http://") || host.starts_with("https://") {
-                        host.clone()
-                    } else {
-                        format!("http://{host}:{port}")
-                    };
-                    let mut proxy_builder = reqwest::Proxy::all(&scheme)
-                        .map_err(|error| error.to_string())?;
-                    if let (Some(username), Some(password)) = (proxy.username, proxy.password) {
-                        if !username.is_empty() {
-                            proxy_builder = proxy_builder.basic_auth(&username, &password);
-                        }
-                    }
+    let mode = proxy
+        .as_ref()
+        .map(|value| value.mode.as_str())
+        .unwrap_or("none");
+
+    match mode {
+        "none" => {
+            builder = builder.no_proxy();
+        }
+        "manual" => {
+            let Some(proxy) = proxy.as_ref() else {
+                return Err("Manual proxy settings are required.".to_string());
+            };
+            builder = apply_manual_proxies(builder, proxy)?;
+        }
+        "system" => {
+            #[cfg(windows)]
+            if let Some(url) = target_url {
+                if let Some(resolved) = proxy_windows::resolve_proxy_for_url(url) {
+                    let for_https = url.trim().to_ascii_lowercase().starts_with("https://");
+                    let proxy_builder = reqwest_proxy_from_url(resolved.trim(), for_https)?;
                     builder = builder.proxy(proxy_builder);
                 }
             }
-            _ => {}
+        }
+        _ => {
+            builder = builder.no_proxy();
         }
     }
 
     builder.build().map_err(|error| error.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+struct TestProxyPayload {
+    proxy: Option<ProxySettings>,
+    url: Option<String>,
+    timeout_secs: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+struct TestProxyResult {
+    ok: bool,
+    status: Option<u16>,
+    duration_ms: u128,
+    error: Option<String>,
+    hint: Option<String>,
+    detail: Option<String>,
+}
+
+const DEFAULT_PROXY_TEST_URL: &str = "https://jsonplaceholder.typicode.com/posts/1";
+
+#[cfg(windows)]
+fn windows_proxy_detail() -> Option<String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let settings = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Internet Settings")
+        .ok()?;
+
+    let enabled: u32 = settings.get_value("ProxyEnable").unwrap_or(0);
+    if enabled == 1 {
+        let server: String = settings.get_value("ProxyServer").unwrap_or_default();
+        if !server.trim().is_empty() {
+            return Some(format!("Windows proxy enabled: {}", server.trim()));
+        }
+    }
+
+    if let Ok(pac) = settings.get_value::<String, _>("AutoConfigURL") {
+        let pac = pac.trim();
+        if !pac.is_empty() {
+            return Some(format!("Windows PAC script: {pac}"));
+        }
+    }
+
+    if enabled == 0 {
+        return Some("Windows proxy disabled in Internet Settings.".to_string());
+    }
+
+    None
+}
+
+#[cfg(not(windows))]
+fn windows_proxy_detail() -> Option<String> {
+    None
+}
+
+fn redact_proxy_url(url: &str) -> String {
+    let Ok(mut parsed) = reqwest::Url::parse(url) else {
+        return url.to_string();
+    };
+    if parsed.username().is_empty() {
+        return url.to_string();
+    }
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+    if let Some(host) = parsed.host_str() {
+        let port = parsed.port().map(|value| format!(":{value}")).unwrap_or_default();
+        return format!("{}://***@{host}{port}", parsed.scheme());
+    }
+    url.to_string()
+}
+
+fn proxy_test_detail(proxy: Option<&ProxySettings>) -> Option<String> {
+    let mode = proxy.map(|value| value.mode.as_str()).unwrap_or("none");
+    let mut parts = vec![format!("Mode: {mode}")];
+
+    if let Some(detail) = windows_proxy_detail() {
+        parts.push(detail);
+    }
+
+    if let Ok(value) = std::env::var("HTTPS_PROXY").or_else(|_| std::env::var("https_proxy")) {
+        if !value.trim().is_empty() {
+            parts.push(format!("HTTPS_PROXY={}", value.trim()));
+        }
+    }
+
+    if mode == "manual" || mode == "system" {
+        if let Some(proxy) = proxy {
+            parts.push(format!("Proxy auth: {}", http_curl::proxy_auth_mode(proxy)));
+            if http_curl::should_use_curl(Some(proxy)) {
+                parts.push("HTTP engine: libcurl".to_string());
+            }
+        }
+    }
+
+    if mode == "manual" {
+        if let Some(proxy) = proxy {
+            let (http, https) = manual_proxy_urls(proxy);
+            if let Some(url) = http {
+                parts.push(format!("HTTP proxy: {}", redact_proxy_url(&url)));
+            }
+            if let Some(url) = https {
+                parts.push(format!("HTTPS proxy: {}", redact_proxy_url(&url)));
+                if let Ok(uri) = proxy_uri::proxy_connect_uri(&url) {
+                    parts.push(format!("CONNECT target: {}", redact_proxy_url(&uri)));
+                }
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    if mode == "system" {
+        if let Some(url) = proxy_windows::resolve_proxy_for_url(DEFAULT_PROXY_TEST_URL) {
+            parts.push(format!("PAC proxy for test URL: {url}"));
+        }
+    }
+
+    Some(parts.join(" · "))
+}
+
+#[tauri::command]
+async fn test_proxy_connection(payload: TestProxyPayload) -> TestProxyResult {
+    let url = payload
+        .url
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_PROXY_TEST_URL.to_string());
+    let timeout_secs = payload.timeout_secs.unwrap_or(30).clamp(5, 120);
+    let mut detail = proxy_test_detail(payload.proxy.as_ref());
+    if let Some(proxy) = payload.proxy.as_ref() {
+        if proxy.mode == "manual" {
+            let (_, https) = manual_proxy_urls(proxy);
+            if let Some(proxy_url) = https {
+                if let Some(tcp) = tcp_probe_proxy(&proxy_url).await {
+                    detail = detail
+                        .map(|existing| format!("{existing} · {tcp}"))
+                        .or(Some(tcp));
+                }
+            }
+        }
+    }
+    let started = Instant::now();
+    let url_trimmed = url.trim().to_string();
+
+    if http_curl::should_use_curl(payload.proxy.as_ref()) {
+        if let Err(message) = http_curl::ensure_curl_ntlm() {
+            return TestProxyResult {
+                ok: false,
+                status: None,
+                duration_ms: started.elapsed().as_millis(),
+                error: Some(message),
+                hint: Some("Install the latest RestPilot build.".to_string()),
+                detail,
+            };
+        }
+        let proxy = payload.proxy.clone();
+        let auth_mode = payload
+            .proxy
+            .as_ref()
+            .map(http_curl::proxy_auth_mode)
+            .unwrap_or("auto")
+            .to_string();
+        let result = tokio::task::spawn_blocking(move || {
+            http_curl::curl_get(&url_trimmed, proxy.as_ref(), true, timeout_secs)
+        })
+        .await;
+
+        return match result {
+            Ok(Ok((status, duration_ms))) => {
+                let (error, hint) = if (200..300).contains(&status) {
+                    (None, None)
+                } else {
+                    let (message, hint) = http_errors::describe_status(
+                        reqwest::StatusCode::from_u16(status)
+                            .unwrap_or(reqwest::StatusCode::BAD_GATEWAY),
+                    );
+                    (Some(message), hint)
+                };
+                TestProxyResult {
+                    ok: (200..300).contains(&status),
+                    status: Some(status),
+                    duration_ms,
+                    error,
+                    hint,
+                    detail,
+                }
+            }
+            Ok(Err(message)) => TestProxyResult {
+                ok: false,
+                status: None,
+                duration_ms: started.elapsed().as_millis(),
+                error: Some(http_errors::describe_curl_error(&message)),
+                hint: http_errors::curl_error_hint(&message, &auth_mode),
+                detail,
+            },
+            Err(join_error) => TestProxyResult {
+                ok: false,
+                status: None,
+                duration_ms: started.elapsed().as_millis(),
+                error: Some(join_error.to_string()),
+                hint: None,
+                detail,
+            },
+        };
+    }
+
+    let client = match build_http_client(payload.proxy, true, Some(url.trim())) {
+        Ok(client) => client,
+        Err(error) => {
+            return TestProxyResult {
+                ok: false,
+                status: None,
+                duration_ms: started.elapsed().as_millis(),
+                error: Some(error),
+                hint: Some(
+                    "Check proxy mode and URLs in settings (HTTPS proxy is enough for https:// targets)."
+                        .to_string(),
+                ),
+                detail,
+            };
+        }
+    };
+
+    match timeout(
+        Duration::from_secs(timeout_secs),
+        client.get(url.trim()).send(),
+    )
+    .await
+    {
+        Ok(Ok(response)) => {
+            let status = response.status();
+            let (error, hint) = if status.is_success() {
+                (None, None)
+            } else {
+                let (message, hint) = http_errors::describe_status(status);
+                (Some(message), hint)
+            };
+            TestProxyResult {
+                ok: status.is_success(),
+                status: Some(status.as_u16()),
+                duration_ms: started.elapsed().as_millis(),
+                error,
+                hint,
+                detail,
+            }
+        }
+        Ok(Err(error)) => {
+            let (message, hint) = http_errors::describe_http_error(&error);
+            TestProxyResult {
+                ok: false,
+                status: error.status().map(|value| value.as_u16()),
+                duration_ms: started.elapsed().as_millis(),
+                error: Some(message),
+                hint,
+                detail,
+            }
+        }
+        Err(_) => TestProxyResult {
+            ok: false,
+            status: None,
+            duration_ms: started.elapsed().as_millis(),
+            error: Some(format!("Timed out after {timeout_secs} seconds.")),
+            hint: Some(
+                "The proxy or server did not respond in time. Try a higher timeout in settings."
+                    .to_string(),
+            ),
+            detail,
+        },
+    }
 }
 
 fn collect_headers(response: &reqwest::Response) -> HashMap<String, String> {
@@ -387,20 +792,49 @@ async fn execute_request(
     proxy: Option<ProxySettings>,
     network: Option<NetworkSettings>,
 ) -> Result<RestResponse, String> {
+    let follow_redirects = network.as_ref().and_then(|n| n.follow_redirects).unwrap_or(true);
+    let timeout_secs = network
+        .as_ref()
+        .and_then(|n| n.timeout_secs)
+        .unwrap_or(if request.stream { 600 } else { 60 })
+        .clamp(5, 3600);
+
+    if http_curl::should_use_curl(proxy.as_ref()) {
+        let app_for_curl = if request.stream { Some(app.clone()) } else { None };
+        let request_owned = request.clone();
+        let proxy_owned = proxy.clone();
+        return tokio::task::spawn_blocking(move || {
+            http_curl::execute_request_curl_sync(
+                app_for_curl,
+                &request_owned,
+                proxy_owned.as_ref(),
+                follow_redirects,
+                timeout_secs,
+            )
+        })
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| {
+            let auth = proxy
+                .as_ref()
+                .map(http_curl::proxy_auth_mode)
+                .unwrap_or("auto");
+            if let Some(hint) = http_errors::curl_error_hint(&error, auth) {
+                format!("{error} {hint}")
+            } else {
+                error
+            }
+        });
+    }
+
     let method = request
         .method
         .parse::<Method>()
         .map_err(|_| format!("Unsupported HTTP method: {}", request.method))?;
 
-    let follow_redirects = network.as_ref().and_then(|n| n.follow_redirects).unwrap_or(true);
-    let client = build_http_client(proxy, follow_redirects)?;
+    let client = build_http_client(proxy, follow_redirects, Some(request.url.as_str()))?;
     let request_id = request.id.clone();
     let stream = request.stream;
-    let timeout_secs = network
-        .as_ref()
-        .and_then(|n| n.timeout_secs)
-        .unwrap_or(if stream { 600 } else { 60 })
-        .clamp(5, 3600);
 
     let mut builder = client.request(method.clone(), request.url.clone());
     let mut headers = HeaderMap::new();
@@ -422,7 +856,7 @@ async fn execute_request(
     let response = timeout(Duration::from_secs(timeout_secs), builder.send())
         .await
         .map_err(|_| format!("Request timed out after {timeout_secs} seconds."))?
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| http_errors::describe_http_error(&error).0)?;
 
     let status = response.status();
     let status_code = status.as_u16();
@@ -550,6 +984,17 @@ fn maximize_on_startup_enabled() -> bool {
         .unwrap_or(true)
 }
 
+#[cfg(test)]
+mod curl_build_tests {
+    #[test]
+    fn libcurl_includes_ntlm() {
+        assert!(
+            crate::http_curl::curl_has_ntlm(),
+            "libcurl must be built with static-curl + ntlm"
+        );
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -569,7 +1014,8 @@ pub fn run() {
             load_startup_settings,
             load_app_config,
             save_app_config,
-            send_request
+            send_request,
+            test_proxy_connection
         ])
         .run(tauri::generate_context!())
         .expect("error while running RestPilot");

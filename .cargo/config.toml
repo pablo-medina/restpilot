@@ -1,0 +1,3 @@
+# curl-sys "ntlm" feature compiles sources but forgets CURL_ENABLE_NTLM (USE_NTLM stays off).
+[env]
+CFLAGS = "-DCURL_ENABLE_NTLM"

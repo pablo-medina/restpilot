@@ -8,14 +8,24 @@ let saveTimer: number | undefined;
 
 export { isSeedConfig, normalizeConfig } from "./config-normalize";
 
+export function proxySettingsForSave(proxy: UserSettings["proxy"]): UserSettings["proxy"] {
+  return {
+    mode: proxy.mode,
+    httpProxy: proxy.httpProxy.trim(),
+    httpsProxy: proxy.httpsProxy.trim(),
+    authMode: proxy.authMode,
+    useCurlForSystem: proxy.useCurlForSystem
+  };
+}
+
 export function proxyPayload(proxy: UserSettings["proxy"]) {
   if (proxy.mode === "none") return null;
   return {
     mode: proxy.mode,
-    host: proxy.host.trim() || null,
-    port: proxy.port || null,
-    username: proxy.username.trim() || null,
-    password: proxy.password || null
+    http_proxy: proxy.httpProxy.trim() || null,
+    https_proxy: proxy.httpsProxy.trim() || null,
+    auth_mode: proxy.authMode,
+    use_curl_for_system: proxy.useCurlForSystem
   };
 }
 
@@ -49,7 +59,10 @@ export async function persistConfig() {
     activeEnvironmentId: state.activeEnvironmentId,
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
-    settings: state.settings
+    settings: {
+      ...state.settings,
+      proxy: proxySettingsForSave(state.settings.proxy)
+    }
   };
   await invoke("save_app_config", { config });
 }

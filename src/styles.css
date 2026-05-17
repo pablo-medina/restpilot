@@ -3471,15 +3471,109 @@ select,
   background: rgba(255, 255, 255, 0.88);
 }
 
+.settings-proxy-advanced,
 .settings-proxy-manual {
   display: none;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-top: 14px;
 }
 
+.settings-proxy-advanced.open,
 .settings-proxy-manual.open {
   display: grid;
+}
+
+.settings-secret-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--field-remove-size);
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-secret-input-row input {
+  min-width: 0;
+}
+
+.settings-secret-toggle {
+  flex-shrink: 0;
+  color: var(--rp-text-muted);
+}
+
+.settings-secret-toggle.is-revealed {
+  color: #3d7f6f;
+}
+
+[data-theme="dark"] .settings-secret-toggle.is-revealed {
+  color: #9fd4c4;
+}
+
+.settings-proxy-test {
+  margin-top: 4px;
+}
+
+.settings-proxy-test-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.settings-proxy-test-row input {
+  min-width: 0;
+}
+
+.settings-proxy-test-btn {
+  height: 38px;
+  padding: 0 18px;
+  border: 1px solid rgba(61, 127, 111, 0.34);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(74, 143, 127, 0.16) 0%, rgba(61, 127, 111, 0.1) 100%);
+  color: #3d7f6f;
+  font-size: 13px;
+  font-weight: 680;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.settings-proxy-test-btn:hover:not(:disabled) {
+  border-color: rgba(61, 127, 111, 0.48);
+  background: linear-gradient(180deg, rgba(85, 151, 134, 0.22) 0%, rgba(61, 127, 111, 0.14) 100%);
+  color: #2f5f54;
+}
+
+.settings-proxy-test-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.settings-proxy-test-result {
+  margin-top: 6px;
+}
+
+.settings-proxy-test-result.is-success {
+  color: var(--rp-success, #2f6f4d);
+}
+
+.settings-proxy-test-result.is-error {
+  color: var(--field-remove-color, #b54a3a);
+  white-space: pre-wrap;
+}
+
+[data-theme="dark"] .settings-proxy-test-btn {
+  border-color: rgba(122, 181, 165, 0.34);
+  background: linear-gradient(180deg, rgba(122, 181, 165, 0.18) 0%, rgba(90, 150, 135, 0.1) 100%);
+  color: #9fd4c4;
+}
+
+[data-theme="dark"] .settings-proxy-test-btn:hover:not(:disabled) {
+  border-color: rgba(159, 212, 196, 0.48);
+  background: linear-gradient(180deg, rgba(122, 181, 165, 0.24) 0%, rgba(90, 150, 135, 0.16) 100%);
+  color: #d4eee6;
 }
 
 .about-list {
