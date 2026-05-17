@@ -114,6 +114,8 @@ import {
 import { bindGlobalShortcuts } from "./shortcuts";
 import {
   contextMenuButton,
+  copyResponseBodySelection,
+  hasResponseBodySelection,
   renderTextContextMenuMarkup,
   resolveTextContextMenu,
   runTextMenuAction
@@ -695,8 +697,16 @@ function buildContextMenuMarkup() {
   }
   if (state.contextMenu.kind === "response-copy") {
     const labels = t().request;
+    const menuLabels = t().contextMenu;
+    const copySelection =
+      state.contextMenu.canCopySelection
+        ? contextMenuButton("copy-response-selection", menuLabels.copySelection, {
+            shortcut: menuShortcuts.copy()
+          })
+        : "";
     return `
       <div class="context-menu context-menu--anchor-end" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
+        ${copySelection}
         ${contextMenuButton("copy-response-body", labels.copyBody)}
         ${contextMenuButton("copy-response-headers", labels.copyHeaders)}
         ${contextMenuButton("copy-response-status", labels.copyStatus)}
@@ -1365,11 +1375,15 @@ function openContextMenuForTarget(target: HTMLElement, x: number, y: number) {
     const request = getActiveRequest();
     const tab = request ? state.tabs[request.id] : null;
     if (request && tab?.response) {
+      const inBody = target.closest(
+        ".response-body, [data-response-body-viewer], [data-response-body-stream]"
+      );
       state.contextMenu = {
         kind: "response-copy",
         x,
         y,
-        requestId: request.id
+        requestId: request.id,
+        canCopySelection: inBody ? hasResponseBodySelection(target) : false
       };
       syncContextMenu();
       return;
@@ -1465,6 +1479,7 @@ function ensureContextMenuHandlers() {
       const request = getRequest(menu.requestId);
       const tab = state.tabs[menu.requestId];
       if (!request || !tab) return;
+      if (action === "copy-response-selection") void copyResponseBodySelection();
       if (action === "copy-response-body") void copyResponseBody(request, tab);
       if (action === "copy-response-headers") void copyResponseHeaders(tab);
       if (action === "copy-response-status") void copyResponseStatus(tab);
@@ -1950,7 +1965,8 @@ function bindResponseCopyMenu(tab: TabState) {
       kind: "response-copy",
       x: rect.right,
       y: rect.bottom + 4,
-      requestId: tab.requestId
+      requestId: tab.requestId,
+      canCopySelection: hasResponseBodySelection()
     };
     syncContextMenu();
   });

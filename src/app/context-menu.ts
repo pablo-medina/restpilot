@@ -56,6 +56,64 @@ async function cmCopySelection(view: EditorView): Promise<void> {
   await navigator.clipboard.writeText(view.state.sliceDoc(from, to));
 }
 
+function responseBodyRoot(target?: HTMLElement | null): HTMLElement | null {
+  if (target) {
+    const fromTarget = target.closest(
+      ".response-body, [data-response-body-viewer], [data-response-body-stream]"
+    );
+    if (fromTarget instanceof HTMLElement) return fromTarget;
+  }
+  return document.querySelector<HTMLElement>(
+    "[data-response-body-viewer], [data-response-body-stream], .response-card .response-body:not(.response-body-viewer)"
+  );
+}
+
+/** Whether the response body has a non-empty text selection (CodeMirror or native). */
+export function hasResponseBodySelection(target?: HTMLElement | null): boolean {
+  const bodyRoot = responseBodyRoot(target);
+  if (!bodyRoot) return false;
+
+  const view =
+    (target ? codeMirrorViewFromTarget(target) : null) ??
+    (() => {
+      const editor = bodyRoot.querySelector(".cm-editor");
+      return editor ? codeMirrorViewFromTarget(editor) : null;
+    })();
+  if (view && bodyRoot.contains(view.dom)) {
+    return !view.state.selection.main.empty;
+  }
+
+  const selection = window.getSelection();
+  return Boolean(
+    selection &&
+      !selection.isCollapsed &&
+      selection.toString().length > 0 &&
+      selection.anchorNode &&
+      bodyRoot.contains(selection.anchorNode)
+  );
+}
+
+export async function copyResponseBodySelection(target?: HTMLElement | null): Promise<void> {
+  const bodyRoot = responseBodyRoot(target);
+  if (!bodyRoot) return;
+
+  const view =
+    (target ? codeMirrorViewFromTarget(target) : null) ??
+    (() => {
+      const editor = bodyRoot.querySelector(".cm-editor");
+      return editor ? codeMirrorViewFromTarget(editor) : null;
+    })();
+  if (view && bodyRoot.contains(view.dom)) {
+    await cmCopySelection(view);
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && selection.anchorNode && bodyRoot.contains(selection.anchorNode)) {
+    await navigator.clipboard.writeText(selection.toString());
+  }
+}
+
 async function cmCut(view: EditorView): Promise<void> {
   if (view.state.readOnly) return;
   const { from, to } = view.state.selection.main;

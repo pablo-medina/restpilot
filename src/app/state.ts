@@ -11,7 +11,7 @@ import type {
 
 export type ContextMenuState =
   | { kind: "tree"; x: number; y: number; itemId: string | null }
-  | { kind: "response-copy"; x: number; y: number; requestId: string }
+  | { kind: "response-copy"; x: number; y: number; requestId: string; canCopySelection?: boolean }
   | { kind: "request-actions"; x: number; y: number; requestId: string }
   | { kind: "request-tab"; x: number; y: number; requestId: string }
   | ({ kind: "text"; x: number; y: number } & TextContextFlags);
