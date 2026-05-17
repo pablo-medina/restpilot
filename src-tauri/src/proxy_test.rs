@@ -68,10 +68,17 @@ pub fn log_proxy_plan(log: &mut ProxyTestLog, proxy: Option<&ProxySettings>, tes
     }
 
     if proxy.mode == "system" {
-        log.push("Resolving system proxy (PAC / environment variables).".to_string());
+        log.push("Resolving system proxy (PAC / Windows settings / environment variables).".to_string());
         #[cfg(windows)]
         if let Some(detail) = crate::windows_proxy_detail() {
             log.push(detail);
+        }
+        #[cfg(windows)]
+        if let Some(url) = proxy_windows::static_proxy_url() {
+            log.push(format!(
+                "Windows static proxy: {}",
+                crate::redact_proxy_url(&url)
+            ));
         }
         if let Ok(value) = std::env::var("HTTPS_PROXY").or_else(|_| std::env::var("https_proxy")) {
             if !value.trim().is_empty() {

@@ -415,9 +415,8 @@ fn build_http_client_inner(
             builder = apply_manual_proxies(builder, proxy)?;
         }
         "system" => {
-            #[cfg(windows)]
-            if let Some(url) = target_url {
-                if let Some(resolved) = proxy_windows::resolve_proxy_for_url(url) {
+            if let (Some(proxy), Some(url)) = (proxy.as_ref(), target_url) {
+                if let Some(resolved) = http_curl::resolve_proxy_url_for_target(proxy, url) {
                     let for_https = url.trim().to_ascii_lowercase().starts_with("https://");
                     let proxy_builder = reqwest_proxy_from_url(resolved.trim(), for_https)?;
                     builder = builder.proxy(proxy_builder);

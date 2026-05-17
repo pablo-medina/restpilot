@@ -14,6 +14,21 @@
 - **Do not use `localStorage` or `sessionStorage`.**
 - Do not add migration fallbacks from removed storage mechanisms.
 
+### Clear all data
+
+Settings → **Clear all data** must restore **factory defaults** for everything persisted and in-memory:
+
+| What | Where to define defaults | Reset via |
+|------|--------------------------|-----------|
+| Collections, tabs, environments, globals | `defaultConfig()` in `src/types.ts` | `resetAppStateToDefaults()` in `src/app/reset-app-state.ts` |
+| User preferences (`AppConfig.settings`) | `defaultSettings()` in `src/types.ts` | same (included in `defaultConfig()`) |
+| Runtime UI only (`AppState` fields not in `AppConfig`) | `defaultRuntimeState()` in `src/app/reset-app-state.ts` | same |
+| Settings panel session (proxy URL reveal, last test result) | `resetSettingsSessionState()` in `src/settings.ts` | called from `clearAllData` in `src/app.ts` |
+
+**When adding new persisted settings:** extend `UserSettings`, set the value in `defaultSettings()`, and ensure `normalizeConfig()` applies it. Clear all data picks it up automatically through `defaultConfig()`.
+
+**When adding new `AppState` fields** (search query, panel memory, etc.): add them to `AppState` in `src/app/state.ts`, set the initial value in `defaultRuntimeState()`, and verify `reset-app-state.test.ts` still passes.
+
 ## UI and theming
 
 - Respect the existing visual language in `src/styles.css` (zen palette, glass rail, folder/request icons).
@@ -81,6 +96,8 @@ Use for deleting a row in params, headers, form, or closing a request tab when t
 | Panel fills remaining height below URL / card tabs | `flex: 1; min-height: 0` on the tab panel; `overflow-y: auto` on the **scrolling** child | `height: 100%` alone without `min-height: 0` on parents; scroll on `.request-card` |
 | Tab bars, toolbars, URL line stay fixed height | `flex-shrink: 0` on `.tabs`, `.request-line`, `.body-toolbar`, `.request-tab-toolbar` | Let toolbars shrink or grow with leftover space |
 | Short forms (auth, settings rows) stay **top-aligned** | On a `flex: 1` panel using **grid**: `align-content: start; align-items: start` (see `.request-tab-panel.request-auth-panel`) | Default grid/flex stretch—fields spread vertically with huge gaps |
+| Settings label + checkbox/toggle on one row | `.settings-toggle-row`: `inline-grid` + `grid-template-columns: auto auto` + `width: fit-content`. Parent rows (e.g. `.settings-network-general`) use `flex-wrap`, not `1fr` beside the control | `grid-template-columns: 1fr auto` on toggles, or a parent column `1fr` that stretches the label away from the checkbox |
+| Settings proxy URL / secret fields | `.settings-input-shell` + `.settings-input-trailing` (× then 👁 inside the input, right-aligned). Copy from `src/settings.ts` | External grid columns for × / 👁 beside the input |
 | Long lists (params, headers) | Wrapper with `flex: 1; min-height: 0; overflow: auto` (`.request-pairs-list`) | List without `min-height: 0`—parent won't scroll |
 | Two columns (request / response) | `.editor-grid` with `grid-template-rows: minmax(0, 1fr)` and cards `height: 100%` | Row height `auto` only—cards stay minimum height |
 | Hide one of several variants | `is-hidden` class + `display: none` in CSS; helpers in `src/ui/visibility.ts` | HTML `hidden` attribute alone (overridden by `display: grid`/`flex`); `visibility: hidden` when space must collapse |

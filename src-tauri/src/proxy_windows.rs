@@ -12,6 +12,28 @@ pub fn resolve_proxy_for_url(_target_url: &str) -> Option<String> {
     None
 }
 
+/// Manual proxy from Internet Settings (ProxyEnable + ProxyServer), when no PAC applies.
+#[cfg(windows)]
+pub fn static_proxy_url() -> Option<String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let settings = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Internet Settings")
+        .ok()?;
+    let enabled: u32 = settings.get_value("ProxyEnable").unwrap_or(0);
+    if enabled != 1 {
+        return None;
+    }
+    let server: String = settings.get_value("ProxyServer").unwrap_or_default();
+    format_proxy_url(&server)
+}
+
+#[cfg(not(windows))]
+pub fn static_proxy_url() -> Option<String> {
+    None
+}
+
 #[cfg(windows)]
 fn read_pac_url() -> Option<String> {
     use winreg::enums::HKEY_CURRENT_USER;

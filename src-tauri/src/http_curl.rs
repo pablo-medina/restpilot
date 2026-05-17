@@ -73,10 +73,13 @@ pub fn resolve_proxy_url_for_target(proxy: &ProxySettings, target_url: &str) -> 
     }
 }
 
-fn system_proxy_url_for_target(target_url: &str) -> Option<String> {
+pub(crate) fn system_proxy_url_for_target(target_url: &str) -> Option<String> {
     #[cfg(windows)]
     {
         if let Some(url) = proxy_windows::resolve_proxy_for_url(target_url) {
+            return Some(url);
+        }
+        if let Some(url) = proxy_windows::static_proxy_url() {
             return Some(url);
         }
     }
@@ -114,8 +117,8 @@ fn build_proxy_auth(auth_mode: &str) -> Auth {
             auth.gssnegotiate(true);
         }
         _ => {
-            // Insomnia trace: Skyhigh answers 407 with Proxy-Authenticate: NTLM only, then 3-leg handshake.
-            auth.ntlm(true);
+            // libcurl CURLAUTH_ANY: negotiate Basic / Digest / NTLM / SPNEGO on 407.
+            auth.auto(true);
         }
     }
     auth
@@ -133,10 +136,9 @@ fn configure_proxy(easy: &mut Easy, proxy: &ProxySettings, target_url: &str) -> 
         .map_err(|error| error.to_string())?;
     if !parsed.username.is_empty() {
         let auth_mode = proxy_auth_mode(proxy);
-        let proxy_user = if auth_mode == "basic" {
-            parsed.username.clone()
-        } else {
-            proxy_uri::ntlm_proxy_principal(&parsed.username)
+        let proxy_user = match auth_mode {
+            "basic" | "auto" => parsed.username.clone(),
+            _ => proxy_uri::ntlm_proxy_principal(&parsed.username),
         };
         easy.proxy_username(&proxy_user)
             .map_err(|error| error.to_string())?;

@@ -285,7 +285,7 @@ export const es = {
     clearData: "Borrar todos los datos",
     clearDataTitle: "Borrar todos los datos",
     clearDataBody:
-      "Se eliminarán de forma permanente todas las solicitudes, carpetas, variables, entornos y pestañas abiertas. Se conservará la configuración de la aplicación. Esta acción no se puede deshacer."
+      "Se eliminarán de forma permanente todas las solicitudes, carpetas, variables, entornos, pestañas abiertas y la configuración de la aplicación (tema, proxy, tiempos de espera, etc.). Esta acción no se puede deshacer."
   },
   dialog: {
     ok: "Aceptar",

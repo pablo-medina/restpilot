@@ -285,7 +285,7 @@ export const en = {
     clearData: "Clear all data",
     clearDataTitle: "Clear all data",
     clearDataBody:
-      "This will permanently remove all requests, folders, variables, environments, and open tabs. Application settings will be kept. This action cannot be undone."
+      "This will permanently remove all requests, folders, variables, environments, open tabs, and application settings (theme, proxy, timeouts, etc.). This action cannot be undone."
   },
   dialog: {
     ok: "OK",

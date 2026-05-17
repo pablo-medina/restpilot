@@ -45,7 +45,7 @@ import {
 } from "./icons";
 import { exportCollection, importCollection } from "./app/collection-io";
 import { getLocale, setLocale, t } from "./i18n";
-import { bindSettings, renderSettings } from "./settings";
+import { bindSettings, renderSettings, resetSettingsSessionState } from "./settings";
 import {
   bindRequestPopoverTriggers,
   closeRequestPopovers,
@@ -96,6 +96,7 @@ import {
   proxyPayload,
   scheduleSave
 } from "./app/persistence";
+import { resetAppStateToDefaults } from "./app/reset-app-state";
 import { render, setRenderApp } from "./app/render";
 import {
   blankRequest,
@@ -1352,24 +1353,10 @@ async function clearAllData() {
   const answer = await messageDialog("confirmation", labels.clearDataTitle, labels.clearDataBody);
   if (answer !== "confirm") return;
 
-  const settings = state.settings;
-  const fresh = defaultConfig();
-  state.items = fresh.items;
-  state.variables = fresh.variables;
-  state.environments = fresh.environments;
-  state.activeEnvironmentId = fresh.activeEnvironmentId;
-  state.openRequestPopover = null;
-  state.envManageSelectedId = null;
-  state.openTabs = fresh.openTabs;
-  state.activeTabId = fresh.activeTabId;
-  state.settings = settings;
-  state.tabs = {};
-  state.selectedTreeId = null;
-  state.editingTreeId = null;
-  state.autoTitleFromUrlId = null;
-  state.contextMenu = null;
-  state.activePanel = "request";
-  state.previousPanel = "request";
+  closeRequestPopovers();
+  resetAppStateToDefaults(state);
+  resetSettingsSessionState();
+  applyUserSettings(state.settings);
   await persistConfig();
   render();
 }

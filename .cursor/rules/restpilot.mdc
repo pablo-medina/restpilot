@@ -10,9 +10,11 @@ alwaysApply: true
 - Application **source code** must be in **English** (identifiers, comments, internal docs in code).
 - User-facing text uses **i18n** only: English (default) and Spanish (neutral formal). Update `src/i18n/en.ts` and `src/i18n/es.ts` together.
 - **Persistence**: JSON file via Tauri (`config.json`). Never use `localStorage` / `sessionStorage`. No fallback compatibility for removed storage.
+- **Clear all data**: new `UserSettings` / `AppConfig` fields → `defaultSettings()` / `defaultConfig()`; new `AppState` runtime fields → `defaultRuntimeState()` in `src/app/reset-app-state.ts`. See **AGENTS.md → Clear all data**.
 - **Themes**: preserve existing light styling; extend dark via `[data-theme="dark"]`. Use `--rp-*` tokens (remapped in dark); do not replace the design system unless asked.
 - **Dialogs**: use `src/components/dialogs.ts` — `messageDialog` for alerts; `applicationDialog` for resizable/draggable modals.
 - **Popovers**: use `renderPopoverShell()` in `src/components/popover.ts`; every popover must have a top-right close button (`data-popover-close`). Request toolbar popovers live in `src/request-popovers.ts` (after Send).
 - **Settings**: `AppConfig.settings` holds theme, language, and proxy. Settings UI lives in `src/settings.ts`.
 - Keep changes focused; match patterns in `src/main.ts` and `src/styles.css`.
 - **New tabs / panels / sections**: follow **AGENTS.md → “Flex and panel layout”**, **“Panel insets”**, and **“Field remove control”** (`mini-btn field-remove-btn` for × deletes). Copy `params`, `headers`, or `auth` markup/CSS; do not ship until resize looks correct.
+- **Settings toggles**: checkbox rows use `.settings-toggle-row` (`auto auto`, `fit-content`). Do not put toggles in a grid column with `1fr` beside them.

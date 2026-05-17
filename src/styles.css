@@ -3395,10 +3395,12 @@ select,
 }
 
 .settings-toggle-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: inline-grid;
+  grid-template-columns: auto auto;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
   cursor: pointer;
 }
 
@@ -3445,9 +3447,12 @@ select,
   cursor: pointer;
 }
 
-.settings-toggle {
-  grid-template-columns: 1fr auto;
+.settings-field.settings-toggle {
+  grid-template-columns: auto auto;
+  justify-content: start;
   align-items: center;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .settings-toggle input[type="checkbox"] {
@@ -3472,18 +3477,23 @@ select,
 }
 
 .settings-network-general {
-  display: grid;
-  grid-template-columns: minmax(140px, 220px) 1fr;
-  gap: 12px 20px;
-  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 28px;
   padding-bottom: 16px;
   margin-bottom: 16px;
   border-bottom: 1px solid rgba(52, 48, 42, 0.1);
 }
 
+.settings-network-general .settings-field-compact {
+  flex: 0 1 auto;
+  min-width: 140px;
+  max-width: 220px;
+}
+
 .settings-network-toggle {
-  align-self: end;
-  margin-bottom: 2px;
+  flex: 0 0 auto;
 }
 
 .settings-field-compact input[type="number"] {
@@ -3509,6 +3519,14 @@ select,
 
 .settings-proxy-urls.open {
   display: grid;
+}
+
+.settings-proxy-bypass {
+  display: none;
+}
+
+.settings-proxy-bypass.open {
+  display: block;
 }
 
 .settings-proxy-test {
@@ -3562,8 +3580,9 @@ select,
 }
 
 @media (max-width: 900px) {
-  .settings-network-general {
-    grid-template-columns: 1fr;
+  .settings-network-general .settings-field-compact {
+    max-width: 100%;
+    flex: 1 1 100%;
   }
 
   .settings-proxy-head,
@@ -3572,15 +3591,44 @@ select,
   }
 }
 
-.settings-secret-input-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--field-remove-size);
-  gap: 8px;
-  align-items: center;
+/* Proxy / settings text inputs with × and optional 👁 inside the field (right). */
+.settings-input-shell {
+  position: relative;
+  width: 100%;
+  min-width: 0;
 }
 
-.settings-secret-input-row input {
+.settings-input-shell > input:not([type="checkbox"]) {
+  width: 100%;
   min-width: 0;
+  padding-right: var(--settings-input-trailing-pad, 36px);
+}
+
+.settings-input-shell--secret > input:not([type="checkbox"]) {
+  padding-right: var(--settings-input-trailing-pad-secret, 64px);
+}
+
+.settings-input-trailing {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.settings-input-trailing .mini-btn {
+  pointer-events: auto;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+}
+
+.settings-input-trailing .field-remove-btn {
+  font-size: 15px;
 }
 
 .settings-secret-toggle {
@@ -3588,12 +3636,8 @@ select,
   color: var(--rp-text-muted);
 }
 
-.settings-secret-toggle.is-revealed {
-  color: #3d7f6f;
-}
-
-[data-theme="dark"] .settings-secret-toggle.is-revealed {
-  color: #9fd4c4;
+.settings-secret-toggle:hover:not(:disabled) {
+  color: var(--rp-text);
 }
 
 .settings-proxy-test {

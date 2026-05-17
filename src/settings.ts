@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { proxyAuthModeForModeChange } from "./app/proxy-settings";
 import { proxyPayload, scheduleSave } from "./app/persistence";
 import { applicationDialog } from "./components/dialogs";
+import { iconEye, iconEyeOff } from "./icons";
 import { t } from "./i18n";
 import { hiddenClass, setVisible } from "./ui/visibility";
 import { clampRequestTimeoutSecs, DEFAULT_PROXY_TEST_URL, type UserSettings } from "./types";
@@ -9,8 +10,16 @@ import { clampRequestTimeoutSecs, DEFAULT_PROXY_TEST_URL, type UserSettings } fr
 const proxyUrlRevealed = { http: false, https: false };
 let lastProxyTestResult: ProxyTestResult | null = null;
 
+/** Clears settings-panel session state after Clear all data. */
+export function resetSettingsSessionState() {
+  proxyUrlRevealed.http = false;
+  proxyUrlRevealed.https = false;
+  lastProxyTestResult = null;
+}
+
 export function renderSettings(settings: UserSettings): string {
   const labels = t().settings;
+  const clearFieldLabel = t().request.clear;
   const manualOpen = settings.proxy.mode === "manual";
   const proxyAuthOpen = settings.proxy.mode !== "none";
   const proxyTestUrl = settings.proxyTestUrl.trim() || DEFAULT_PROXY_TEST_URL;
@@ -138,11 +147,13 @@ export function renderSettings(settings: UserSettings): string {
                 ${renderProxyUrlField(
                   "setting-proxy-http",
                   "toggle-proxy-http",
+                  "clear-proxy-http",
                   settings.proxy.httpProxy,
                   labels.proxyUrlPlaceholder,
                   proxyUrlRevealed.http,
                   labels.proxyUrlShow,
                   labels.proxyUrlHide,
+                  clearFieldLabel,
                   !manualOpen
                 )}
               </label>
@@ -151,17 +162,28 @@ export function renderSettings(settings: UserSettings): string {
                 ${renderProxyUrlField(
                   "setting-proxy-https",
                   "toggle-proxy-https",
+                  "clear-proxy-https",
                   settings.proxy.httpsProxy,
                   labels.proxyUrlPlaceholder,
                   proxyUrlRevealed.https,
                   labels.proxyUrlShow,
                   labels.proxyUrlHide,
+                  clearFieldLabel,
                   !manualOpen
                 )}
               </label>
+            </div>
+            <div class="settings-proxy-bypass ${proxyAuthOpen ? "open" : ""}" id="proxy-bypass-field">
               <label class="settings-field">
                 <span>${labels.proxyBypass}</span>
-                <input id="setting-proxy-no-proxy" type="text" value="${escapeAttribute(settings.proxy.noProxy)}" placeholder="${escapeAttribute(labels.proxyBypassPlaceholder)}" spellcheck="false" />
+                ${renderProxyPlainField(
+                  "setting-proxy-no-proxy",
+                  "clear-proxy-no-proxy",
+                  settings.proxy.noProxy,
+                  labels.proxyBypassPlaceholder,
+                  clearFieldLabel,
+                  !proxyAuthOpen
+                )}
               </label>
             </div>
             <label class="settings-field settings-proxy-test">
@@ -210,24 +232,51 @@ export function renderSettings(settings: UserSettings): string {
   `;
 }
 
+function proxyRevealIcon(revealed: boolean) {
+  return revealed ? iconEyeOff : iconEye;
+}
+
 function renderProxyUrlField(
   inputId: string,
   toggleId: string,
+  clearId: string,
   value: string,
   placeholder: string,
   revealed: boolean,
   showLabel: string,
   hideLabel: string,
+  clearLabel: string,
   disabled = false
 ) {
   const inputType = revealed ? "text" : "password";
-  const toggleClass = revealed ? "mini-btn settings-secret-toggle is-revealed" : "mini-btn settings-secret-toggle";
   const toggleLabel = revealed ? hideLabel : showLabel;
   const disabledAttr = disabled ? "disabled" : "";
   return `
-    <div class="settings-secret-input-row">
+    <div class="settings-input-shell settings-input-shell--secret">
       <input id="${inputId}" type="${inputType}" value="${escapeAttribute(value)}" placeholder="${escapeAttribute(placeholder)}" spellcheck="false" autocomplete="off" ${disabledAttr} />
-      <button class="${toggleClass}" id="${toggleId}" type="button" title="${escapeAttribute(toggleLabel)}" aria-label="${escapeAttribute(toggleLabel)}" ${disabled ? "disabled" : ""}>👁</button>
+      <div class="settings-input-trailing">
+        <button class="mini-btn field-remove-btn settings-input-clear" id="${clearId}" type="button" title="${escapeAttribute(clearLabel)}" aria-label="${escapeAttribute(clearLabel)}" ${disabled ? "disabled" : ""}>×</button>
+        <button class="mini-btn settings-secret-toggle" id="${toggleId}" type="button" title="${escapeAttribute(toggleLabel)}" aria-label="${escapeAttribute(toggleLabel)}" ${disabled ? "disabled" : ""}>${proxyRevealIcon(revealed)}</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderProxyPlainField(
+  inputId: string,
+  clearId: string,
+  value: string,
+  placeholder: string,
+  clearLabel: string,
+  disabled = false
+) {
+  const disabledAttr = disabled ? "disabled" : "";
+  return `
+    <div class="settings-input-shell">
+      <input id="${inputId}" type="text" value="${escapeAttribute(value)}" placeholder="${escapeAttribute(placeholder)}" spellcheck="false" autocomplete="off" ${disabledAttr} />
+      <div class="settings-input-trailing">
+        <button class="mini-btn field-remove-btn settings-input-clear" id="${clearId}" type="button" title="${escapeAttribute(clearLabel)}" aria-label="${escapeAttribute(clearLabel)}" ${disabled ? "disabled" : ""}>×</button>
+      </div>
     </div>
   `;
 }
@@ -237,19 +286,54 @@ function syncProxyUrlReveal(inputId: string, toggleId: string, revealed: boolean
   const toggle = document.querySelector<HTMLButtonElement>(`#${toggleId}`);
   if (!input || !toggle) return;
   input.type = revealed ? "text" : "password";
-  toggle.classList.toggle("is-revealed", revealed);
+  toggle.innerHTML = proxyRevealIcon(revealed);
   const labels = t().settings;
   toggle.title = revealed ? labels.proxyUrlHide : labels.proxyUrlShow;
   toggle.setAttribute("aria-label", revealed ? labels.proxyUrlHide : labels.proxyUrlShow);
+}
+
+function setInputDisabled(id: string, disabled: boolean) {
+  const input = document.querySelector<HTMLInputElement>(`#${id}`);
+  if (input) input.disabled = disabled;
+}
+
+function setButtonDisabled(id: string, disabled: boolean) {
+  const button = document.querySelector<HTMLButtonElement>(`#${id}`);
+  if (button) button.disabled = disabled;
 }
 
 function syncProxyPanels(settings: UserSettings) {
   const manual = settings.proxy.mode === "manual";
   const authOpen = settings.proxy.mode !== "none";
   document.querySelector("#proxy-url-fields")?.classList.toggle("open", manual);
+  document.querySelector("#proxy-bypass-field")?.classList.toggle("open", authOpen);
 
   const authSelect = document.querySelector<HTMLSelectElement>("#setting-proxy-auth");
   if (authSelect) authSelect.disabled = !authOpen;
+
+  setInputDisabled("setting-proxy-http", !manual);
+  setInputDisabled("setting-proxy-https", !manual);
+  setButtonDisabled("toggle-proxy-http", !manual);
+  setButtonDisabled("toggle-proxy-https", !manual);
+  setButtonDisabled("clear-proxy-http", !manual);
+  setButtonDisabled("clear-proxy-https", !manual);
+  setInputDisabled("setting-proxy-no-proxy", !authOpen);
+  setButtonDisabled("clear-proxy-no-proxy", !authOpen);
+}
+
+function bindProxyFieldClear(
+  clearId: string,
+  inputId: string,
+  onClear: () => void,
+  onChange: () => void
+) {
+  document.querySelector<HTMLButtonElement>(`#${clearId}`)?.addEventListener("click", () => {
+    const input = document.querySelector<HTMLInputElement>(`#${inputId}`);
+    if (!input || input.disabled) return;
+    input.value = "";
+    onClear();
+    onChange();
+  });
 }
 
 export function bindSettings(
@@ -358,6 +442,16 @@ export function bindSettings(
     syncProxyUrlReveal("setting-proxy-https", "toggle-proxy-https", proxyUrlRevealed.https);
   });
 
+  bindProxyFieldClear("clear-proxy-http", "setting-proxy-http", () => {
+    settings.proxy.httpProxy = "";
+  }, onChange);
+  bindProxyFieldClear("clear-proxy-https", "setting-proxy-https", () => {
+    settings.proxy.httpsProxy = "";
+  }, onChange);
+  bindProxyFieldClear("clear-proxy-no-proxy", "setting-proxy-no-proxy", () => {
+    settings.proxy.noProxy = "";
+  }, onChange);
+
   const testUrlInput = document.querySelector<HTMLInputElement>("#setting-proxy-test-url");
   testUrlInput?.addEventListener("input", (event) => {
     settings.proxyTestUrl = (event.target as HTMLInputElement).value;
@@ -368,6 +462,8 @@ export function bindSettings(
     event.preventDefault();
     void runProxyTest(settings);
   });
+
+  syncProxyPanels(settings);
 }
 
 type ProxyTestResult = {
