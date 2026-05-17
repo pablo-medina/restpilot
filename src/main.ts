@@ -33,7 +33,20 @@ import {
   setReadonlyViewerValue,
   type ViewerMode
 } from "./large-text-editor";
-import { iconCopy, iconDuplicate, iconFolderAdd, iconRemove, iconRename, iconRequestAdd } from "./icons";
+import {
+  iconChevronLeft,
+  iconChevronRight,
+  iconCopy,
+  iconDuplicate,
+  iconExport,
+  iconFolderAdd,
+  iconImport,
+  iconRemove,
+  iconRename,
+  iconRequestAdd,
+  iconSearch
+} from "./icons";
+import { exportCollection, importCollection } from "./app/collection-io";
 import { brandLogo } from "./logo";
 import { getLocale, setLocale, t } from "./i18n";
 import { bindSettings, renderSettings } from "./settings";
@@ -41,7 +54,6 @@ import {
   bindRequestPopoverTriggers,
   closeRequestPopovers,
   renderEnvironmentChipButton,
-  renderStreamToggle,
   renderVariablesPopoverButton,
   setRequestPopoverHooks,
   syncRequestPopover
@@ -49,11 +61,15 @@ import {
 import { bindVariablesWorkspace, renderVariablesWorkspace } from "./variables-workspace";
 import { environmentChipLabel, getEffectiveVariables } from "./app/environments";
 import { buildRequestUrl, ingestUrlIntoRequest, migrateRequestQuery } from "./url-params";
+import { resolvedOutboundUrl } from "./app/request-auth";
+import { bindAuthPanel, renderAuthPanel } from "./request-auth-panel";
 import {
   applyVariables,
   displayRequestUrl,
+  requestUsesSecretVariables,
   resolvedRequestUrl,
-  shouldShowUrlPreview
+  shouldShowUrlPreview,
+  variablesForCurl
 } from "./variables";
 import "./styles.css";
 import {
@@ -70,6 +86,11 @@ import {
   type TabState,
   type TreeItem
 } from "./types";
+import { duplicateFolderItem, duplicateRequestItem } from "./app/collection-duplicate";
+import {
+  collectionSearchVisibleIds,
+  folderExpandedForSearch
+} from "./app/collection-search";
 import { insertItemAt, moveDroppedItem, moveItemTo } from "./app/collection-store";
 import {
   applyUserSettings,
@@ -79,7 +100,13 @@ import {
   scheduleSave
 } from "./app/persistence";
 import { render, setRenderApp } from "./app/render";
-import { blankRequest, buildFormPayload, networkPayload, withContentType } from "./app/request-utils";
+import {
+  blankRequest,
+  buildFormPayload,
+  buildRequestHeaders,
+  networkPayload,
+  withContentType
+} from "./app/request-utils";
 import {
   hasMissingMultipartFiles,
   missingMultipartFileNames
@@ -107,8 +134,8 @@ import {
   selectedFolderId,
   state
 } from "./app/state";
+import { HTTP_METHODS, methodDataAttribute } from "./http-methods";
 
-const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 const STREAM_EVENT = "restpilot:request-stream";
 let draggedTreeId: string | null = null;
 let responseRenderFrame: number | undefined;
@@ -178,12 +205,41 @@ function renderRailNav(labels: ReturnType<typeof t>) {
     <div class="rail-stack">
       <section class="rail-collection">
         <div class="explorer-head">
-          <strong>${labels.nav.collection}</strong>
+          <strong class="explorer-title">${labels.nav.collection}</strong>
           <div class="rail-actions">
+            <button class="mini-btn tool-icon" id="export-collection" type="button" title="${labels.collection.exportCollection}" aria-label="${labels.collection.exportCollection}">${iconExport}</button>
+            <button class="mini-btn tool-icon" id="import-collection" type="button" title="${labels.collection.importCollection}" aria-label="${labels.collection.importCollection}">${iconImport}</button>
             <button class="mini-btn tool-icon" id="new-folder" type="button" title="${labels.nav.newFolder}" aria-label="${labels.nav.newFolder}">${iconFolderAdd}</button>
             <button class="mini-btn tool-icon" id="new-request" type="button" title="${labels.nav.newRequest}" aria-label="${labels.nav.newRequest}">${iconRequestAdd}</button>
           </div>
         </div>
+        <label class="collection-search">
+          <span class="sr-only">${labels.collection.search}</span>
+          <div class="collection-search-field">
+            <input
+              id="collection-search"
+              type="search"
+              value="${escapeAttribute(state.collectionSearchQuery)}"
+              placeholder="${labels.collection.searchPlaceholder}"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <button
+              class="mini-btn collection-search-clear${state.collectionSearchQuery.trim() ? "" : " is-hidden"}"
+              id="collection-search-clear"
+              type="button"
+              title="${labels.collection.searchClear}"
+              aria-label="${labels.collection.searchClear}"
+            >×</button>
+            <button
+              class="mini-btn collection-search-submit"
+              id="collection-search-submit"
+              type="button"
+              title="${labels.collection.search}"
+              aria-label="${labels.collection.search}"
+            >${iconSearch}</button>
+          </div>
+        </label>
         <section class="tree" tabindex="0" aria-label="${labels.nav.collection}">${renderExplorerTree(null, 0)}</section>
       </section>
       <nav class="rail-nav">
@@ -232,6 +288,24 @@ function updateTabStripActive() {
   });
 }
 
+function updateRailNavActive() {
+  document.querySelectorAll<HTMLButtonElement>("[data-rail-nav]").forEach((button) => {
+    const nav = button.dataset.railNav;
+    const active =
+      nav === "variables" ? state.activePanel === "variables" : nav === "settings" ? state.activePanel === "settings" : false;
+    button.classList.toggle("active", active);
+  });
+}
+
+/** Leave settings/variables and return to the request workspace. */
+function focusRequestWorkspace(): boolean {
+  if (state.activePanel === "request") return false;
+  closeRequestPopovers();
+  state.activePanel = "request";
+  state.contextMenu = null;
+  return true;
+}
+
 function refreshTabBar() {
   const workspace = document.querySelector<HTMLElement>(".workspace");
   if (!workspace) return;
@@ -250,7 +324,57 @@ function refreshTabBar() {
   else workspace.querySelector(".workspace-body")?.insertAdjacentHTML("beforebegin", markup);
 
   bindTabBar();
-  bindTabBarActions();
+  bindTabStripScroll();
+  bindTabBarToolButtons();
+  if (state.openRequestPopover) {
+    requestAnimationFrame(() => syncRequestPopover());
+  }
+}
+
+function bindTabStripScroll() {
+  const wrap = document.querySelector<HTMLElement>(".tab-strip-wrap");
+  if (!wrap || wrap.dataset.scrollBound === "true") return;
+
+  const viewport = wrap.querySelector<HTMLElement>(".tab-strip-viewport");
+  const strip = wrap.querySelector<HTMLElement>(".tab-strip");
+  const back = wrap.querySelector<HTMLButtonElement>(".tab-scroll-back");
+  const forward = wrap.querySelector<HTMLButtonElement>(".tab-scroll-forward");
+  if (!viewport || !strip || !back || !forward) return;
+
+  wrap.dataset.scrollBound = "true";
+
+  const update = () => {
+    const overflow = strip.scrollWidth > viewport.clientWidth + 1;
+    const atStart = viewport.scrollLeft <= 1;
+    const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
+    wrap.classList.toggle("has-overflow", overflow);
+    back.classList.toggle("is-hidden", !overflow || atStart);
+    forward.classList.toggle("is-hidden", !overflow || atEnd);
+  };
+
+  const scrollByPage = (direction: -1 | 1) => {
+    const delta = Math.max(120, viewport.clientWidth * 0.65) * direction;
+    viewport.scrollBy({ left: delta, behavior: "smooth" });
+  };
+
+  back.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    scrollByPage(-1);
+  });
+  forward.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    scrollByPage(1);
+  });
+
+  viewport.addEventListener("scroll", update, { passive: true });
+  const observer = new ResizeObserver(update);
+  observer.observe(viewport);
+  observer.observe(strip);
+  requestAnimationFrame(update);
+
+  strip.querySelector<HTMLElement>(".request-tab.active")?.scrollIntoView({ inline: "nearest", block: "nearest" });
 }
 
 function bindTabBar() {
@@ -287,16 +411,55 @@ function bindTabBar() {
   });
 }
 
-function bindTabBarActions() {
-  const request = getActiveRequest();
-  if (!request) return;
-  const tab = ensureTab(request.id);
-  document.querySelector("#clear")?.addEventListener("click", () => {
-    clearRequestResponse(request, tab);
-    scheduleSave();
-    render();
+function renderRequestActionsTrigger(streamActive: boolean) {
+  const labels = t().request;
+  return `
+    <button
+      type="button"
+      id="request-actions-trigger"
+      class="tab-actions-trigger${streamActive ? " has-stream" : ""}"
+      data-request-actions-trigger
+      aria-haspopup="menu"
+      aria-expanded="false"
+      title="${labels.actions}"
+    >
+      <span class="tab-actions-label">${labels.actions}</span>
+      ${iconChevronRight}
+    </button>
+  `;
+}
+
+let requestActionsMenuBound = false;
+
+function bindRequestActionsMenu() {
+  if (requestActionsMenuBound) return;
+  requestActionsMenuBound = true;
+
+  document.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-request-actions-trigger]");
+    if (!button) return;
+    const request = getActiveRequest();
+    if (!request) return;
+
+    event.stopPropagation();
+    if (state.contextMenu?.kind === "request-actions" && state.contextMenu.requestId === request.id) {
+      closeContextMenu();
+      return;
+    }
+    const rect = button.getBoundingClientRect();
+    state.contextMenu = {
+      kind: "request-actions",
+      x: rect.right,
+      y: rect.bottom + 4,
+      requestId: request.id
+    };
+    syncContextMenu();
   });
-  document.querySelector("#duplicate-request")?.addEventListener("click", () => duplicateRequest(request.id));
+}
+
+function bindTabBarToolButtons() {
+  bindRequestActionsMenu();
+  bindRequestPopoverTriggers(onEffectiveVariablesChanged);
 }
 
 function updateTreeRowActive() {
@@ -472,13 +635,15 @@ function refreshResponseBodyDisplay(request: SavedRequest, tab: TabState) {
 
 function activateRequestTab(requestId: string) {
   const previousId = state.activeTabId;
+  const panelChanged = focusRequestWorkspace();
   state.activeTabId = requestId;
   state.selectedTreeId = requestId;
-  state.activePanel = "request";
   ensureTab(requestId);
   if (previousId && previousId !== requestId) unmountTabDisplay(previousId);
+  if (panelChanged) refreshTabBar();
   updateTabStripActive();
   updateTreeRowActive();
+  updateRailNavActive();
   renderWorkspace();
 }
 
@@ -538,6 +703,18 @@ function buildContextMenuMarkup() {
       </div>
     `;
   }
+  if (state.contextMenu.kind === "request-actions") {
+    const labels = t().request;
+    const request = getRequest(state.contextMenu.requestId);
+    return `
+      <div class="context-menu context-menu--anchor-end" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
+        ${contextMenuButton("duplicate", labels.duplicate)}
+        ${contextMenuButton("clear", labels.clear)}
+        <hr>
+        ${contextMenuButton("toggle-stream", labels.streamResponse, { checked: request?.streamResponse ?? false })}
+      </div>
+    `;
+  }
   const labels = t().tree;
   const item = state.contextMenu.itemId ? getItem(state.contextMenu.itemId) : null;
   return `
@@ -550,7 +727,7 @@ function buildContextMenuMarkup() {
           : ""
       }
       ${item?.kind === "request" ? contextMenuButton("show", labels.show) : ""}
-      ${item?.kind === "request" ? contextMenuButton("duplicate", labels.duplicate) : ""}
+      ${item ? contextMenuButton("duplicate", labels.duplicate) : ""}
       ${item?.kind === "request" ? contextMenuButton("copy-curl", labels.copyCurl) : ""}
       ${
         item
@@ -566,26 +743,37 @@ function syncContextMenu() {
   const markup = buildContextMenuMarkup();
   if (!markup) return;
   appRoot.insertAdjacentHTML("beforeend", markup);
-  const trigger = document.querySelector<HTMLButtonElement>("[data-copy-menu-trigger]");
-  trigger?.setAttribute("aria-expanded", state.contextMenu?.kind === "response-copy" ? "true" : "false");
+  document
+    .querySelector<HTMLButtonElement>("[data-copy-menu-trigger]")
+    ?.setAttribute("aria-expanded", state.contextMenu?.kind === "response-copy" ? "true" : "false");
+  document
+    .querySelector<HTMLButtonElement>("[data-request-actions-trigger]")
+    ?.setAttribute("aria-expanded", state.contextMenu?.kind === "request-actions" ? "true" : "false");
 }
 
 
 function renderTabBar(request: SavedRequest | undefined, tab: TabState | null | undefined) {
   if (!state.openTabs.length) return "";
   const labels = t().request;
-  const actions =
+  const tools =
     request && tab
       ? `
-      <div class="tab-bar-actions">
-        <button class="quiet-button compact" id="duplicate-request" type="button">${labels.duplicate}</button>
-        <button class="quiet-button compact" id="clear" type="button">${labels.clear}</button>
+      <div class="tab-bar-tools">
+        ${renderEnvironmentChipButton()}
+        ${renderVariablesPopoverButton()}
+        ${renderRequestActionsTrigger(request.streamResponse)}
       </div>`
       : "";
   return `
     <header class="tab-bar">
-      <div class="tab-strip">${state.openTabs.map(renderTab).join("")}</div>
-      ${actions}
+      <div class="tab-strip-wrap">
+        <button class="tab-scroll-btn tab-scroll-back is-hidden" type="button" aria-label="${labels.tabScrollBack}">${iconChevronLeft}</button>
+        <div class="tab-strip-viewport">
+          <div class="tab-strip">${state.openTabs.map(renderTab).join("")}</div>
+        </div>
+        <button class="tab-scroll-btn tab-scroll-forward is-hidden" type="button" aria-label="${labels.tabScrollForward}">${iconChevronRight}</button>
+      </div>
+      ${tools}
     </header>
   `;
 }
@@ -610,7 +798,7 @@ function renderRequest(request: SavedRequest, tab: TabState) {
   return `
     <div class="request-editor">
     <section class="request-line">
-      <select id="method">${methods.map((method) => `<option ${method === request.method ? "selected" : ""}>${method}</option>`).join("")}</select>
+      <select id="method" class="method-select"${methodDataAttribute(request.method)}>${HTTP_METHODS.map((method) => `<option value="${method}"${methodDataAttribute(method)} ${method === request.method ? "selected" : ""}>${method}</option>`).join("")}</select>
       <div class="url-send-field">
         <input id="url" class="url-send-input" value="${escapeAttribute(displayUrl)}" spellcheck="false" aria-label="${labels.resolvedUrl}" />
         ${
@@ -619,9 +807,6 @@ function renderRequest(request: SavedRequest, tab: TabState) {
             : `<button id="send" class="url-send-btn" type="button">${labels.send}</button>`
         }
       </div>
-      ${renderEnvironmentChipButton()}
-      ${renderVariablesPopoverButton()}
-      ${renderStreamToggle(request.streamResponse)}
     </section>
     <div class="url-preview-wrap${previewVisible ? "" : " is-hidden"}" id="url-preview-wrap" aria-live="polite">
       <span class="url-preview-label">${labels.resolvedUrl}</span>
@@ -631,6 +816,7 @@ function renderRequest(request: SavedRequest, tab: TabState) {
       <article class="request-card">
         <div class="tabs">
           <button class="${tab.selectedRequestTab === "params" ? "active" : ""}" data-request-tab="params" type="button">${labels.params}</button>
+          <button class="${tab.selectedRequestTab === "auth" ? "active" : ""}" data-request-tab="auth" type="button">${labels.authTab}</button>
           <button class="${tab.selectedRequestTab === "headers" ? "active" : ""}" data-request-tab="headers" type="button">${labels.headers}</button>
           <button class="${tab.selectedRequestTab === "body" ? "active" : ""}" data-request-tab="body" type="button">${labels.body}</button>
         </div>
@@ -647,6 +833,9 @@ function renderRequestTabPanel(
   tab: TabState,
   labels: ReturnType<typeof t>["request"]
 ) {
+  if (tab.selectedRequestTab === "auth") {
+    return renderAuthPanel(request);
+  }
   if (tab.selectedRequestTab === "params") {
     return `
       <div class="request-tab-panel">
@@ -804,16 +993,19 @@ function renderResponse(tab: TabState) {
 
 function renderExplorerTree(parentId: string | null, depth: number): string {
   const labels = t().tree;
+  const searchVisible = collectionSearchVisibleIds(state.items, state.collectionSearchQuery);
   return state.items
     .filter((item) => item.parentId === parentId)
+    .filter((item) => !searchVisible || searchVisible.has(item.id))
     .map((item) => {
       const editing = state.editingTreeId === item.id;
-      const expanded = item.kind === "folder" && item.expanded;
+      const expanded =
+        item.kind === "folder" && folderExpandedForSearch(item, searchVisible, state.items);
       const children = item.kind === "folder" && item.expanded ? renderExplorerTree(item.id, depth + 1) : "";
       return `
         <div class="${treeRowClassName(item, editing)}" draggable="${editing ? "false" : "true"}" tabindex="0" data-tree-id="${item.id}" data-kind="${item.kind}" style="--depth:${depth}">
           <span class="tree-chevron">${item.kind === "folder" ? (expanded ? "v" : ">") : ""}</span>
-          ${item.kind === "folder" ? `<span class="tree-item-icon folder-icon"></span>` : item.kind === "request" && !editing ? `<span class="tree-method">${item.method}</span>` : ""}
+          ${item.kind === "folder" ? `<span class="tree-item-icon folder-icon"></span>` : item.kind === "request" && !editing ? `<span class="tree-method"${methodDataAttribute(item.method)}>${item.method}</span>` : ""}
           <div class="tree-main">
             ${
               editing
@@ -826,7 +1018,7 @@ function renderExplorerTree(parentId: string | null, depth: number): string {
               ? ""
               : `<span class="tree-row-actions">
                   <button class="mini-btn tree-action-btn" data-tree-action="rename" data-tree-id="${item.id}" type="button" title="${labels.rename}" aria-label="${labels.rename}">${iconRename}</button>
-                  ${item.kind === "request" ? `<button class="mini-btn tree-action-btn" data-tree-action="duplicate" data-tree-id="${item.id}" type="button" title="${labels.duplicate}" aria-label="${labels.duplicate}">${iconDuplicate}</button>` : ""}
+                  <button class="mini-btn tree-action-btn" data-tree-action="duplicate" data-tree-id="${item.id}" type="button" title="${labels.duplicate}" aria-label="${labels.duplicate}">${iconDuplicate}</button>
                   <button class="mini-btn tree-action-btn danger" data-tree-action="delete" data-tree-id="${item.id}" type="button" title="${labels.delete}" aria-label="${labels.delete}">${iconRemove}</button>
                 </span>`
           }
@@ -859,10 +1051,14 @@ function bindWorkspace() {
 
   if (request.bodyMode === "form") ensureFormRow(request);
 
-  document.querySelector<HTMLSelectElement>("#method")?.addEventListener("change", (event) => {
-    request.method = (event.target as HTMLSelectElement).value;
+  const methodSelect = document.querySelector<HTMLSelectElement>("#method");
+  methodSelect?.addEventListener("change", (event) => {
+    const select = event.target as HTMLSelectElement;
+    request.method = select.value;
+    syncMethodSelectAppearance(select);
     scheduleSave();
   });
+  if (methodSelect) syncMethodSelectAppearance(methodSelect);
   const urlInput = document.querySelector<HTMLInputElement>("#url");
   urlInput?.addEventListener("input", (event) => {
     ingestUrlIntoRequest(request, (event.target as HTMLInputElement).value, id);
@@ -911,11 +1107,6 @@ function bindWorkspace() {
     });
   });
   document.querySelector<HTMLElement>("[data-body-editor-host]")?.addEventListener("paste", handleCurlPaste);
-  document.querySelector("#stream-response-btn")?.addEventListener("click", () => {
-    request.streamResponse = !request.streamResponse;
-    scheduleSave();
-    renderWorkspace();
-  });
   document.querySelector("#add-form")?.addEventListener("click", () => {
     request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
     scheduleSave();
@@ -926,15 +1117,88 @@ function bindWorkspace() {
     scheduleSave();
     renderWorkspace();
   });
+  if (tab.selectedRequestTab === "auth") {
+    bindAuthPanel(request, () => {
+      scheduleSave();
+      updateUrlPreview(request);
+    });
+  }
+
   bindPairs(request.headers, "header");
   bindPairs(request.queryParams, "query", request);
   bindFormPairs(request);
   bindResponseCopyMenu(tab);
   bindRequestTabs(request.id);
   bindResponseTabs(request.id);
-  bindRequestPopoverTriggers(onEffectiveVariablesChanged);
   mountWorkspaceDisplays(request, tab);
   if (state.openRequestPopover) syncRequestPopover();
+}
+
+function syncMethodSelectAppearance(select: HTMLSelectElement) {
+  if (select.value) select.dataset.method = select.value;
+}
+
+function bindCollectionSearch() {
+  const input = document.querySelector<HTMLInputElement>("#collection-search");
+  const clear = document.querySelector<HTMLButtonElement>("#collection-search-clear");
+  const submit = document.querySelector<HTMLButtonElement>("#collection-search-submit");
+  if (!input) return;
+
+  const refocusSearch = () => {
+    requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLInputElement>("#collection-search");
+      if (!field) return;
+      field.focus();
+      const end = field.value.length;
+      field.setSelectionRange(end, end);
+    });
+  };
+
+  const syncClearVisibility = (value: string) => {
+    clear?.classList.toggle("is-hidden", !value.trim());
+  };
+
+  const applySearch = () => {
+    state.collectionSearchQuery = input.value;
+    syncClearVisibility(input.value);
+    render();
+    refocusSearch();
+  };
+
+  input.addEventListener("input", () => {
+    syncClearVisibility(input.value);
+    state.collectionSearchQuery = input.value;
+    render();
+    refocusSearch();
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applySearch();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      state.collectionSearchQuery = "";
+      syncClearVisibility("");
+      render();
+      refocusSearch();
+    }
+  });
+
+  submit?.addEventListener("click", (event) => {
+    event.preventDefault();
+    applySearch();
+  });
+
+  clear?.addEventListener("click", (event) => {
+    event.preventDefault();
+    state.collectionSearchQuery = "";
+    input.value = "";
+    syncClearVisibility("");
+    render();
+    refocusSearch();
+  });
 }
 
 function bindEvents() {
@@ -942,10 +1206,15 @@ function bindEvents() {
   bindDialogs();
   bindRailNav();
   bindTabBar();
+  bindTabStripScroll();
+  bindCollectionSearch();
+
+  document.querySelector("#export-collection")?.addEventListener("click", () => void exportCollection());
+  document.querySelector("#import-collection")?.addEventListener("click", () => void importCollection());
   document.querySelector("#new-folder")?.addEventListener("click", createFolder);
   document.querySelector("#new-request")?.addEventListener("click", createRequest);
   document.querySelector("#panel-back")?.addEventListener("click", backToWorkspace);
-  bindTabBarActions();
+  bindTabBarToolButtons();
   bindWorkspace();
 }
 
@@ -1036,6 +1305,7 @@ function closeContextMenu() {
   state.contextMenu = null;
   document.querySelector(".context-menu")?.remove();
   document.querySelector("[data-copy-menu-trigger]")?.setAttribute("aria-expanded", "false");
+  document.querySelector("[data-request-actions-trigger]")?.setAttribute("aria-expanded", "false");
 }
 
 function contextMenuAnchor(element: HTMLElement) {
@@ -1047,7 +1317,7 @@ function contextMenuAnchor(element: HTMLElement) {
 }
 
 function resolveContextMenuTarget(focused: HTMLElement): HTMLElement {
-  if (focused.closest(".context-menu, [data-copy-menu-trigger]")) return focused;
+  if (focused.closest(".context-menu, [data-copy-menu-trigger], [data-request-actions-trigger]")) return focused;
 
   if (focused.closest(".tree")) {
     return (
@@ -1067,7 +1337,7 @@ function resolveContextMenuTarget(focused: HTMLElement): HTMLElement {
 }
 
 function openContextMenuForTarget(target: HTMLElement, x: number, y: number) {
-  if (target.closest(".context-menu, [data-copy-menu-trigger]")) return;
+  if (target.closest(".context-menu, [data-copy-menu-trigger], [data-request-actions-trigger]")) return;
 
   if (target.closest(".tree")) {
     const row = target.closest<HTMLElement>("[data-tree-id]");
@@ -1158,7 +1428,7 @@ function ensureContextMenuHandlers() {
     (event) => {
       if (!state.contextMenu) return;
       if ((event.target as HTMLElement).closest(".context-menu")) return;
-      if ((event.target as HTMLElement).closest("[data-copy-menu-trigger]")) return;
+      if ((event.target as HTMLElement).closest("[data-copy-menu-trigger], [data-request-actions-trigger]")) return;
       closeContextMenu();
     },
     true
@@ -1177,7 +1447,7 @@ function ensureContextMenuHandlers() {
       if (action === "new-folder") createFolder();
       if (action === "rename" && itemId) startTreeRename(itemId);
       if (action === "show" && itemId && getRequest(itemId)) openRequest(itemId);
-      if (action === "duplicate" && itemId) duplicateRequest(itemId);
+      if (action === "duplicate" && itemId) duplicateItem(itemId);
       if (action === "copy-curl" && itemId) void copyRequestAsCurl(itemId);
       if (action === "delete" && itemId) deleteItem(itemId);
       return;
@@ -1188,7 +1458,7 @@ function ensureContextMenuHandlers() {
     }
     if (menu.kind === "request-tab") {
       if (action === "close-tab") closeTab(menu.requestId);
-      if (action === "duplicate") duplicateRequest(menu.requestId);
+      if (action === "duplicate") duplicateItem(menu.requestId);
       return;
     }
     if (menu.kind === "response-copy") {
@@ -1198,6 +1468,23 @@ function ensureContextMenuHandlers() {
       if (action === "copy-response-body") void copyResponseBody(request, tab);
       if (action === "copy-response-headers") void copyResponseHeaders(tab);
       if (action === "copy-response-status") void copyResponseStatus(tab);
+      return;
+    }
+    if (menu.kind === "request-actions") {
+      const request = getRequest(menu.requestId);
+      const tab = state.tabs[menu.requestId];
+      if (!request || !tab) return;
+      if (action === "duplicate") duplicateItem(menu.requestId);
+      if (action === "clear") {
+        clearRequestResponse(request, tab);
+        scheduleSave();
+        render();
+      }
+      if (action === "toggle-stream") {
+        request.streamResponse = !request.streamResponse;
+        scheduleSave();
+        refreshTabBar();
+      }
     }
   });
 }
@@ -1323,7 +1610,7 @@ function bindTree() {
         const action = button.dataset.treeAction ?? "";
         const targetId = button.dataset.treeId ?? item.id;
         if (action === "rename") startTreeRename(targetId);
-        if (action === "duplicate") duplicateRequest(targetId);
+        if (action === "duplicate") duplicateItem(targetId);
         if (action === "delete") {
           void deleteItem(targetId);
         }
@@ -1385,10 +1672,14 @@ function bindTree() {
 
 function visibleTreeItems(): TreeItem[] {
   const result: TreeItem[] = [];
+  const searchVisible = collectionSearchVisibleIds(state.items, state.collectionSearchQuery);
   const walk = (parentId: string | null) => {
     for (const item of childrenOf(parentId)) {
+      if (searchVisible && !searchVisible.has(item.id)) continue;
       result.push(item);
-      if (item.kind === "folder" && item.expanded) walk(item.id);
+      if (item.kind === "folder" && folderExpandedForSearch(item, searchVisible, state.items)) {
+        walk(item.id);
+      }
     }
   };
   walk(null);
@@ -1396,6 +1687,7 @@ function visibleTreeItems(): TreeItem[] {
 }
 
 function selectTreeItem(itemId: string | null, options: { render?: boolean; focus?: boolean } = {}) {
+  if (itemId) focusRequestWorkspace();
   state.selectedTreeId = itemId;
   if (options.render) {
     render();
@@ -1536,6 +1828,7 @@ function clearDropState(except?: HTMLElement) {
 function activateTreeItem(itemId: string) {
   const item = getItem(itemId);
   if (!item) return;
+  focusRequestWorkspace();
   if (item.kind === "folder") {
     item.expanded = !item.expanded;
   } else {
@@ -1828,17 +2121,8 @@ async function sendRequest() {
   render();
 
   try {
-    const headers = withContentType(
-      request,
-      Object.fromEntries(
-        request.headers
-          .filter((header) => header.enabled && header.key.trim())
-          .map((header) => [
-            applyVariables(header.key.trim(), getEffectiveVariables()),
-            applyVariables(header.value, getEffectiveVariables())
-          ])
-      )
-    );
+    const effectiveVariables = getEffectiveVariables();
+    const headers = withContentType(request, buildRequestHeaders(request));
 
     const streamFinished = request.streamResponse
       ? new Promise<void>((resolve) => {
@@ -1856,11 +2140,11 @@ async function sendRequest() {
       request: {
         id: runId,
         method: request.method,
-        url: resolvedRequestUrl(request, getEffectiveVariables()).trim(),
+        url: resolvedOutboundUrl(request, effectiveVariables).trim(),
         headers,
         body_mode: request.bodyMode,
         raw_type: request.rawType,
-        body: request.bodyMode === "raw" ? applyVariables(request.body, getEffectiveVariables()) : "",
+        body: request.bodyMode === "raw" ? applyVariables(request.body, effectiveVariables) : "",
         form: buildFormPayload(request),
         stream: request.streamResponse
       },
@@ -1919,7 +2203,8 @@ async function handleCurlPaste(event: ClipboardEvent) {
     resizable: true,
     previewHtml: renderCurlPreview(parsed)
   });
-  if (result === "import") {
+  const importAction = typeof result === "string" ? result : result.action;
+  if (importAction === "import") {
     const current = getActiveRequest();
     if (current) {
       applyCurlToRequest(current, parsed);
@@ -1948,16 +2233,23 @@ function renderCurlPreview(request: SavedRequest) {
 async function copyRequestAsCurl(requestId: string) {
   const request = getRequest(requestId);
   if (!request) return;
-  const curl = requestToCurl(request);
+  const variables = getEffectiveVariables();
+  const labels = t().messages;
+  if (requestUsesSecretVariables(request, variables)) {
+    const answer = await messageDialog("confirmation", labels.copyCurlSecretsTitle, labels.copyCurlSecretsBody);
+    if (answer !== "confirm") return;
+  }
+  const curl = requestToCurl(request, variablesForCurl(variables, true));
   try {
     await navigator.clipboard.writeText(curl);
-    showToast(t().messages.copyCurlSuccess);
+    showToast(labels.copyCurlSuccess);
   } catch {
-    await messageDialog("error", t().messages.copyCurlTitle, t().messages.copyCurlFailed);
+    await messageDialog("error", labels.copyCurlTitle, labels.copyCurlFailed);
   }
 }
 
 function createFolder() {
+  focusRequestWorkspace();
   const parentId = selectedFolderId();
   const folder: TreeItem = { id: id(), kind: "folder", parentId, title: "New folder", expanded: true };
   insertItemAt(folder, parentId, childCount(parentId));
@@ -2006,22 +2298,26 @@ function titleFromUrl(url: string): string | null {
   }
 }
 
-function duplicateRequest(requestId: string) {
-  const source = getRequest(requestId);
+function duplicateItem(itemId: string) {
+  const source = getItem(itemId);
   if (!source) return;
-  const copy = structuredClone(source);
-  copy.id = id();
-  copy.title = `${source.title} copy`;
-  copy.headers = copy.headers.map((pair) => ({ ...pair, id: id() }));
-  copy.queryParams = copy.queryParams.map((pair) => ({ ...pair, id: id() }));
-  copy.form = copy.form.map((pair) => ({ ...pair, id: id() }));
-  copy.lastResponse = null;
-  copy.lastError = null;
-  const siblings = childrenOf(source.parentId);
-  insertItemAt(copy, source.parentId, siblings.findIndex((item) => item.id === source.id) + 1);
-  openRequest(copy.id);
+
+  const duplicateNaming = state.settings.duplicateNaming;
+  let focusId = itemId;
+
+  if (source.kind === "folder") {
+    focusId = duplicateFolderItem(source, state.items, duplicateNaming);
+  } else {
+    const siblings = childrenOf(source.parentId);
+    const insertIndex = siblings.findIndex((item) => item.id === source.id) + 1;
+    focusId = duplicateRequestItem(source, state.items, duplicateNaming, insertIndex);
+    openRequest(focusId);
+  }
+
+  state.selectedTreeId = focusId;
   scheduleSave();
   render();
+  requestAnimationFrame(() => focusTreeSelection());
 }
 
 async function deleteItem(itemId: string) {
@@ -2055,12 +2351,14 @@ async function deleteItem(itemId: string) {
 function openRequest(requestId: string) {
   if (!getRequest(requestId)) return;
   if (state.autoTitleFromUrlId && state.autoTitleFromUrlId !== requestId) state.autoTitleFromUrlId = null;
+  const panelChanged = focusRequestWorkspace();
   const isNewTab = !state.openTabs.includes(requestId);
   if (isNewTab) {
     state.openTabs.push(requestId);
     refreshTabBar();
+  } else if (panelChanged) {
+    refreshTabBar();
   }
-  state.activePanel = "request";
   ensureTab(requestId);
   scheduleSave();
 

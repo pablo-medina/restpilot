@@ -12,6 +12,7 @@ import type {
 export type ContextMenuState =
   | { kind: "tree"; x: number; y: number; itemId: string | null }
   | { kind: "response-copy"; x: number; y: number; requestId: string }
+  | { kind: "request-actions"; x: number; y: number; requestId: string }
   | { kind: "request-tab"; x: number; y: number; requestId: string }
   | ({ kind: "text"; x: number; y: number } & TextContextFlags);
 
@@ -27,6 +28,7 @@ export type AppState = AppConfig & {
   openRequestPopover: "environment" | "variables" | null;
   envManageSelectedId: string | null;
   variablesWorkspaceTab: "globals" | "environments";
+  collectionSearchQuery: string;
 };
 
 export const state: AppState = {
@@ -41,7 +43,8 @@ export const state: AppState = {
   previousPanel: "request",
   openRequestPopover: null,
   envManageSelectedId: null,
-  variablesWorkspaceTab: "globals"
+  variablesWorkspaceTab: "globals",
+  collectionSearchQuery: ""
 };
 
 const root = document.querySelector<HTMLDivElement>("#app");

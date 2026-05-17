@@ -36,6 +36,25 @@ export function renderSettings(settings: UserSettings): string {
           </label>
         </section>
 
+        <section class="settings-card settings-collections-card">
+          <h2>${labels.collectionsSection}</h2>
+          <fieldset class="settings-duplicate-naming">
+              <legend class="settings-option-label">${labels.duplicateNamingSection}</legend>
+              <label class="settings-radio-row">
+                <input type="radio" name="duplicate-naming" value="original" ${settings.duplicateNaming === "original" ? "checked" : ""} />
+                <span>${labels.duplicateNamingOriginal}</span>
+              </label>
+              <label class="settings-radio-row">
+                <input type="radio" name="duplicate-naming" value="copyOf" ${settings.duplicateNaming === "copyOf" ? "checked" : ""} />
+                <span>${labels.duplicateNamingCopyOf}</span>
+              </label>
+              <label class="settings-radio-row">
+                <input type="radio" name="duplicate-naming" value="numbered" ${settings.duplicateNaming === "numbered" ? "checked" : ""} />
+                <span>${labels.duplicateNamingNumbered}</span>
+              </label>
+          </fieldset>
+        </section>
+
         <section class="settings-card settings-editing-card">
           <h2>${labels.editingSection}</h2>
           <div class="settings-options">
@@ -182,6 +201,14 @@ export function bindSettings(
   document.querySelector<HTMLInputElement>("#setting-click-to-select")?.addEventListener("change", (event) => {
     settings.clickToSelect = (event.target as HTMLInputElement).checked;
     onChange();
+  });
+
+  document.querySelectorAll<HTMLInputElement>('input[name="duplicate-naming"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      settings.duplicateNaming = input.value as UserSettings["duplicateNaming"];
+      onChange();
+    });
   });
 
   document.querySelector<HTMLSelectElement>("#setting-language")?.addEventListener("change", (event) => {

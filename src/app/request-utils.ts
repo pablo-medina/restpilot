@@ -1,4 +1,5 @@
 import { applyVariables } from "../variables";
+import { buildOutboundHeaders, defaultRequestAuth } from "./request-auth";
 import { clampRequestTimeoutSecs, type SavedRequest, type UserSettings } from "../types";
 import { getEffectiveVariables } from "./environments";
 import { id } from "./state";
@@ -28,9 +29,14 @@ export function blankRequest(parentId: string | null): SavedRequest {
     body: "",
     form: [],
     streamResponse: false,
+    auth: defaultRequestAuth(),
     lastResponse: null,
     lastError: null
   };
+}
+
+export function buildRequestHeaders(request: SavedRequest) {
+  return buildOutboundHeaders(request, getEffectiveVariables());
 }
 
 export function hasEnabledFormFields(request: SavedRequest) {
@@ -38,7 +44,9 @@ export function hasEnabledFormFields(request: SavedRequest) {
 }
 
 export function withContentType(request: SavedRequest, headers: Record<string, string>) {
-  if (Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) return headers;
+  if (Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) {
+    return headers;
+  }
 
   if (request.bodyMode === "form" && hasEnabledFormFields(request)) {
     return { ...headers, "Content-Type": "application/x-www-form-urlencoded" };

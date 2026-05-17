@@ -54,12 +54,12 @@ Goal: real projects with dev/staging/prod and portable data.
 | # | Item | Scope | Status |
 |---|------|--------|--------|
 | 2.1 | **Environments** — named sets of variables; one active environment | `AppConfig.environments`, chip + popover + manage dialog | done |
-| 2.2 | **Per-request environment override** (optional) — inherit global env | Advanced; can defer | planned |
-| 2.3 | **Export collection** — JSON snapshot (items + variables + folders, no secrets option) | File dialog via Tauri | planned |
-| 2.4 | **Import collection** — merge or replace; conflict policy (rename/skip) | Dialog + validation | planned |
-| 2.5 | **Collection search** — filter tree by title, URL fragment, method | Explorer tree | planned |
-| 2.6 | **Auth helpers** — Bearer, Basic, API key (header/query); maps to headers | Auth section on request; no OAuth server yet | planned |
-| 2.7 | **Secret variables** — mask in UI; exclude from cURL copy unless confirmed | Variable flag `secret?: boolean` | planned |
+| 2.2 | **Per-request environment override** (optional) — inherit global env | Advanced; deferred | deferred |
+| 2.3 | **Export collection** — JSON snapshot (items + variables + folders, no secrets option) | File dialog via Tauri | done |
+| 2.4 | **Import collection** — merge or replace; conflict policy (rename/skip) | Dialog + validation | done |
+| 2.5 | **Collection search** — filter tree by title, URL fragment, method | Explorer tree | done |
+| 2.6 | **Auth helpers** — Bearer, Basic, API key (header/query); maps to headers | Auth section on request; no OAuth server yet | done |
+| 2.7 | **Secret variables** — mask in UI; exclude from cURL copy unless confirmed | Variable flag `secret?: boolean` | done |
 
 **Exit criteria:** Switch environment and re-run suite; backup/restore collection on another machine without hand-editing `config.json`.
 

@@ -1,4 +1,11 @@
-import type { BodyMode, Pair, RawType, SavedRequest } from "./types";
+import {
+  applyAuthHeaders,
+  buildOutboundQueryParams,
+  hydrateRequestAuth,
+  normalizeRequestAuth
+} from "./app/request-auth";
+import { applyVariables } from "./variables";
+import type { BodyMode, Pair, RawType, SavedRequest, Variable } from "./types";
 import { buildRequestUrl, migrateRequestQuery } from "./url-params";
 
 export function looksLikeCurl(value: string) {
@@ -115,6 +122,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     body: "",
     form: [],
     streamResponse: false,
+    auth: { type: "none" },
     lastResponse: null,
     lastError: null
   };
@@ -256,20 +264,46 @@ export function applyCurlToRequest(target: SavedRequest, parsed: SavedRequest) {
   target.body = parsed.body;
   target.bodyMode = parsed.bodyMode;
   target.rawType = parsed.rawType;
+  target.auth = parsed.auth ?? { type: "none" };
   target.form = parsed.form.map((field) => ({
     ...field,
     id: crypto.randomUUID(),
     partType: field.partType ?? "text"
   }));
+  const hydrated = hydrateRequestAuth(target);
+  target.auth = hydrated.auth;
+  target.headers = hydrated.headers;
 }
 
-export function requestToCurl(request: SavedRequest): string {
-  const url = buildRequestUrl(request.url, request.queryParams, request.urlHash ?? "").trim();
+export function requestToCurl(request: SavedRequest, variables: Variable[] = []): string {
+  const auth = normalizeRequestAuth(request.auth);
+  const mergedQuery = buildOutboundQueryParams(request, variables);
+  const resolvedParams = mergedQuery
+    .filter((param) => param.enabled && param.key.trim())
+    .map((param) => ({
+      ...param,
+      key: applyVariables(param.key, variables),
+      value: applyVariables(param.value, variables)
+    }));
+  const url = buildRequestUrl(
+    applyVariables(request.url, variables),
+    resolvedParams,
+    applyVariables(request.urlHash ?? "", variables)
+  ).trim();
   if (!url) return "curl";
 
   const lines: string[] = ["curl"];
   const method = request.method.toUpperCase();
-  const enabledHeaders = request.headers.filter((header) => header.enabled && header.key.trim());
+  const manualHeaders = Object.fromEntries(
+    request.headers
+      .filter((header) => header.enabled && header.key.trim())
+      .map((header) => [
+        applyVariables(header.key.trim(), variables),
+        applyVariables(header.value, variables)
+      ])
+  );
+  const outboundHeaders = applyAuthHeaders(manualHeaders, auth, variables);
+  const enabledHeaders = Object.entries(outboundHeaders).map(([key, value]) => ({ key, value }));
 
   if (method === "GET" && request.bodyMode === "form" && hasEnabledFormFields(request)) {
     lines.push("-G");
@@ -305,10 +339,11 @@ export function requestToCurl(request: SavedRequest): string {
   }
 
   if (request.bodyMode === "raw" && request.body.trim()) {
+    const body = applyVariables(request.body, variables);
     if (request.rawType === "json") {
-      lines.push("--json", shellQuote(request.body));
+      lines.push("--json", shellQuote(body));
     } else {
-      lines.push("--data-raw", shellQuote(request.body));
+      lines.push("--data-raw", shellQuote(body));
     }
   }
 

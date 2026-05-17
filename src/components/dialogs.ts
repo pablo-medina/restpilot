@@ -2,7 +2,8 @@ import { t } from "../i18n";
 import type { DialogKind } from "../types";
 
 export type DialogAction = { id: string; label: string; role?: "primary" | "danger" };
-export type DialogMode = "default" | "input" | "curl-preview";
+export type DialogMode = "default" | "input" | "curl-preview" | "collection-export" | "collection-import";
+export type DialogOutcome = { action: string; data?: Record<string, unknown> };
 
 export type DialogState = {
   id: string;
@@ -31,7 +32,7 @@ type Bounds = { x: number; y: number; width: number; height: number };
 type ResizeEdge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 const dialogs: DialogState[] = [];
-const resolvers = new Map<string, (value: string) => void>();
+const resolvers = new Map<string, (value: string | DialogOutcome) => void>();
 let onRender: (() => void) | null = null;
 let dragState: DragState | null = null;
 let boundGlobals = false;
@@ -69,6 +70,7 @@ export function bindDialogs() {
           maximizeBtn.setAttribute("aria-label", maximizeBtn.title);
           return;
         }
+        captureDialogForm(dialog, element);
         closeDialog(dialogId, actionId);
       });
     });
@@ -103,6 +105,19 @@ export function bindDialogs() {
           handle.setPointerCapture(event.pointerId);
         });
       });
+    }
+
+    if (dialog.data?.mode === "collection-import") {
+      const syncConflictVisibility = () => {
+        const replace =
+          element.querySelector<HTMLInputElement>('input[name="collection-import-mode"][value="replace"]')?.checked ??
+          false;
+        element.querySelector<HTMLElement>("[data-collection-import-conflicts]")?.toggleAttribute("hidden", replace);
+      };
+      element.querySelectorAll<HTMLInputElement>('input[name="collection-import-mode"]').forEach((radio) => {
+        radio.addEventListener("change", syncConflictVisibility);
+      });
+      syncConflictVisibility();
     }
 
     if (dialogs[dialogs.length - 1]?.id === dialogId) {
@@ -176,7 +191,7 @@ export function messageDialog(kind: DialogKind, title: string, body: string): Pr
           { id: "confirm", label: labels.confirm, role: "danger" }
         ]
       : [{ id: "ok", label: labels.ok, role: "primary" }]
-  });
+  }) as Promise<string>;
 }
 
 export function applicationDialog(options: {
@@ -190,7 +205,7 @@ export function applicationDialog(options: {
   actions?: DialogAction[];
   previewHtml?: string;
   maximized?: boolean;
-}): Promise<string> {
+}): Promise<string | DialogOutcome> {
   const labels = t().dialog;
   const mode = options.mode ?? "default";
   const resizable = options.resizable ?? true;
@@ -231,14 +246,33 @@ export function applicationDialog(options: {
   });
 }
 
-export function inputDialog(title: string, body: string, value: string): Promise<string> {
-  return applicationDialog({ title, body, mode: "input", value, resizable: false, width: 460, height: 220 });
+export async function inputDialog(title: string, body: string, value: string): Promise<string> {
+  const result = await applicationDialog({ title, body, mode: "input", value, resizable: false, width: 460, height: 220 });
+  return typeof result === "string" ? result : result.action;
 }
 
-function openDialog(dialog: DialogState): Promise<string> {
+function openDialog(dialog: DialogState): Promise<string | DialogOutcome> {
   dialogs.push(dialog);
   requestRender();
   return new Promise((resolve) => resolvers.set(dialog.id, resolve));
+}
+
+function captureDialogForm(dialog: DialogState, root: HTMLElement) {
+  const mode = dialog.data?.mode;
+  if (mode === "collection-export") {
+    dialog.data = {
+      ...dialog.data,
+      excludeValues: Boolean(root.querySelector<HTMLInputElement>("[data-collection-export-exclude-values]")?.checked)
+    };
+  }
+  if (mode === "collection-import") {
+    dialog.data = {
+      ...dialog.data,
+      importMode: root.querySelector<HTMLInputElement>('input[name="collection-import-mode"]:checked')?.value ?? "merge",
+      conflictPolicy:
+        root.querySelector<HTMLInputElement>('input[name="collection-import-conflict"]:checked')?.value ?? "rename"
+    };
+  }
 }
 
 function closeDialog(dialogId: string, action: string) {
@@ -247,12 +281,19 @@ function closeDialog(dialogId: string, action: string) {
   const index = dialogs.findIndex((item) => item.id === dialogId);
   if (index >= 0) dialogs.splice(index, 1);
 
-  const result =
-    dialog?.data?.mode === "input" && action === "save"
-      ? inputValue
-      : action === "close"
-        ? "cancel"
-        : action;
+  let result: string | DialogOutcome;
+  if (dialog?.data?.mode === "input" && action === "save") {
+    result = inputValue;
+  } else if (action === "close") {
+    result = "cancel";
+  } else if (
+    dialog?.variant === "application" &&
+    (dialog.data?.mode === "collection-export" || dialog.data?.mode === "collection-import")
+  ) {
+    result = { action, data: { ...dialog.data } };
+  } else {
+    result = action;
+  }
 
   resolvers.get(dialogId)?.(result);
   resolvers.delete(dialogId);

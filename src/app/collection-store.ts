@@ -9,6 +9,28 @@ import {
 } from "./state";
 import type { TreeItem } from "../types";
 
+export function insertSubtreeAfter(sourceRootId: string, clones: TreeItem[]) {
+  if (!clones.length) return;
+
+  const subtreeIds = new Set<string>([sourceRootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const item of state.items) {
+      if (item.parentId && subtreeIds.has(item.parentId) && !subtreeIds.has(item.id)) {
+        subtreeIds.add(item.id);
+        changed = true;
+      }
+    }
+  }
+
+  let insertAt = state.items.length;
+  for (let index = 0; index < state.items.length; index += 1) {
+    if (subtreeIds.has(state.items[index]!.id)) insertAt = index + 1;
+  }
+  state.items.splice(insertAt, 0, ...clones);
+}
+
 export function insertItemAt(item: TreeItem, parentId: string | null, childIndex: number) {
   item.parentId = parentId;
   const siblings = childrenOf(parentId);

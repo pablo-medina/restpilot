@@ -509,6 +509,8 @@ fn maximize_on_startup_enabled() -> bool {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(RuntimeState::default())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

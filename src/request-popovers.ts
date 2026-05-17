@@ -5,8 +5,14 @@ import {
   renderPopoverShell
 } from "./components/popover";
 import { escapeHtml } from "./content-display";
-import { iconRemove, iconStream, iconVariables } from "./icons";
+import { iconRemove, iconVariables } from "./icons";
 import { t } from "./i18n";
+import {
+  bindVariableSecretToggle,
+  renderVariableSecretButton,
+  renderVariableValueInput,
+  syncVariableRowSecretUi
+} from "./variable-ui";
 import { environmentChipLabel, getActiveEnvironment } from "./app/environments";
 import { scheduleSave } from "./app/persistence";
 import { escapeAttribute, id, state } from "./app/state";
@@ -17,6 +23,7 @@ export type VariableChangeHandler = () => void;
 type OpenVariablesPanel = (tab: "globals" | "environments") => void;
 
 let handlersBound = false;
+let triggerClickBound = false;
 let variablesChangedHook: VariableChangeHandler | null = null;
 let openVariablesPanelHook: OpenVariablesPanel | null = null;
 
@@ -26,20 +33,6 @@ export function setRequestPopoverHooks(hooks: {
 }) {
   variablesChangedHook = hooks.onVariablesChanged ?? null;
   openVariablesPanelHook = hooks.openVariablesPanel ?? null;
-}
-
-export function renderStreamToggle(streamActive: boolean): string {
-  const labels = t().request;
-  return `
-    <button
-      type="button"
-      id="stream-response-btn"
-      class="tool-icon request-tool-btn stream-toggle-btn${streamActive ? " is-active" : ""}"
-      title="${labels.streamResponse}"
-      aria-pressed="${streamActive}">
-      ${iconStream}
-    </button>
-  `;
 }
 
 export function renderEnvironmentChipButton(): string {
@@ -113,15 +106,24 @@ export function syncRequestPopover() {
 export function bindRequestPopoverTriggers(onVariablesChanged?: VariableChangeHandler) {
   if (onVariablesChanged) variablesChangedHook = onVariablesChanged;
   ensurePopoverHandlers();
+  ensurePopoverTriggerClick();
+}
 
-  document.querySelector("#request-env-btn")?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    togglePopover("environment");
-  });
+function ensurePopoverTriggerClick() {
+  if (triggerClickBound) return;
+  triggerClickBound = true;
 
-  document.querySelector("#request-vars-btn")?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    togglePopover("variables");
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("#request-env-btn")) {
+      event.stopPropagation();
+      togglePopover("environment");
+      return;
+    }
+    if (target.closest("#request-vars-btn")) {
+      event.stopPropagation();
+      togglePopover("variables");
+    }
   });
 }
 
@@ -142,7 +144,7 @@ function ensurePopoverHandlers() {
   handlersBound = true;
 
   document.addEventListener(
-    "pointerdown",
+    "click",
     (event) => {
       if (!state.openRequestPopover) return;
       const target = event.target as HTMLElement;
@@ -279,14 +281,16 @@ function bindVariablesPopover(popover: HTMLElement, onVariablesChanged?: Variabl
 function renderCompactVariableRow(variable: Variable, scope: string): string {
   const labels = t().variables;
   const disabledClass = variable.enabled ? "" : " is-disabled";
+  const secretClass = variable.secret ? " is-secret" : "";
   return `
-    <div class="env-compact-row${disabledClass}" data-variable-id="${variable.id}" data-var-scope="${scope}">
+    <div class="env-compact-row${disabledClass}${secretClass}" data-variable-id="${variable.id}" data-var-scope="${scope}">
       <label class="variable-toggle" title="${labels.colEnabled}">
         <input class="variable-enabled" type="checkbox" ${variable.enabled ? "checked" : ""} />
         <span class="variable-toggle-ui" aria-hidden="true"></span>
       </label>
+      ${renderVariableSecretButton(variable)}
       <input class="variable-name" value="${escapeAttribute(variable.name)}" placeholder="${labels.namePlaceholder}" spellcheck="false" autocomplete="off" />
-      <input class="variable-value" value="${escapeAttribute(variable.value)}" placeholder="${labels.valuePlaceholder}" spellcheck="false" autocomplete="off" />
+      ${renderVariableValueInput(variable, labels.valuePlaceholder)}
       <button class="mini-btn variable-remove" type="button" aria-label="${t().tree.delete}">${iconRemove}</button>
     </div>
   `;
@@ -317,6 +321,9 @@ function bindCompactVariableList(
       variable.value = (event.target as HTMLInputElement).value;
       onChange();
     });
+
+    bindVariableSecretToggle(row, variable, onChange);
+    syncVariableRowSecretUi(row, variable);
 
     row.querySelector(".variable-remove")?.addEventListener("click", () => {
       const index = variables.findIndex((item) => item.id === variable.id);

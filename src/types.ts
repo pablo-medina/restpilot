@@ -10,7 +10,19 @@ export type BodyMode = "raw" | "form" | "none" | "multipart";
 export type FormPartType = "text" | "file";
 export type RawType = "json" | "text" | "xml";
 export type ResponseTab = "body" | "headers";
-export type RequestTab = "params" | "headers" | "body";
+export type RequestTab = "params" | "auth" | "headers" | "body";
+
+export type RequestAuthType = "none" | "bearer" | "basic" | "apikey";
+
+export type RequestAuth = {
+  type: RequestAuthType;
+  bearerToken?: string;
+  basicUsername?: string;
+  basicPassword?: string;
+  apiKeyName?: string;
+  apiKeyValue?: string;
+  apiKeyIn?: "header" | "query";
+};
 export type DialogKind = "information" | "confirmation" | "warning" | "error";
 export type ThemeMode = "light" | "dark";
 export type Locale = "en" | "es";
@@ -40,7 +52,11 @@ export type UserSettings = {
   followRedirects: boolean;
   /** Single-click a request with an open tab focuses that tab; does not open closed requests. */
   clickToSelect: boolean;
+  /** How duplicated folder and request titles are named. */
+  duplicateNaming: DuplicateNamingMode;
 };
+
+export type DuplicateNamingMode = "original" | "copyOf" | "numbered";
 
 export type SavedRequest = {
   id: string;
@@ -58,6 +74,7 @@ export type SavedRequest = {
   body: string;
   form: Pair[];
   streamResponse: boolean;
+  auth: RequestAuth;
   lastResponse: ApiResponse | null;
   lastError: string | null;
 };
@@ -71,7 +88,7 @@ export type Folder = {
 };
 
 export type TreeItem = SavedRequest | Folder;
-export type Variable = { id: string; name: string; value: string; enabled: boolean };
+export type Variable = { id: string; name: string; value: string; enabled: boolean; secret?: boolean };
 
 export type Environment = {
   id: string;
@@ -107,6 +124,13 @@ export type TabState = {
   responseDisplayBody?: string;
 };
 
+export type CollectionSnapshot = {
+  items: TreeItem[];
+  variables: Variable[];
+  environments: Environment[];
+  activeEnvironmentId: string | null;
+};
+
 export type AppConfig = {
   items: TreeItem[];
   variables: Variable[];
@@ -127,7 +151,8 @@ export function defaultSettings(): UserSettings {
     autoPrettifyJson: true,
     requestTimeoutSecs: 60,
     followRedirects: true,
-    clickToSelect: true
+    clickToSelect: true,
+    duplicateNaming: "copyOf"
   };
 }
 

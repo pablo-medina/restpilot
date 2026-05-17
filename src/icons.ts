@@ -19,3 +19,15 @@ export const iconVariables = `<svg viewBox="0 0 16 16" width="16" height="16" ar
 export const iconLayers = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" d="M2.5 5.5 8 2.5l5.5 3-5.5 3z"/><path fill="none" stroke="currentColor" stroke-width="1.25" d="M2.5 8.5 8 11.5l5.5-3"/><path fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.55" d="M2.5 11.5 8 14.5l5.5-3"/></svg>`;
 
 export const iconSettings = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.25"/><path fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" d="M8 2.2v1.4M8 12.4v1.4M2.2 8h1.4M12.4 8h1.4M4.1 4.1l1 1M10.9 10.9l1 1M4.1 11.9l1-1M10.9 5.1l1-1"/></svg>`;
+
+export const iconExport = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" d="M8 2.5v7M5.5 7 8 9.5 10.5 7"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M3.5 11.5h9"/></svg>`;
+
+export const iconImport = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V2.5M5.5 5 8 2.5 10.5 5"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M3.5 11.5h9"/></svg>`;
+
+export const iconKey = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M5.5 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.5 12 4m0 0h-2.5M12 4v2.5"/></svg>`;
+
+export const iconChevronRight = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M6 4l4 4-4 4"/></svg>`;
+
+export const iconChevronLeft = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M10 4l-4 4 4 4"/></svg>`;
+
+export const iconSearch = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.35"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M10.2 10.2 13.5 13.5"/></svg>`;

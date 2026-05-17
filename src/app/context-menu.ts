@@ -9,20 +9,25 @@ import type { ContextMenuState } from "./state";
 export function contextMenuButton(
   action: string,
   label: string,
-  options: { shortcut?: string; enabled?: boolean; danger?: boolean } = {}
+  options: { shortcut?: string; enabled?: boolean; danger?: boolean; checked?: boolean } = {}
 ): string {
   const { shortcut, enabled = true, danger = false } = options;
   const shortcutHtml = shortcut
     ? `<span class="context-menu-shortcut">${escapeHtml(shortcut)}</span>`
     : "";
+  const checkHtml =
+    "checked" in options
+      ? `<span class="context-menu-check" aria-hidden="true">${options.checked ? "✓" : ""}</span>`
+      : "";
   return `<button data-menu-action="${action}" type="button"${danger ? ' class="danger"' : ""}${
     enabled ? "" : " disabled"
-  }><span class="context-menu-label">${escapeHtml(label)}</span>${shortcutHtml}</button>`;
+  }>${checkHtml}<span class="context-menu-label">${escapeHtml(label)}</span>${shortcutHtml}</button>`;
 }
 
 export type TextContextFlags = {
   canCut: boolean;
   canCopy: boolean;
+  canCopySelection: boolean;
   canPaste: boolean;
   canSelectAll: boolean;
   /** Set only for editable surfaces that support undo/redo. */
@@ -43,6 +48,12 @@ async function cmCopy(view: EditorView): Promise<void> {
   const text = from === to ? view.state.doc.toString() : view.state.sliceDoc(from, to);
   if (!text) return;
   await navigator.clipboard.writeText(text);
+}
+
+async function cmCopySelection(view: EditorView): Promise<void> {
+  const { from, to } = view.state.selection.main;
+  if (from === to) return;
+  await navigator.clipboard.writeText(view.state.sliceDoc(from, to));
 }
 
 async function cmCut(view: EditorView): Promise<void> {
@@ -72,6 +83,7 @@ export function resolveTextContextMenu(target: HTMLElement): TextContextFlags | 
     return {
       canCut: editable && selected,
       canCopy: selected || view.state.doc.length > 0,
+      canCopySelection: selected,
       canPaste: editable,
       canSelectAll: view.state.doc.length > 0,
       ...(editable
@@ -96,18 +108,24 @@ export function resolveTextContextMenu(target: HTMLElement): TextContextFlags | 
     return {
       canCut: editable && selected,
       canCopy: selected || field.value.length > 0,
+      canCopySelection: selected,
       canPaste: editable,
       canSelectAll: field.value.length > 0,
       ...(supportsHistory ? { canUndo: true, canRedo: true } : {})
     };
   }
 
-  if (target.closest(".response-body:not(.response-body-viewer), .url-preview, .headers-table-key, .headers-table-value")) {
+  if (
+    target.closest(
+      ".response-body:not(.response-body-viewer), .response-body-stream, .url-preview, .headers-table-key, .headers-table-value"
+    )
+  ) {
     const selection = window.getSelection();
     const selected = Boolean(selection && !selection.isCollapsed && selection.toString().length > 0);
     return {
       canCut: false,
       canCopy: selected || Boolean(target.closest(".url-preview")),
+      canCopySelection: selected,
       canPaste: false,
       canSelectAll: true
     };
@@ -133,6 +151,7 @@ export async function runTextMenuAction(action: string): Promise<void> {
   if (view) {
     if (action === "text-cut") await cmCut(view);
     else if (action === "text-copy") await cmCopy(view);
+    else if (action === "text-copy-selection") await cmCopySelection(view);
     else if (action === "text-paste") await cmPaste(view);
     else if (action === "text-undo") undo(view);
     else if (action === "text-redo") redo(view);
@@ -146,7 +165,7 @@ export async function runTextMenuAction(action: string): Promise<void> {
   const field = activeTextField();
   if (field) {
     if (action === "text-cut") document.execCommand("cut");
-    else if (action === "text-copy") document.execCommand("copy");
+    else if (action === "text-copy" || action === "text-copy-selection") document.execCommand("copy");
     else if (action === "text-paste") document.execCommand("paste");
     else if (action === "text-undo") document.execCommand("undo");
     else if (action === "text-redo") document.execCommand("redo");
@@ -154,12 +173,16 @@ export async function runTextMenuAction(action: string): Promise<void> {
     return;
   }
 
-  if (action === "text-copy" || action === "text-select-all") {
+  if (action === "text-copy" || action === "text-copy-selection" || action === "text-select-all") {
     const block = document.querySelector<HTMLElement>(
-      ".response-body:not(.response-body-viewer), .url-preview, .headers-table-key:focus-within, .headers-table-value:focus-within"
+      ".response-body:not(.response-body-viewer), .response-body-stream, .url-preview, .headers-table-key:focus-within, .headers-table-value:focus-within"
     );
     const selection = window.getSelection();
-    if (action === "text-copy" && selection && !selection.isCollapsed) {
+    if (
+      (action === "text-copy" || action === "text-copy-selection") &&
+      selection &&
+      !selection.isCollapsed
+    ) {
       await navigator.clipboard.writeText(selection.toString());
       return;
     }
@@ -195,6 +218,7 @@ export function renderTextContextMenuMarkup(menu: Extract<ContextMenuState, { ki
     <div class="context-menu" style="left:${menu.x}px;top:${menu.y}px">
       ${btn("text-cut", labels.cut, menu.canCut, menuShortcuts.cut())}
       ${btn("text-copy", labels.copy, menu.canCopy, menuShortcuts.copy())}
+      ${menu.canCopySelection ? btn("text-copy-selection", labels.copySelection, true, menuShortcuts.copy()) : ""}
       ${btn("text-paste", labels.paste, menu.canPaste, menuShortcuts.paste())}
       ${undoRedo}
       <hr>

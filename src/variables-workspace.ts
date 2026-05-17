@@ -2,6 +2,12 @@ import { inputDialog, messageDialog } from "./components/dialogs";
 import { escapeHtml } from "./content-display";
 import { iconRemove } from "./icons";
 import { t } from "./i18n";
+import {
+  bindVariableSecretToggle,
+  renderVariableSecretButton,
+  renderVariableValueInput,
+  syncVariableRowSecretUi
+} from "./variable-ui";
 import { scheduleSave } from "./app/persistence";
 import { escapeAttribute, id, state } from "./app/state";
 import type { Environment, Variable } from "./types";
@@ -21,12 +27,14 @@ function renderVariableToken(name: string) {
 function renderGlobalVariableItem(variable: Variable) {
   const labels = t().variables;
   const disabledClass = variable.enabled ? "" : " is-disabled";
+  const secretClass = variable.secret ? " is-secret" : "";
   return `
-    <div class="variable-item${disabledClass}" data-variable-id="${variable.id}">
+    <div class="variable-item${disabledClass}${secretClass}" data-variable-id="${variable.id}">
       <label class="variable-toggle" title="${labels.colEnabled}">
         <input class="variable-enabled" type="checkbox" ${variable.enabled ? "checked" : ""} />
         <span class="variable-toggle-ui" aria-hidden="true"></span>
       </label>
+      ${renderVariableSecretButton(variable)}
       <div class="variable-field variable-field-name">
         <span class="variable-field-label">${labels.colName}</span>
         <input class="variable-name" value="${escapeAttribute(variable.name)}" placeholder="${labels.namePlaceholder}" spellcheck="false" autocomplete="off" />
@@ -37,7 +45,7 @@ function renderGlobalVariableItem(variable: Variable) {
       </div>
       <div class="variable-field variable-field-value">
         <span class="variable-field-label">${labels.colValue}</span>
-        <input class="variable-value" value="${escapeAttribute(variable.value)}" placeholder="${labels.valuePlaceholder}" spellcheck="false" autocomplete="off" />
+        ${renderVariableValueInput(variable, labels.valuePlaceholder)}
       </div>
       <button class="mini-btn variable-remove remove-variable" type="button" aria-label="${t().tree.delete}">${iconRemove}</button>
     </div>
@@ -54,6 +62,7 @@ function renderGlobalsTab() {
     ? `
       <div class="variables-table-head" aria-hidden="true">
         <span>${labels.colEnabled}</span>
+        <span class="variables-col-secret" title="${labels.colSecret}">${labels.colSecret}</span>
         <span>${labels.colName}</span>
         <span>${labels.tokenPreview}</span>
         <span>${labels.colValue}</span>
@@ -248,6 +257,12 @@ function bindGlobalsTab(onVariablesChanged?: VariableChangeHandler) {
       onVariablesChanged?.();
     });
 
+    bindVariableSecretToggle(row, variable, () => {
+      scheduleSave();
+      onVariablesChanged?.();
+    });
+    syncVariableRowSecretUi(row, variable);
+
     row.querySelector(".remove-variable")?.addEventListener("click", () => {
       state.variables = state.variables.filter((item) => item.id !== variable.id);
       scheduleSave();
@@ -283,6 +298,7 @@ function renderManageVariableList(variables: Variable[]): string {
     <div class="env-manage-var-table">
       <div class="env-manage-var-head" aria-hidden="true">
         <span>${labels.colEnabled}</span>
+        <span class="variables-col-secret" title="${labels.colSecret}">${labels.colSecret}</span>
         <span>${labels.colName}</span>
         <span>${labels.tokenPreview}</span>
         <span>${labels.colValue}</span>
@@ -298,17 +314,19 @@ function renderManageVariableList(variables: Variable[]): string {
 function renderManageVariableRow(variable: Variable): string {
   const labels = t().variables;
   const disabledClass = variable.enabled ? "" : " is-disabled";
+  const secretClass = variable.secret ? " is-secret" : "";
   const trimmed = variable.name.trim();
   const tokenMarkup = trimmed
     ? `<code class="variable-token">${escapeHtml(`\${${trimmed}}`)}</code>`
     : `<span class="variable-token variable-token-empty">—</span>`;
 
   return `
-    <div class="variable-item env-manage-var-row${disabledClass}" data-variable-id="${variable.id}">
+    <div class="variable-item env-manage-var-row${disabledClass}${secretClass}" data-variable-id="${variable.id}">
       <label class="variable-toggle" title="${labels.colEnabled}">
         <input class="variable-enabled" type="checkbox" ${variable.enabled ? "checked" : ""} />
         <span class="variable-toggle-ui" aria-hidden="true"></span>
       </label>
+      ${renderVariableSecretButton(variable)}
       <div class="variable-field variable-field-name">
         <input class="variable-name" value="${escapeAttribute(variable.name)}" placeholder="${labels.namePlaceholder}" spellcheck="false" autocomplete="off" />
       </div>
@@ -316,7 +334,7 @@ function renderManageVariableRow(variable: Variable): string {
         ${tokenMarkup}
       </div>
       <div class="variable-field variable-field-value">
-        <input class="variable-value" value="${escapeAttribute(variable.value)}" placeholder="${labels.valuePlaceholder}" spellcheck="false" autocomplete="off" />
+        ${renderVariableValueInput(variable, labels.valuePlaceholder)}
       </div>
       <button class="mini-btn variable-remove" type="button" aria-label="${t().tree.delete}">${iconRemove}</button>
     </div>
@@ -535,6 +553,12 @@ function bindManageVariableList(root: ParentNode, variables: Variable[], onVaria
       scheduleSave();
       onVariablesChanged?.();
     });
+
+    bindVariableSecretToggle(row, variable, () => {
+      scheduleSave();
+      onVariablesChanged?.();
+    });
+    syncVariableRowSecretUi(row, variable);
 
     row.querySelector(".variable-remove")?.addEventListener("click", () => {
       const index = variables.findIndex((item) => item.id === variable.id);

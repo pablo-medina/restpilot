@@ -18,6 +18,7 @@ function request(form: SavedRequest["form"]): SavedRequest {
     body: "",
     form,
     streamResponse: false,
+    auth: { type: "none" },
     lastResponse: null,
     lastError: null
   };

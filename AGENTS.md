@@ -19,6 +19,7 @@
 - Respect the existing visual language in `src/styles.css` (zen palette, glass rail, folder/request icons).
 - Reuse existing patterns: full re-render in `main.ts`, string templates, CSS classes.
 - New surfaces should support **light** (default) and **dark** themes via `[data-theme]` on `document.documentElement`.
+- When adding sections, tabs, or panels: match existing spacing and typography; verify **flex** layout (`min-height: 0`, `flex-shrink: 0` on tab bars, scroll on the correct child). Reuse `.segmented` / `.tabs` patterns instead of inventing new tab markup.
 - Dialogs:
   - `messageDialog` — kinds: `information`, `confirmation`, `warning`, `error` (fixed size)
   - `applicationDialog` — draggable; resizable when `resizable: true`; maximize/restore only when resizable
