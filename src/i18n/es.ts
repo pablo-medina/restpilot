@@ -1,7 +1,8 @@
 export const es = {
   app: {
     name: "RestPilot",
-    tagline: "Su copiloto sobrio para APIs REST."
+    tagline: "Su copiloto sobrio para APIs REST.",
+    loading: "Cargando... Por favor espere."
   },
   titleBar: {
     ariaLabel: "Barra de título",
@@ -22,8 +23,8 @@ export const es = {
     switchToLight: "Cambiar a tema claro",
     switchToDark: "Cambiar a tema oscuro",
     backToWorkspace: "Volver al espacio de trabajo",
-    newFolder: "Nueva carpeta",
-    newRequest: "Nueva solicitud"
+    newFolder: "Nueva carpeta en la raíz de la colección",
+    newRequest: "Nueva solicitud en la raíz de la colección"
   },
   contextMenu: {
     cut: "Cortar",
@@ -33,7 +34,9 @@ export const es = {
     undo: "Deshacer",
     redo: "Rehacer",
     selectAll: "Seleccionar todo",
-    closeTab: "Cerrar pestaña"
+    closeTab: "Cerrar pestaña",
+    closeOtherTabs: "Cerrar las demás pestañas",
+    closeAllTabs: "Cerrar todas las pestañas"
   },
   tree: {
     newRequest: "Nueva solicitud",

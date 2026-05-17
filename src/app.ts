@@ -89,6 +89,10 @@ import {
   folderExpandedForSearch
 } from "./app/collection-search";
 import { insertItemAt, moveDroppedItem, moveItemTo } from "./app/collection-store";
+import { attachTabStripReorder } from "./app/tab-strip-reorder";
+import { finishBoot } from "./app/boot-loader";
+import { shouldOfferTreeRootDrop, treeRowAtPointer } from "./app/collection-tree-drag";
+import { attachPointerReorder, type PointerReorderPlacement } from "./app/pointer-reorder";
 import {
   applyUserSettings,
   loadStoredConfig,
@@ -131,7 +135,6 @@ import {
   getRequest,
   getRequestFrom,
   id,
-  selectedFolderId,
   state
 } from "./app/state";
 import { HTTP_METHODS, methodDataAttribute } from "./http-methods";
@@ -144,7 +147,6 @@ import {
 } from "./window-chrome";
 
 const STREAM_EVENT = "restpilot:request-stream";
-let draggedTreeId: string | null = null;
 let responseRenderFrame: number | undefined;
 
 type StreamPayload = {
@@ -177,6 +179,7 @@ export async function startApp(
   });
 
   const editorsReady = preloadEditorRuntime();
+  let configLoadFailed = false;
 
   try {
     const loaded = await configPromise;
@@ -195,16 +198,23 @@ export async function startApp(
       if (persist) scheduleSave();
     }
   } catch {
-    const labels = t().messages;
-    await messageDialog("warning", labels.configTitle, labels.configLoadFailed);
+    configLoadFailed = true;
   }
 
   applyUserSettings(state.settings);
+  await editorsReady;
+
+  finishBoot();
+
   initWindowChrome();
   for (const id of state.openTabs) ensureTab(id);
   render();
 
-  await editorsReady;
+  if (configLoadFailed) {
+    const labels = t().messages;
+    await messageDialog("warning", labels.configTitle, labels.configLoadFailed);
+  }
+
   const request = getActiveRequest();
   const tab = request ? state.tabs[request.id] : null;
   if (request && tab) await mountWorkspaceDisplays(request, tab);
@@ -286,6 +296,7 @@ function updateActivityBarActive() {
 function syncAppFrameLayout() {
   const isRequest = state.activePanel === "request";
   const collectionCollapsed = isRequest && !state.collectionSidebarOpen;
+  appRoot.classList.add("app-frame");
   appRoot.classList.toggle("app-frame--request", isRequest);
   appRoot.classList.toggle("is-collection-collapsed", collectionCollapsed);
 }
@@ -346,12 +357,53 @@ function focusRequestWorkspace(): boolean {
   return true;
 }
 
+function removeStrayTabBars() {
+  const host = document.querySelector(".title-bar-tabs-host");
+  document.querySelectorAll<HTMLElement>(".tab-bar").forEach((bar) => {
+    if (host?.contains(bar)) return;
+    bar.remove();
+  });
+}
+
+function applyOpenTabOrder(strip: HTMLElement, tabIds: readonly string[]) {
+  for (const id of tabIds) {
+    const el = strip.querySelector<HTMLElement>(
+      `[data-open-tab="${typeof CSS !== "undefined" && "escape" in CSS ? CSS.escape(id) : id}"]`
+    );
+    if (el) strip.appendChild(el);
+  }
+}
+
+function updateTabStripScroll() {
+  const wrap = document.querySelector<HTMLElement>(".title-bar-tabs-host .tab-strip-wrap");
+  if (!wrap) return;
+
+  const viewport = wrap.querySelector<HTMLElement>(".tab-strip-viewport");
+  const strip = wrap.querySelector<HTMLElement>(".tab-strip");
+  const back = wrap.querySelector<HTMLButtonElement>(".tab-scroll-back");
+  const forward = wrap.querySelector<HTMLButtonElement>(".tab-scroll-forward");
+  if (!viewport || !strip || !back || !forward) return;
+
+  const overflow = strip.scrollWidth > viewport.clientWidth + 1;
+  const atStart = viewport.scrollLeft <= 1;
+  const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
+  const showBack = overflow && !atStart;
+  const showForward = overflow && !atEnd;
+  wrap.classList.toggle("has-overflow", overflow);
+  wrap.classList.toggle("has-scroll-back", showBack);
+  wrap.classList.toggle("has-scroll-forward", showForward);
+  back.classList.toggle("is-hidden", !showBack);
+  forward.classList.toggle("is-hidden", !showForward);
+}
+
 function refreshTabBar() {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
   const markup = state.activePanel === "request" ? renderTabBar(request, tab) : "";
-  const tabsHost = document.querySelector(".title-bar-tabs-host");
+  const tabsHost = document.querySelector<HTMLElement>(".title-bar-tabs-host");
   const workspace = document.querySelector<HTMLElement>(".workspace");
+
+  removeStrayTabBars();
 
   if (tabsHost) {
     if (!markup) {
@@ -361,35 +413,35 @@ function refreshTabBar() {
     } else {
       tabsHost.classList.remove("title-bar-tabs-host--empty");
       tabsHost.removeAttribute("aria-hidden");
-      const existing = tabsHost.querySelector(".tab-bar");
-      if (existing) existing.outerHTML = markup;
-      else tabsHost.innerHTML = markup;
+      tabsHost.innerHTML = markup;
     }
   } else if (workspace) {
-    const existing = workspace.querySelector(".tab-bar");
+    workspace.querySelector(".tab-bar")?.remove();
     if (!markup) {
-      existing?.remove();
-      bindTabBar();
-      bindTabStripScroll();
       bindTabBarToolButtons();
       return;
     }
-    if (existing) existing.outerHTML = markup;
-    else workspace.querySelector(".workspace-body")?.insertAdjacentHTML("beforebegin", markup);
+    workspace.querySelector(".workspace-body")?.insertAdjacentHTML("beforebegin", markup);
   } else {
     return;
   }
 
-  bindTabBar();
   bindTabStripScroll();
   bindTabBarToolButtons();
+  requestAnimationFrame(() => {
+    updateTabStripScroll();
+    document
+      .querySelector<HTMLElement>(".title-bar-tabs-host .request-tab.active")
+      ?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  });
   if (state.openRequestPopover) {
     requestAnimationFrame(() => syncRequestPopover());
   }
 }
 
 function bindTabStripScroll() {
-  const wrap = document.querySelector<HTMLElement>(".tab-strip-wrap");
+  const host = document.querySelector<HTMLElement>(".title-bar-tabs-host");
+  const wrap = host?.querySelector<HTMLElement>(".tab-strip-wrap");
   if (!wrap || wrap.dataset.scrollBound === "true") return;
 
   const viewport = wrap.querySelector<HTMLElement>(".tab-strip-viewport");
@@ -399,19 +451,6 @@ function bindTabStripScroll() {
   if (!viewport || !strip || !back || !forward) return;
 
   wrap.dataset.scrollBound = "true";
-
-  const update = () => {
-    const overflow = strip.scrollWidth > viewport.clientWidth + 1;
-    const atStart = viewport.scrollLeft <= 1;
-    const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
-    const showBack = overflow && !atStart;
-    const showForward = overflow && !atEnd;
-    wrap.classList.toggle("has-overflow", overflow);
-    wrap.classList.toggle("has-scroll-back", showBack);
-    wrap.classList.toggle("has-scroll-forward", showForward);
-    back.classList.toggle("is-hidden", !showBack);
-    forward.classList.toggle("is-hidden", !showForward);
-  };
 
   const scrollByPage = (direction: -1 | 1) => {
     const delta = Math.max(120, viewport.clientWidth * 0.65) * direction;
@@ -429,21 +468,26 @@ function bindTabStripScroll() {
     scrollByPage(1);
   });
 
-  viewport.addEventListener("scroll", update, { passive: true });
-  const observer = new ResizeObserver(update);
+  viewport.addEventListener("scroll", updateTabStripScroll, { passive: true });
+  const observer = new ResizeObserver(() => updateTabStripScroll());
   observer.observe(viewport);
   observer.observe(strip);
-  requestAnimationFrame(update);
-
-  strip.querySelector<HTMLElement>(".request-tab.active")?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  requestAnimationFrame(updateTabStripScroll);
 }
 
 function bindTabBar() {
-  const strip = document.querySelector<HTMLElement>(".tab-strip");
-  if (!strip || strip.dataset.bound === "true") return;
-  strip.dataset.bound = "true";
+  const boundKey = "__restpilotTabBarUi";
+  const win = window as Window & { [boundKey]?: boolean };
+  if (win[boundKey]) return;
+  win[boundKey] = true;
 
-  strip.addEventListener("click", (event) => {
+  const tabHost = () => document.querySelector<HTMLElement>(".title-bar-tabs-host");
+
+  document.addEventListener("click", (event) => {
+    const host = tabHost();
+    const strip = host?.querySelector(".tab-strip");
+    if (!strip?.contains(event.target as Node)) return;
+
     const closeTarget = (event.target as HTMLElement).closest<HTMLElement>("[data-close-tab]");
     if (closeTarget) {
       event.preventDefault();
@@ -455,20 +499,41 @@ function bindTabBar() {
     if (tabEl) openRequest(tabEl.dataset.openTab ?? "");
   });
 
-  strip.addEventListener("auxclick", (event) => {
+  document.addEventListener("auxclick", (event) => {
     if (event.button !== 1) return;
+    const host = tabHost();
+    const strip = host?.querySelector(".tab-strip");
+    if (!strip?.contains(event.target as Node)) return;
+
     const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
     if (!tabEl || (event.target as HTMLElement).closest("[data-close-tab]")) return;
     event.preventDefault();
     closeTab(tabEl.dataset.openTab ?? "");
   });
 
-  strip.addEventListener("mousedown", (event) => {
+  document.addEventListener("mousedown", (event) => {
     if (event.button !== 1) return;
+    const host = tabHost();
+    const strip = host?.querySelector(".tab-strip");
+    if (!strip?.contains(event.target as Node)) return;
+
     const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
     if (!tabEl || (event.target as HTMLElement).closest("[data-close-tab]")) return;
     event.preventDefault();
     closeTab(tabEl.dataset.openTab ?? "");
+  });
+
+  attachTabStripReorder({
+    getHost: tabHost,
+    getTabIds: () => state.openTabs,
+    onCommit: (next) => {
+      state.openTabs = next;
+      scheduleSave();
+      const strip = tabHost()?.querySelector<HTMLElement>(".tab-strip");
+      if (strip) applyOpenTabOrder(strip, next);
+      updateTabStripActive();
+      requestAnimationFrame(updateTabStripScroll);
+    }
   });
 }
 
@@ -763,6 +828,9 @@ function buildContextMenuMarkup() {
     return `
       <div class="context-menu" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
         ${contextMenuButton("close-tab", labels.contextMenu.closeTab, { shortcut: menuShortcuts.closeTab() })}
+        ${state.openTabs.length > 1 ? contextMenuButton("close-other-tabs", labels.contextMenu.closeOtherTabs) : ""}
+        ${contextMenuButton("close-all-tabs", labels.contextMenu.closeAllTabs)}
+        <hr>
         ${contextMenuButton("duplicate", labels.request.duplicate)}
       </div>
     `;
@@ -1083,7 +1151,7 @@ function renderExplorerTree(parentId: string | null, depth: number): string {
         item.kind === "folder" && folderExpandedForSearch(item, searchVisible, state.items);
       const children = item.kind === "folder" && item.expanded ? renderExplorerTree(item.id, depth + 1) : "";
       return `
-        <div class="${treeRowClassName(item, editing)}" draggable="${editing ? "false" : "true"}" tabindex="0" data-tree-id="${item.id}" data-kind="${item.kind}" style="--depth:${depth}">
+        <div class="${treeRowClassName(item, editing)}" tabindex="0" data-tree-id="${item.id}" data-kind="${item.kind}" style="--depth:${depth}">
           <span class="tree-chevron">${item.kind === "folder" ? (expanded ? "v" : ">") : ""}</span>
           ${item.kind === "folder" ? `<span class="tree-item-icon folder-icon"></span>` : item.kind === "request" && !editing ? `<span class="tree-method"${methodDataAttribute(item.method)}>${item.method}</span>` : ""}
           <div class="tree-main">
@@ -1291,8 +1359,8 @@ function bindEvents() {
 
   document.querySelector("#export-collection")?.addEventListener("click", () => void exportCollection());
   document.querySelector("#import-collection")?.addEventListener("click", () => void importCollection());
-  document.querySelector("#new-folder")?.addEventListener("click", createFolder);
-  document.querySelector("#new-request")?.addEventListener("click", createRequest);
+  document.querySelector("#new-folder")?.addEventListener("click", () => createFolder(null));
+  document.querySelector("#new-request")?.addEventListener("click", () => createRequest(null));
   document.querySelector("#panel-back")?.addEventListener("click", backToWorkspace);
   bindTabBarToolButtons();
   bindWorkspace();
@@ -1531,8 +1599,8 @@ function ensureContextMenuHandlers() {
     closeContextMenu();
     if (menu.kind === "tree") {
       const itemId = menu.itemId;
-      if (action === "new-request") createRequest();
-      if (action === "new-folder") createFolder();
+      if (action === "new-request") createRequest(parentIdForTreeCreate(itemId));
+      if (action === "new-folder") createFolder(parentIdForTreeCreate(itemId));
       if (action === "rename" && itemId) startTreeRename(itemId);
       if (action === "show" && itemId && getRequest(itemId)) openRequest(itemId);
       if (action === "duplicate" && itemId) duplicateItem(itemId);
@@ -1546,6 +1614,8 @@ function ensureContextMenuHandlers() {
     }
     if (menu.kind === "request-tab") {
       if (action === "close-tab") closeTab(menu.requestId);
+      if (action === "close-other-tabs") closeOtherTabs(menu.requestId);
+      if (action === "close-all-tabs") closeAllTabs();
       if (action === "duplicate") duplicateItem(menu.requestId);
       return;
     }
@@ -1655,24 +1725,43 @@ function bindTree() {
       }
     }
   });
-  tree?.addEventListener("dragover", (event) => {
-    if ((event.target as HTMLElement).closest("[data-tree-id]")) return;
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-    clearDropState();
-    tree.classList.add("drop-root");
-  });
-  tree?.addEventListener("dragleave", (event) => {
-    if (!tree.contains(event.relatedTarget as Node | null)) tree.classList.remove("drop-root");
-  });
-  tree?.addEventListener("drop", (event) => {
-    if ((event.target as HTMLElement).closest("[data-tree-id]")) return;
-    event.preventDefault();
-    tree.classList.remove("drop-root");
-    const sourceId = readDraggedId(event);
-    if (!sourceId) return;
-    moveItemTo(sourceId, null, state.items.filter((item) => item.parentId === null).length);
-  });
+  const treeDropHost = tree?.closest<HTMLElement>(".collection-sidebar-panel") ?? tree;
+  if (tree && treeDropHost && tree.dataset.pointerReorderBound !== "true") {
+    tree.dataset.pointerReorderBound = "true";
+    const clearTreeDropRoot = () => {
+      tree.classList.remove("drop-root");
+      treeDropHost.classList.remove("is-drop-root-target");
+    };
+    attachPointerReorder({
+      container: treeDropHost,
+      itemSelector: ".tree-row[data-tree-id]",
+      ignoreSelector: "[data-tree-action], .tree-rename-input",
+      getItemId: (element) => element.dataset.treeId ?? "",
+      resolvePlacement: (target, event, sourceId) => dropPlacementFor(target, event, sourceId),
+      resolveTarget: (event) => treeRowAtPointer(tree, event.clientX, event.clientY),
+      shouldOfferRootDrop: (event) =>
+        shouldOfferTreeRootDrop(tree, treeDropHost, event.clientX, event.clientY),
+      onOverContainer: () => {
+        tree.classList.add("drop-root");
+        treeDropHost.classList.add("is-drop-root-target");
+      },
+      onLeaveContainer: clearTreeDropRoot,
+      onCommitToRoot: (sourceId) => {
+        clearTreeDropRoot();
+        moveItemTo(sourceId, null, state.items.filter((item) => item.parentId === null).length);
+      },
+      onCommit: (sourceId, targetId, placement) => {
+        clearTreeDropRoot();
+        const target = getItem(targetId);
+        if (!target) return;
+        if (placement === "inside") {
+          moveDroppedItem(sourceId, target, "inside");
+          return;
+        }
+        moveDroppedItem(sourceId, target, placement);
+      }
+    });
+  }
 
   document.querySelectorAll<HTMLElement>(".tree-row[data-tree-id]").forEach((row) => {
     const item = getItem(row.dataset.treeId ?? "");
@@ -1722,37 +1811,6 @@ function bindTree() {
     row.addEventListener("dblclick", (event) => {
       if ((event.target as HTMLElement).closest("[data-tree-action], .tree-rename-input")) return;
       activateTreeItem(item.id);
-    });
-    row.addEventListener("dragstart", (event) => {
-      draggedTreeId = item.id;
-      row.classList.add("dragging");
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", item.id);
-        event.dataTransfer.setData("application/x-restpilot-item", item.id);
-      }
-    });
-    row.addEventListener("dragend", () => {
-      draggedTreeId = null;
-      clearDropState();
-    });
-    row.addEventListener("dragover", (event) => {
-      const sourceId = readDraggedId(event) || draggedTreeId;
-      if (!sourceId || sourceId === item.id) return;
-      event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-      clearDropState(row);
-      row.classList.add(dropClassFor(row, event, sourceId));
-    });
-    row.addEventListener("dragleave", () => row.classList.remove("drop-before", "drop-after", "drop-into", "drop-near"));
-    row.addEventListener("drop", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const sourceId = readDraggedId(event);
-      if (!sourceId || sourceId === item.id) return;
-      const placement = dropPlacementFor(row, event, sourceId);
-      clearDropState();
-      moveDroppedItem(sourceId, item, placement);
     });
   });
 
@@ -1877,14 +1935,7 @@ function pickTreeFocusAfterDelete(itemId: string): string | null {
   return visible[0]?.id ?? null;
 }
 
-function dropClassFor(row: HTMLElement, event: DragEvent, sourceId: string) {
-  const placement = dropPlacementFor(row, event, sourceId);
-  if (placement === "before") return "drop-before";
-  if (placement === "after") return "drop-after";
-  return "drop-into";
-}
-
-function dropPlacementFor(row: HTMLElement, event: DragEvent, sourceId: string): "before" | "after" | "inside" {
+function dropPlacementFor(row: HTMLElement, event: PointerEvent, sourceId: string): PointerReorderPlacement {
   const item = getItem(row.dataset.treeId ?? "");
   const source = getItem(sourceId);
   if (!item || !source) return "after";
@@ -1901,17 +1952,6 @@ function dropPlacementFor(row: HTMLElement, event: DragEvent, sourceId: string):
 
   if (y < rect.height / 2) return "before";
   return "after";
-}
-
-function readDraggedId(event: DragEvent) {
-  return event.dataTransfer?.getData("application/x-restpilot-item") || event.dataTransfer?.getData("text/plain") || draggedTreeId || "";
-}
-
-function clearDropState(except?: HTMLElement) {
-  document.querySelector(".tree")?.classList.remove("drop-root");
-  document.querySelectorAll<HTMLElement>(".tree-row.drop-before, .tree-row.drop-after, .tree-row.drop-into, .tree-row.drop-near, .tree-row.dragging").forEach((row) => {
-    if (row !== except) row.classList.remove("drop-before", "drop-after", "drop-into", "drop-near", "dragging");
-  });
 }
 
 function activateTreeItem(itemId: string) {
@@ -2338,17 +2378,23 @@ async function copyRequestAsCurl(requestId: string) {
   }
 }
 
-function createFolder() {
+function parentIdForTreeCreate(contextItemId: string | null | undefined): string | null {
+  if (!contextItemId) return null;
+  const item = getItem(contextItemId);
+  if (!item) return null;
+  if (item.kind === "folder") return item.id;
+  return item.parentId;
+}
+
+function createFolder(parentId: string | null = null) {
   focusRequestWorkspace();
-  const parentId = selectedFolderId();
   const folder: TreeItem = { id: id(), kind: "folder", parentId, title: "New folder", expanded: true };
   insertItemAt(folder, parentId, childCount(parentId));
   scheduleSave();
   startTreeRename(folder.id);
 }
 
-function createRequest() {
-  const parentId = selectedFolderId();
+function createRequest(parentId: string | null = null) {
   const request = blankRequest(parentId);
   insertItemAt(request, parentId, childCount(parentId));
   state.autoTitleFromUrlId = request.id;
@@ -2469,6 +2515,19 @@ function openRequest(requestId: string) {
   render();
 }
 
+function afterOpenTabsChanged() {
+  scheduleSave();
+  refreshTabBar();
+
+  if (state.activePanel === "request" && document.querySelector(".workspace-body")) {
+    renderWorkspace();
+    updateTreeRowActive();
+    return;
+  }
+
+  render();
+}
+
 function closeTab(requestId: string) {
   if (!requestId || !state.openTabs.includes(requestId)) return;
 
@@ -2484,16 +2543,33 @@ function closeTab(requestId: string) {
     if (state.activeTabId) state.selectedTreeId = state.activeTabId;
   }
 
-  scheduleSave();
-  refreshTabBar();
+  afterOpenTabsChanged();
+}
 
-  if (state.activePanel === "request" && document.querySelector(".workspace-body")) {
-    renderWorkspace();
-    updateTreeRowActive();
-    return;
+function closeOtherTabs(keepId: string) {
+  if (!state.openTabs.includes(keepId)) return;
+
+  for (const id of state.openTabs) {
+    if (id === keepId) continue;
+    unmountTabDisplay(id);
+    delete state.tabs[id];
   }
 
-  render();
+  state.openTabs = [keepId];
+  state.activeTabId = keepId;
+  state.selectedTreeId = keepId;
+  afterOpenTabsChanged();
+}
+
+function closeAllTabs() {
+  for (const id of state.openTabs) {
+    unmountTabDisplay(id);
+    delete state.tabs[id];
+  }
+
+  state.openTabs = [];
+  state.activeTabId = "";
+  afterOpenTabsChanged();
 }
 
 function ensureTab(requestId: string) {

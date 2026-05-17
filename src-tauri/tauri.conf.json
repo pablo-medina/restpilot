@@ -19,7 +19,8 @@
         "minHeight": 640,
         "decorations": false,
         "shadow": true,
-        "titleBarStyle": "Overlay"
+        "titleBarStyle": "Overlay",
+        "backgroundColor": "#f0efec"
       }
     ],
     "security": {

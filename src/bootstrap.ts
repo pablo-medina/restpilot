@@ -1,8 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { loadStoredConfig } from "./app/persistence";
-import { setLocale } from "./i18n";
+import { setLocale, t } from "./i18n";
 
-/** Apply theme and locale before the main bundle finishes loading. */
+function updateBootMessage() {
+  const message = document.querySelector<HTMLElement>(".app-boot-message");
+  if (message) message.textContent = t().app.loading;
+}
+
 async function applyStartupPrefs() {
   try {
     const prefs = await invoke<{ theme?: string; language?: string }>("load_startup_settings");
@@ -13,8 +17,9 @@ async function applyStartupPrefs() {
       setLocale(prefs.language);
     }
   } catch {
-    // Offline / non-Tauri: keep index.html prefers-color-scheme hint.
+    // Non-Tauri: keep light splash from index.html.
   }
+  updateBootMessage();
 }
 
 void (async () => {

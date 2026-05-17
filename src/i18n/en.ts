@@ -1,7 +1,8 @@
 export const en = {
   app: {
     name: "RestPilot",
-    tagline: "Your calm co-pilot for REST APIs."
+    tagline: "Your calm co-pilot for REST APIs.",
+    loading: "Loading... Please wait."
   },
   titleBar: {
     ariaLabel: "Window title bar",
@@ -22,8 +23,8 @@ export const en = {
     switchToLight: "Switch to light theme",
     switchToDark: "Switch to dark theme",
     backToWorkspace: "Back to workspace",
-    newFolder: "New folder",
-    newRequest: "New request"
+    newFolder: "New folder at collection root",
+    newRequest: "New request at collection root"
   },
   contextMenu: {
     cut: "Cut",
@@ -33,7 +34,9 @@ export const en = {
     undo: "Undo",
     redo: "Redo",
     selectAll: "Select all",
-    closeTab: "Close tab"
+    closeTab: "Close tab",
+    closeOtherTabs: "Close other tabs",
+    closeAllTabs: "Close all tabs"
   },
   tree: {
     newRequest: "New request",

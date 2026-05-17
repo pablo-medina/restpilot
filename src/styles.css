@@ -607,8 +607,15 @@ html[data-window-platform="macos"] .activity-bar {
 }
 
 .tree.drop-root {
-  border-color: rgba(61, 127, 111, 0.32);
-  background: rgba(61, 127, 111, 0.05);
+  border-color: rgba(61, 127, 111, 0.45);
+  background: rgba(61, 127, 111, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(61, 127, 111, 0.2);
+}
+
+.collection-sidebar-panel.is-drop-root-target .collection-sidebar-toolbar {
+  border-radius: 6px;
+  background: rgba(61, 127, 111, 0.1);
+  box-shadow: inset 0 -2px 0 rgba(61, 127, 111, 0.55);
 }
 
 .tree-row {
@@ -675,21 +682,33 @@ html[data-window-platform="macos"] .activity-bar {
 }
 
 .tree-row.dragging {
-  opacity: 0.45;
+  opacity: 0.35;
+  background: rgba(61, 127, 111, 0.06);
 }
 
 .tree-row.drop-into {
-  border-color: rgba(61, 127, 111, 0.45);
-  background: rgba(61, 127, 111, 0.1);
+  border-color: rgba(61, 127, 111, 0.55);
+  background: rgba(61, 127, 111, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(61, 127, 111, 0.28);
 }
 
 .tree-row.drop-after,
 .tree-row.drop-near {
-  box-shadow: inset 0 -2px 0 rgba(61, 127, 111, 0.55);
+  background: rgba(61, 127, 111, 0.08);
+  box-shadow: inset 0 -3px 0 rgba(61, 127, 111, 0.65);
 }
 
 .tree-row.drop-before {
-  box-shadow: inset 0 2px 0 rgba(61, 127, 111, 0.55);
+  background: rgba(61, 127, 111, 0.08);
+  box-shadow: inset 0 3px 0 rgba(61, 127, 111, 0.65);
+}
+
+.pointer-drag-ghost.tree-row {
+  border: 1px solid rgba(61, 127, 111, 0.35);
+  background: rgba(255, 252, 246, 0.96);
+  box-shadow: 0 10px 28px rgba(52, 48, 42, 0.22);
+  opacity: 0.96;
+  z-index: 10000;
 }
 
 .tree-icon,
@@ -905,6 +924,7 @@ html[data-window-platform="macos"] .activity-bar {
 }
 
 .tab-strip-viewport {
+  position: relative;
   flex: 1;
   min-width: 0;
   overflow-x: auto;
@@ -917,6 +937,7 @@ html[data-window-platform="macos"] .activity-bar {
 }
 
 .tab-strip {
+  position: relative;
   display: inline-flex;
   align-items: stretch;
   flex-wrap: nowrap;
@@ -1011,6 +1032,7 @@ html[data-window-platform="macos"] .activity-bar {
 }
 
 .request-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1026,6 +1048,51 @@ html[data-window-platform="macos"] .activity-bar {
   color: var(--rp-text-muted);
   font-size: 12px;
   cursor: pointer;
+  user-select: none;
+}
+
+.tab-strip.is-reordering {
+  cursor: grabbing;
+}
+
+.request-tab.dragging {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.tab-strip-viewport > .tab-insert-marker {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--rp-accent);
+  box-shadow: 0 0 0 1px rgba(61, 127, 111, 0.2);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.tab-insert-marker.is-hidden {
+  display: none;
+}
+
+.pointer-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  margin: 0;
+  pointer-events: none;
+  opacity: 0.94;
+  will-change: transform;
+}
+
+.pointer-drag-ghost.request-tab {
+  border: 1px solid rgba(61, 127, 111, 0.3);
+  border-radius: 6px;
+  background: var(--rp-bg);
+  box-shadow: 0 8px 24px rgba(52, 48, 42, 0.2);
+  color: var(--rp-text);
 }
 
 .request-tab:hover {
@@ -4097,6 +4164,27 @@ html[data-modal-open] .title-bar * {
 
 [data-theme="dark"] .tree-row:hover {
   background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .tree.drop-root {
+  border-color: rgba(61, 127, 111, 0.5);
+  background: rgba(61, 127, 111, 0.1);
+}
+
+[data-theme="dark"] .collection-sidebar-panel.is-drop-root-target .collection-sidebar-toolbar {
+  background: rgba(61, 127, 111, 0.14);
+}
+
+[data-theme="dark"] .pointer-drag-ghost.tree-row {
+  border-color: rgba(61, 127, 111, 0.45);
+  background: #2a2926;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .pointer-drag-ghost.request-tab {
+  border-color: rgba(61, 127, 111, 0.4);
+  background: var(--rp-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="dark"] .mini-btn {
