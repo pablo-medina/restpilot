@@ -49,9 +49,6 @@ struct ProxySettings {
     /// Comma-separated hosts bypassing the proxy (e.g. localhost,127.0.0.1).
     #[serde(default)]
     no_proxy: Option<String>,
-    /// Legacy: merged into system + auth auto (libcurl).
-    #[serde(default)]
-    use_curl_for_system: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

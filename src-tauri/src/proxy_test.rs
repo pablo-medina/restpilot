@@ -145,7 +145,6 @@ mod tests {
             password: None,
             auth_mode: Some("auto".to_string()),
             no_proxy: Some("localhost".to_string()),
-            use_curl_for_system: None,
         };
         let mut log = ProxyTestLog::new();
         log_proxy_plan(&mut log, Some(&proxy), "https://example.com/");
