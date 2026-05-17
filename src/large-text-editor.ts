@@ -1,11 +1,12 @@
 import { tryPrettifyJson } from "./content-display";
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
-import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { history, historyKeymap } from "@codemirror/commands";
+import { tags } from "@lezer/highlight";
 import { EditorSelection, EditorState, Transaction, type ChangeSpec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import type { RawType } from "./types";
+import { clampTabSize, type RawType } from "./types";
 
 export type ViewerMode = RawType;
 
@@ -17,10 +18,23 @@ export type BodyEditorOptions = {
   onSend?: () => void;
 };
 
-export function clampTabSize(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed)) return 2;
-  return Math.max(1, Math.min(8, Math.round(parsed)));
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: tags.propertyName, color: "#b4d4e8" },
+  { tag: tags.string, color: "#f0a8c8" },
+  { tag: tags.number, color: "#e8a868" },
+  { tag: tags.bool, color: "#c4a0f0" },
+  { tag: tags.null, color: "#9a8cb8" },
+  { tag: tags.keyword, color: "#c4a0f0" },
+  { tag: tags.comment, color: "#7a756c", fontStyle: "italic" },
+  { tag: tags.punctuation, color: "#8a847c" },
+  { tag: tags.bracket, color: "#8a847c" },
+  { tag: tags.tagName, color: "#b4d4e8" },
+  { tag: tags.attributeName, color: "#f0a8c8" }
+]);
+
+function syntaxTheme() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  return syntaxHighlighting(dark ? darkHighlightStyle : defaultHighlightStyle, { fallback: true });
 }
 
 function codeEditorTheme() {
@@ -128,7 +142,7 @@ function baseExtensions(editable: boolean, tabSize: number) {
   const extensions = [
     EditorView.lineWrapping,
     codeEditorTheme(),
-    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    syntaxTheme(),
     insertTabKeymap(tabSize),
     EditorState.readOnly.of(!editable),
     EditorView.editable.of(editable)

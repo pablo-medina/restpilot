@@ -1,4 +1,4 @@
-import { clampTabSize } from "../large-text-editor";
+import { clampTabSize } from "../types";
 import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth } from "./request-auth";
 import { migrateRequestQuery } from "../url-params";

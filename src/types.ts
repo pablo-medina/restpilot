@@ -162,6 +162,12 @@ export function clampRequestTimeoutSecs(value: unknown): number {
   return Math.max(5, Math.min(300, Math.round(parsed)));
 }
 
+export function clampTabSize(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return 2;
+  return Math.max(1, Math.min(8, Math.round(parsed)));
+}
+
 export function defaultConfig(): AppConfig {
   return {
     items: [],

@@ -1,10 +1,11 @@
-import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
-import { EditorSelection } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import type { EditorView } from "@codemirror/view";
 import { escapeHtml } from "../content-display";
 import { t } from "../i18n";
+import { codeMirrorViewFromTarget } from "./codemirror-view";
 import { menuShortcuts } from "./menu-shortcuts";
 import type { ContextMenuState } from "./state";
+
+export { codeMirrorViewFromTarget } from "./codemirror-view";
 
 export function contextMenuButton(
   action: string,
@@ -34,14 +35,6 @@ export type TextContextFlags = {
   canUndo?: boolean;
   canRedo?: boolean;
 };
-
-export function codeMirrorViewFromTarget(target: EventTarget | null): EditorView | null {
-  if (!(target instanceof Node)) return null;
-  const node = target instanceof Element ? target : target.parentElement;
-  const editor = node?.closest(".cm-editor");
-  if (!editor) return null;
-  return EditorView.findFromDOM(editor as HTMLElement);
-}
 
 async function cmCopy(view: EditorView): Promise<void> {
   const { from, to } = view.state.selection.main;
@@ -127,6 +120,7 @@ async function cmPaste(view: EditorView): Promise<void> {
   if (view.state.readOnly) return;
   const text = await navigator.clipboard.readText();
   const { from, to } = view.state.selection.main;
+  const { EditorSelection } = await import("@codemirror/state");
   view.dispatch({
     changes: { from, to, insert: text },
     selection: EditorSelection.cursor(from + text.length)
@@ -144,9 +138,7 @@ export function resolveTextContextMenu(target: HTMLElement): TextContextFlags | 
       canCopySelection: selected,
       canPaste: editable,
       canSelectAll: view.state.doc.length > 0,
-      ...(editable
-        ? { canUndo: undoDepth(view.state) > 0, canRedo: redoDepth(view.state) > 0 }
-        : {})
+      ...(editable ? { canUndo: true, canRedo: true } : {})
     };
   }
 
@@ -211,9 +203,12 @@ export async function runTextMenuAction(action: string): Promise<void> {
     else if (action === "text-copy") await cmCopy(view);
     else if (action === "text-copy-selection") await cmCopySelection(view);
     else if (action === "text-paste") await cmPaste(view);
-    else if (action === "text-undo") undo(view);
-    else if (action === "text-redo") redo(view);
-    else if (action === "text-select-all") {
+    else if (action === "text-undo" || action === "text-redo") {
+      const { undo, redo } = await import("@codemirror/commands");
+      if (action === "text-undo") undo(view);
+      else redo(view);
+    } else if (action === "text-select-all") {
+      const { EditorSelection } = await import("@codemirror/state");
       view.dispatch({ selection: EditorSelection.single(0, view.state.doc.length) });
       view.focus();
     }

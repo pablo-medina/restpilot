@@ -158,14 +158,33 @@ export function formatResponseBody(body: string, headers: Record<string, string>
   return body;
 }
 
+const JSON_TOKEN =
+  /("(?:\\.|[^"\\])*"(?=\s*:))|("(?:\\.|[^"\\])*")|\b(true|false)\b|\b(null)\b|(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/gi;
+
 function highlightJson(value: string) {
-  return escapeHtml(value).replace(
-    /("(?:\\.|[^"\\])*"(?=\s*:))|("(?:\\.|[^"\\])*")|\b(true|false|null)\b|(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/gi,
-    (match, key, string, literal, number) => {
-      const cls = key ? "json-key" : string ? "json-string" : literal ? "json-literal" : number ? "json-number" : "";
-      return `<span class="${cls}">${match}</span>`;
-    }
-  );
+  const parts: string[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  JSON_TOKEN.lastIndex = 0;
+  while ((match = JSON_TOKEN.exec(value)) !== null) {
+    if (match.index > last) parts.push(escapeHtml(value.slice(last, match.index)));
+    const [, key, string, bool, nullLit, number] = match;
+    const cls = key
+      ? "json-key"
+      : string
+        ? "json-string"
+        : bool
+          ? "json-bool"
+          : nullLit
+            ? "json-null"
+            : number
+              ? "json-number"
+              : "";
+    parts.push(`<span class="${cls}">${escapeHtml(match[0])}</span>`);
+    last = match.index + match[0].length;
+  }
+  if (last < value.length) parts.push(escapeHtml(value.slice(last)));
+  return parts.join("");
 }
 
 function highlightXml(value: string) {

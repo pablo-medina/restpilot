@@ -5,9 +5,168 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RestPilot</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      html {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #f6f4ef;
+        color: #25231f;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 13px;
+      }
+      html[data-theme="dark"] body {
+        background: #141312;
+        color: #ece7dc;
+      }
+      #app {
+        min-height: 100vh;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        height: 100vh;
+      }
+      .rail {
+        display: flex;
+        flex-direction: column;
+        padding: 14px;
+        border-right: 1px solid rgba(52, 48, 42, 0.1);
+        background: rgba(255, 252, 246, 0.72);
+      }
+      html[data-theme="dark"] .rail {
+        border-right-color: rgba(236, 231, 220, 0.1);
+        background: #181715;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 2px 14px;
+      }
+      .brand-logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+      }
+      .brand-name {
+        font-size: 24px;
+        font-weight: 650;
+        letter-spacing: -0.04em;
+      }
+      .explorer-title {
+        display: block;
+        margin-bottom: 8px;
+        color: #6f6a62;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      html[data-theme="dark"] .explorer-title {
+        color: #a8a093;
+      }
+      .collection-search-field {
+        display: flex;
+        align-items: center;
+        height: 32px;
+        margin-bottom: 10px;
+        padding: 0 8px;
+        border: 1px solid rgba(52, 48, 42, 0.14);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.55);
+        color: #8b857c;
+      }
+      html[data-theme="dark"] .collection-search-field {
+        border-color: rgba(236, 231, 220, 0.12);
+        background: rgba(26, 25, 23, 0.88);
+        color: #8a847c;
+      }
+      .tree-skeleton {
+        flex: 1;
+        min-height: 120px;
+        border-radius: 6px;
+        background: rgba(52, 48, 42, 0.06);
+      }
+      html[data-theme="dark"] .tree-skeleton {
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .rail-nav {
+        display: grid;
+        gap: 4px;
+        margin-top: auto;
+        padding-top: 10px;
+        border-top: 1px solid rgba(52, 48, 42, 0.1);
+      }
+      html[data-theme="dark"] .rail-nav {
+        border-top-color: rgba(236, 231, 220, 0.1);
+      }
+      .rail-link {
+        display: flex;
+        align-items: center;
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 8px;
+        color: #555048;
+        font-weight: 600;
+      }
+      html[data-theme="dark"] .rail-link {
+        color: #b8b2a6;
+      }
+      .workspace {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        background: #f6f4ef;
+      }
+      html[data-theme="dark"] .workspace {
+        background: #141312;
+      }
+      .workspace-skeleton {
+        flex: 1;
+        margin: 12px;
+        border: 1px solid rgba(52, 48, 42, 0.1);
+        border-radius: 8px;
+        background: rgba(255, 252, 246, 0.72);
+      }
+      html[data-theme="dark"] .workspace-skeleton {
+        border-color: rgba(236, 231, 220, 0.1);
+        background: #22211e;
+      }
+    </style>
+    <script>
+      (function () {
+        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="app">
+      <main class="shell" aria-busy="true" aria-label="Loading RestPilot">
+        <aside class="rail">
+          <div class="brand">
+            <img class="brand-logo" src="/favicon.svg" width="32" height="32" alt="" />
+            <span class="brand-name">RestPilot</span>
+          </div>
+          <section class="rail-collection" style="display: flex; flex: 1; flex-direction: column; min-height: 0">
+            <strong class="explorer-title">Collection</strong>
+            <div class="collection-search-field" aria-hidden="true">Search collection</div>
+            <div class="tree-skeleton" aria-hidden="true"></div>
+          </section>
+          <nav class="rail-nav" aria-hidden="true">
+            <span class="rail-link">Variables</span>
+            <span class="rail-link">Settings</span>
+          </nav>
+        </aside>
+        <section class="workspace">
+          <div class="workspace-skeleton" aria-hidden="true"></div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/bootstrap.ts"></script>
   </body>
 </html>

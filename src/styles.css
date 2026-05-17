@@ -1886,8 +1886,12 @@ select,
   color: #8f4c77;
 }
 
-.json-literal {
-  color: #a64032;
+.json-bool {
+  color: #7c4fa8;
+}
+
+.json-null {
+  color: #6f6a62;
 }
 
 .xml-tag {
@@ -3212,10 +3216,11 @@ select,
   --dark-text-faint: #8a847c;
   --dark-accent: #7eb8a8;
   --dark-accent-bright: #9fd4c6;
-  --dark-json-key: #7eb8a8;
-  --dark-json-string: #e8c078;
-  --dark-json-number: #c9a8e0;
-  --dark-json-literal: #f0b0a8;
+  --dark-json-key: #b4d4e8;
+  --dark-json-string: #f0a8c8;
+  --dark-json-number: #e8a868;
+  --dark-json-bool: #c4a0f0;
+  --dark-json-null: #9a8cb8;
 }
 
 [data-theme="dark"] body {
@@ -3483,8 +3488,12 @@ select,
   color: var(--dark-json-number);
 }
 
-[data-theme="dark"] .json-literal {
-  color: var(--dark-json-literal);
+[data-theme="dark"] .json-bool {
+  color: var(--dark-json-bool);
+}
+
+[data-theme="dark"] .json-null {
+  color: var(--dark-json-null);
 }
 
 [data-theme="dark"] .xml-tag {
@@ -3505,50 +3514,6 @@ select,
 
 [data-theme="dark"] .xml-cdata {
   color: var(--dark-json-number);
-}
-
-[data-theme="dark"] .cm-editor .tok-propertyName,
-[data-theme="dark"] .cm-editor .tok-definition {
-  color: var(--dark-json-key);
-}
-
-[data-theme="dark"] .cm-editor .tok-string,
-[data-theme="dark"] .cm-editor .tok-string2 {
-  color: var(--dark-json-string);
-}
-
-[data-theme="dark"] .cm-editor .tok-number {
-  color: var(--dark-json-number);
-}
-
-[data-theme="dark"] .cm-editor .tok-bool,
-[data-theme="dark"] .cm-editor .tok-null,
-[data-theme="dark"] .cm-editor .tok-atom {
-  color: var(--dark-json-literal);
-}
-
-[data-theme="dark"] .cm-editor .tok-keyword {
-  color: #c9a8e0;
-}
-
-[data-theme="dark"] .cm-editor .tok-comment {
-  color: #7a756c;
-  font-style: italic;
-}
-
-[data-theme="dark"] .cm-editor .tok-punctuation,
-[data-theme="dark"] .cm-editor .tok-bracket,
-[data-theme="dark"] .cm-editor .tok-squareBracket,
-[data-theme="dark"] .cm-editor .tok-paren {
-  color: var(--dark-text-faint);
-}
-
-[data-theme="dark"] .cm-editor .tok-tagName {
-  color: var(--dark-json-key);
-}
-
-[data-theme="dark"] .cm-editor .tok-attributeName {
-  color: var(--dark-json-string);
 }
 
 [data-theme="dark"] .response-head {

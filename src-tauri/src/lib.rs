@@ -87,6 +87,50 @@ struct RestResponse {
     body: String,
 }
 
+#[derive(Debug, Serialize)]
+struct StartupSettings {
+    theme: String,
+    language: String,
+}
+
+#[tauri::command]
+fn load_startup_settings() -> StartupSettings {
+    let defaults = StartupSettings {
+        theme: "light".to_string(),
+        language: "en".to_string(),
+    };
+
+    let Ok(path) = config_file_path() else {
+        return defaults;
+    };
+    if !path.exists() {
+        return defaults;
+    }
+
+    let Ok(content) = fs::read_to_string(path) else {
+        return defaults;
+    };
+    let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return defaults;
+    };
+
+    let settings = config.get("settings");
+    StartupSettings {
+        theme: settings
+            .and_then(|value| value.get("theme"))
+            .and_then(|value| value.as_str())
+            .filter(|value| *value == "light" || *value == "dark")
+            .unwrap_or(defaults.theme.as_str())
+            .to_string(),
+        language: settings
+            .and_then(|value| value.get("language"))
+            .and_then(|value| value.as_str())
+            .filter(|value| *value == "en" || *value == "es")
+            .unwrap_or(defaults.language.as_str())
+            .to_string(),
+    }
+}
+
 #[tauri::command]
 fn load_app_config() -> Result<serde_json::Value, String> {
     let path = config_file_path()?;
@@ -523,6 +567,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             cancel_request,
+            load_startup_settings,
             load_app_config,
             save_app_config,
             send_request

@@ -41,9 +41,17 @@
 
 - Collection order is a flat `items[]` with `parentId`. Drag-and-drop must support reordering, nesting folders, moving requests between folders, and moving items to the root.
 
+## Startup and performance
+
+- **Release builds** are the benchmark for startup UX: the static shell in `index.html` paints immediately; `src/bootstrap.ts` applies theme/locale and loads config while `src/app.ts` is fetched as a separate chunk. CodeMirror loads only via `src/app/editor-runtime.ts` when editors mount.
+- **`tauri dev` is expected to feel much slower** (unbundled modules, HMR, no minification). Do not treat dev startup time as a regression if release/`tauri build` feels instant — that is the target for the shipped app.
+- If the user reports a blank screen for several seconds, verify **release** first before chasing dev-only slowness.
+
 ## Source layout
 
-- `src/main.ts` — UI orchestration (render, bindings, panels). Still large; further splits belong in `src/ui/` when touched.
+- `src/bootstrap.ts` — minimal entry: startup prefs, parallel config load, dynamic `import("./app")`.
+- `src/app.ts` — UI orchestration (render, bindings, panels). Still large; further splits belong in `src/ui/` when touched.
+- `src/main.ts` — re-exports `bootstrap` (Vite entry compatibility).
 - `src/app/state.ts` — shared `state`, IDs, collection lookups, formatting helpers.
 - `src/app/persistence.ts` — config load/normalize/save (`scheduleSave`, `persistConfig`).
 - `src/app/collection-store.ts` — tree reorder inserts/moves (calls `render()` via `app/render.ts`).
