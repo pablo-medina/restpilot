@@ -49,7 +49,6 @@ struct RestRequest {
     url: String,
     headers: HashMap<String, String>,
     body_mode: String,
-    raw_type: Option<String>,
     body: String,
     form: Vec<FormPair>,
     stream: bool,

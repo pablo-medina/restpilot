@@ -14,10 +14,12 @@ function requestWithAuth(auth: SavedRequest["auth"]): SavedRequest {
     headers: [],
     bodyMode: "none",
     rawType: "text",
-    rawBody: "",
+    body: "",
     form: [],
     auth,
-    streamResponse: false
+    streamResponse: false,
+    lastResponse: null,
+    lastError: null
   };
 }
 
