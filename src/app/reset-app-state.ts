@@ -21,9 +21,11 @@ export function defaultRuntimeState(): Pick<
   | "functionSearchQuery"
   | "activeFunctionRequestTab"
   | "activeFunctionConsoleTab"
-  | "activeFunctionConsoleLoading"
+  | "activeFunctionHttpLoading"
+  | "activeFunctionExtractorLoading"
   | "activeFunctionPopover"
   | "activeSidebarFunctionPlayLoading"
+  | "aiChat"
 > {
 
   return {
@@ -44,9 +46,16 @@ export function defaultRuntimeState(): Pick<
     functionSearchQuery: "",
     activeFunctionRequestTab: "params",
     activeFunctionConsoleTab: "test-result",
-    activeFunctionConsoleLoading: false,
+    activeFunctionHttpLoading: false,
+    activeFunctionExtractorLoading: false,
     activeFunctionPopover: null,
-    activeSidebarFunctionPlayLoading: null
+    activeSidebarFunctionPlayLoading: null,
+    aiChat: {
+      messages: [],
+      streaming: false,
+      streamRunId: null,
+      pendingToolCalls: null
+    }
   };
 }
 

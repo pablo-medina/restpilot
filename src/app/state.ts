@@ -1,8 +1,10 @@
 import { escapeHtml } from "../content-display";
+import { COLLECTION_ROOT_PARENT_ID, isCollectionRoot, normalizeParentId } from "./collection-parent";
 import type { TextContextFlags } from "./context-menu";
 import { defaultConfig } from "../types";
 import type {
   ActivePanel,
+  AiChatRuntimeState,
   AppConfig,
   SavedRequest,
   TabState,
@@ -35,9 +37,11 @@ export type AppState = AppConfig & {
   functionSearchQuery: string;
   activeFunctionRequestTab: "params" | "headers" | "body" | "auth";
   activeFunctionConsoleTab: "test-result" | "raw-response";
-  activeFunctionConsoleLoading: boolean;
+  activeFunctionHttpLoading: boolean;
+  activeFunctionExtractorLoading: boolean;
   activeFunctionPopover: "params" | "headers" | "body" | "auth" | null;
   activeSidebarFunctionPlayLoading: string | null;
+  aiChat: AiChatRuntimeState;
 };
 
 
@@ -60,9 +64,16 @@ export const state: AppState = {
   functionSearchQuery: "",
   activeFunctionRequestTab: "params",
   activeFunctionConsoleTab: "test-result",
-  activeFunctionConsoleLoading: false,
+  activeFunctionHttpLoading: false,
+  activeFunctionExtractorLoading: false,
   activeFunctionPopover: null,
-  activeSidebarFunctionPlayLoading: null
+  activeSidebarFunctionPlayLoading: null,
+  aiChat: {
+    messages: [],
+    streaming: false,
+    streamRunId: null,
+    pendingToolCalls: null
+  }
 };
 
 
@@ -90,16 +101,19 @@ export function getItem(itemId: string) {
   return state.items.find((item) => item.id === itemId);
 }
 
-export function selectedFolderId() {
+export function selectedFolderId(): string {
   const selected = state.selectedTreeId ? getItem(state.selectedTreeId) : null;
-  return selected?.kind === "folder" ? selected.id : selected?.parentId ?? null;
+  if (!selected) return COLLECTION_ROOT_PARENT_ID;
+  if (selected.kind === "folder") return selected.id;
+  return normalizeParentId(selected.parentId);
 }
 
-export function childrenOf(parentId: string | null) {
-  return state.items.filter((item) => item.parentId === parentId);
+export function childrenOf(parentId: string | null | undefined) {
+  const normalized = normalizeParentId(parentId);
+  return state.items.filter((item) => normalizeParentId(item.parentId) === normalized);
 }
 
-export function childCount(parentId: string | null) {
+export function childCount(parentId: string | null | undefined) {
   return childrenOf(parentId).length;
 }
 

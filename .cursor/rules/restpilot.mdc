@@ -18,3 +18,4 @@ alwaysApply: true
 - Keep changes focused; match patterns in `src/main.ts` and `src/styles.css`.
 - **New tabs / panels / sections**: follow **AGENTS.md → “Flex and panel layout”**, **“Panel insets”**, and **“Field remove control”** (`mini-btn field-remove-btn` for × deletes). Copy `params`, `headers`, or `auth` markup/CSS; do not ship until resize looks correct.
 - **Settings toggles**: checkbox rows use `.settings-toggle-row` (`auto auto`, `fit-content`). Do not put toggles in a grid column with `1fr` beside them.
+- **AI chat fixes**: prefer prompt/tool-description changes (`src/ai/context.ts`, `src/ai/tools.ts`). Do not add preflights, per-locale keyword routers, or client-side intent patches; see **AGENTS.md → AI behavior fixes (for agents)**. Propose other code fixes and get user validation first.

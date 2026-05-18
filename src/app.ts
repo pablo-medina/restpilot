@@ -48,7 +48,14 @@ import {
 
 import { exportCollection, importCollection } from "./app/collection-io";
 import { getLocale, setLocale, t } from "./i18n";
-import { bindSettings, renderSettings, resetSettingsSessionState } from "./settings";
+import {
+  bindSettings,
+  renderSettings,
+  resetSettingsSessionState,
+  setSettingsActiveTab,
+  type SettingsChangeScope
+} from "./settings";
+import { getSettingsScrollTop, restoreSettingsScrollTop } from "./settings-scroll";
 import {
   bindRequestPopoverTriggers,
   closeRequestPopovers,
@@ -57,6 +64,8 @@ import {
   setRequestPopoverHooks,
   syncRequestPopover
 } from "./request-popovers";
+import { bindAiWorkspace, renderAiWorkspace } from "./ai-workspace";
+import { setAiNavigation } from "./ai/navigation";
 import { bindVariablesWorkspace, renderVariablesWorkspace } from "./variables-workspace";
 import { environmentChipLabel, getEffectiveVariables, getActiveEnvironment, activeEnvironmentVariables } from "./app/environments";
 import { buildRequestUrl, ingestUrlIntoRequest, migrateRequestQuery } from "./url-params";
@@ -69,6 +78,11 @@ import {
   mountPopover,
   bindPopoverClose
 } from "./components/popover";
+import { openDescribePopover } from "./app/describe-popover";
+import { openFunctionImportPopover } from "./app/function-import-popover";
+import { invokeFunctionHttp, runExtractorOnResponse } from "./app/function-http";
+import { openFunctionExtractorAiPopover } from "./app/function-extractor-ai-popover";
+import { iconAi } from "./icons";
 import {
   applyVariables,
   displayRequestUrl,
@@ -101,6 +115,12 @@ import {
   collectionSearchVisibleIds,
   folderExpandedForSearch
 } from "./app/collection-search";
+import { COLLECTION_ROOT_PARENT_ID, isCollectionRoot } from "./app/collection-parent";
+import {
+  buildSiblingNameConflict,
+  type SiblingNameConflict,
+  uniquifySiblingTitle
+} from "./app/collection-sibling-names";
 import { insertItemAt, moveDroppedItem, moveItemTo } from "./app/collection-store";
 import { attachTabStripReorder } from "./app/tab-strip-reorder";
 import { finishBoot } from "./app/boot-loader";
@@ -110,10 +130,12 @@ import {
   applyUserSettings,
   loadStoredConfig,
   persistConfig,
+  httpTransportPayload,
   proxyPayload,
   scheduleSave
 } from "./app/persistence";
 import { resetAppStateToDefaults } from "./app/reset-app-state";
+import { setCollectionTreeRefresh } from "./app/collection-mutation";
 import { render, setRenderApp } from "./app/render";
 import {
   blankRequest,
@@ -196,7 +218,7 @@ export async function startApp(
       const activeId = state.activeFunctionId;
       const func = state.functions.find((f) => f.id === activeId);
       if (func) {
-        void testFunction(func);
+        void runFunctionExtractor(func);
       }
     }
   });
@@ -224,6 +246,17 @@ export async function startApp(
   }, true);
 
   setRenderApp(renderApp);
+  setCollectionTreeRefresh(() => {
+    if (state.activePanel !== "request") return;
+    const tree = document.querySelector(".collection-sidebar-panel .tree");
+    if (!tree) return;
+    tree.innerHTML = renderExplorerTree(COLLECTION_ROOT_PARENT_ID, 0);
+    bindTree();
+  });
+  setAiNavigation({
+    openRequest: (requestId) => openRequest(requestId),
+    openFunction: (functionId) => openFunctionWorkspace(functionId)
+  });
   setRequestPopoverHooks({
     onVariablesChanged: onEffectiveVariablesChanged,
     openVariablesPanel: openVariablesWorkspace
@@ -285,7 +318,7 @@ function renderShellChrome(labels: ReturnType<typeof t>) {
     activePanel: state.activePanel,
     collectionSidebarOpen: state.collectionSidebarOpen,
     collectionSearchQuery: state.collectionSearchQuery,
-    treeHtml: renderExplorerTree(null, 0),
+    treeHtml: renderExplorerTree(COLLECTION_ROOT_PARENT_ID, 0),
     escapeAttribute
   });
 }
@@ -302,6 +335,7 @@ function renderWorkspaceMarkup() {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
   if (state.activePanel === "variables") return renderVariablesWorkspace();
+  if (state.activePanel === "ai") return renderAiWorkspace();
   if (state.activePanel === "settings") return renderSettings(state.settings);
   if (state.activePanel === "functions") {
     const activeId = state.activeFunctionId;
@@ -347,9 +381,11 @@ function updateActivityBarActive() {
           ? state.activePanel === "variables"
           : activity === "functions"
             ? state.activePanel === "functions"
-            : activity === "settings"
-              ? state.activePanel === "settings"
-              : false;
+            : activity === "ai"
+              ? state.activePanel === "ai"
+              : activity === "settings"
+                ? state.activePanel === "settings"
+                : false;
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-current", active ? "page" : "false");
   });
@@ -846,6 +882,7 @@ function activateRequestTab(requestId: string) {
 function resolveTitleBarCenter(): string {
   if (state.activePanel === "settings") return t().settings.title;
   if (state.activePanel === "variables") return t().nav.variables;
+  if (state.activePanel === "ai") return t().ai.title;
   if (state.activePanel === "functions") return "";
   const request = getActiveRequest();
   if (request?.title.trim()) return request.title.trim();
@@ -867,19 +904,19 @@ function renderApp() {
     : renderWindowChromeMarkup({ center: resolveTitleBarCenter() });
 
   const sidebar = isRequest
-    ? renderShellChrome(labels)
-    : state.activePanel === "functions"
-      ? renderFunctionsSidebarShell(labels, {
-          activePanel: state.activePanel,
-          collectionSidebarOpen: state.collectionSidebarOpen,
-          functionSearchQuery: state.functionSearchQuery,
-          functionsHtml: renderFunctionsList(),
-          escapeAttribute
-        })
-      : "";
+      ? renderShellChrome(labels)
+      : state.activePanel === "functions"
+        ? renderFunctionsSidebarShell(labels, {
+            activePanel: state.activePanel,
+            collectionSidebarOpen: state.collectionSidebarOpen,
+            functionSearchQuery: state.functionSearchQuery,
+            functionsHtml: renderFunctionsList(),
+            escapeAttribute
+          })
+        : "";
 
   appRoot.innerHTML = `
-      ${renderActivityBarMarkup(labels, state.activePanel, state.settings.theme)}
+      ${renderActivityBarMarkup(labels, state.activePanel, state.settings.theme, state.settings.ai.enabled)}
       ${titleBar}
       ${sidebar}
       <main class="shell shell--workspace-only">
@@ -920,7 +957,7 @@ function buildContextMenuMarkup() {
         ${contextMenuButton("new-function", t().nav.newFunction)}
         ${
           func
-            ? `<hr>${contextMenuButton("rename", labels.rename, { shortcut: menuShortcuts.rename() })}`
+            ? `<hr>${contextMenuButton("rename", labels.rename, { shortcut: menuShortcuts.rename() })}${contextMenuButton("describe", labels.describe)}`
             : ""
         }
         ${
@@ -941,6 +978,7 @@ function buildContextMenuMarkup() {
         ${contextMenuButton("close-all-tabs", labels.contextMenu.closeAllTabs)}
         <hr>
         ${contextMenuButton("duplicate", labels.request.duplicate)}
+        ${contextMenuButton("describe", labels.tree.describe)}
       </div>
     `;
   }
@@ -964,10 +1002,12 @@ function buildContextMenuMarkup() {
   }
   if (state.contextMenu.kind === "request-actions") {
     const labels = t().request;
+    const treeLabels = t().tree;
     const request = getRequest(state.contextMenu.requestId);
     return `
       <div class="context-menu context-menu--anchor-end" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
         ${contextMenuButton("duplicate", labels.duplicate)}
+        ${contextMenuButton("describe", treeLabels.describe)}
         ${contextMenuButton("clear", labels.clear)}
         <hr>
         ${contextMenuButton("toggle-stream", labels.streamResponse, { checked: request?.streamResponse ?? false })}
@@ -986,6 +1026,7 @@ function buildContextMenuMarkup() {
           : ""
       }
       ${item?.kind === "request" ? contextMenuButton("show", labels.show) : ""}
+      ${item?.kind === "request" ? contextMenuButton("describe", labels.describe) : ""}
       ${item ? contextMenuButton("duplicate", labels.duplicate) : ""}
       ${item?.kind === "request" ? contextMenuButton("copy-curl", labels.copyCurl) : ""}
       ${
@@ -1248,7 +1289,7 @@ function renderResponse(tab: TabState) {
   `;
 }
 
-function renderExplorerTree(parentId: string | null, depth: number): string {
+function renderExplorerTree(parentId: string, depth: number): string {
   const labels = t().tree;
   const searchVisible = collectionSearchVisibleIds(state.items, state.collectionSearchQuery);
   return state.items
@@ -1267,7 +1308,11 @@ function renderExplorerTree(parentId: string | null, depth: number): string {
             ${
               editing
                 ? `<input class="tree-rename-input" value="${escapeAttribute(item.title)}" spellcheck="false" aria-label="${labels.rename}" />`
-                : `<span class="tree-title">${escapeHtml(item.title)}</span>`
+                : `<span class="tree-title"${
+                    item.kind === "request" && item.description?.trim()
+                      ? ` title="${escapeAttribute(item.description.trim())}"`
+                      : ""
+                  }>${escapeHtml(item.title)}</span>`
             }
           </div>
           ${
@@ -1296,12 +1341,22 @@ function bindWorkspace() {
   const tab = request ? ensureTab(request.id) : null;
 
   if (state.activePanel === "settings") {
-    bindSettings(state.settings, onSettingsChanged, backToWorkspace, clearAllData);
+    bindSettings(state.settings, onSettingsChanged, clearAllData);
     return;
   }
 
   if (state.activePanel === "variables") {
     bindVariablesWorkspace(onEffectiveVariablesChanged);
+    return;
+  }
+
+  if (state.activePanel === "ai") {
+    bindAiWorkspace({
+      onOpenSettings: () => {
+        setSettingsActiveTab("ai");
+        openPanel("settings");
+      }
+    });
     return;
   }
 
@@ -1490,6 +1545,24 @@ function bindEvents() {
   bindWorkspace();
 }
 
+function remountActivityBar() {
+  const nav = document.querySelector<HTMLElement>(".activity-bar");
+  if (!nav) return;
+  const labels = t();
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = renderActivityBarMarkup(
+    labels,
+    state.activePanel,
+    state.settings.theme,
+    state.settings.ai.enabled
+  );
+  const fresh = wrapper.querySelector<HTMLElement>(".activity-bar");
+  if (!fresh) return;
+  nav.replaceWith(fresh);
+  bindActivityBar();
+  updateThemeToggleIcon();
+}
+
 function bindActivityBar() {
   document.querySelectorAll<HTMLButtonElement>("[data-activity]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1515,6 +1588,7 @@ function bindActivityBar() {
         return;
       }
       if (activity === "variables") openVariablesWorkspace("globals");
+      if (activity === "ai" && state.settings.ai.enabled) openPanel("ai");
       if (activity === "settings") openPanel("settings");
     });
   });
@@ -1527,7 +1601,7 @@ function bindActivityBar() {
 
 
 function openPanel(panel: ActivePanel) {
-  if (panel !== state.activePanel && (panel === "settings" || panel === "variables")) {
+  if (panel !== state.activePanel && (panel === "settings" || panel === "variables" || panel === "ai")) {
     state.previousPanel = state.activePanel;
   }
   closeRequestPopovers();
@@ -1540,13 +1614,39 @@ function backToWorkspace() {
   openPanel("request");
 }
 
-function onSettingsChanged() {
+function onSettingsChanged(scope: SettingsChangeScope = "full") {
   const languageChanged = getLocale() !== state.settings.language;
+  const settingsScrollTop =
+    state.activePanel === "settings" ? getSettingsScrollTop() : null;
+
   applyUserSettings(state.settings);
   scheduleSave();
   updateThemeToggleIcon();
-  if (languageChanged) render();
-  else if (state.activePanel === "request") renderWorkspace();
+
+  if (!state.settings.ai.enabled && state.activePanel === "ai") {
+    openPanel(state.previousPanel === "ai" ? "request" : state.previousPanel);
+    return;
+  }
+
+  if (scope === "persist") {
+    restoreSettingsScrollTop(settingsScrollTop);
+    return;
+  }
+
+  if (scope === "activity-bar") {
+    remountActivityBar();
+    restoreSettingsScrollTop(settingsScrollTop);
+    return;
+  }
+
+  if (languageChanged || state.activePanel === "settings") {
+    render();
+    restoreSettingsScrollTop(settingsScrollTop);
+    return;
+  }
+
+  if (state.activePanel === "request" || state.activePanel === "ai") renderWorkspace();
+  else render();
 }
 
 async function clearAllData() {
@@ -1754,6 +1854,10 @@ function ensureContextMenuHandlers() {
       const funcId = menu.functionId;
       if (action === "new-function") createNewFunction();
       if (action === "rename" && funcId) startFuncRename(funcId);
+      if (action === "describe" && funcId) {
+        const row = document.querySelector<HTMLElement>(`[data-function-id="${funcId}"]`);
+        if (row) openDescribePopover({ kind: "function", id: funcId }, row);
+      }
       if (action === "delete" && funcId) void deleteFunction(funcId);
       return;
     }
@@ -1764,6 +1868,10 @@ function ensureContextMenuHandlers() {
       if (action === "new-folder") createFolder(parentIdForTreeCreate(itemId));
       if (action === "rename" && itemId) startTreeRename(itemId);
       if (action === "show" && itemId && getRequest(itemId)) openRequest(itemId);
+      if (action === "describe" && itemId) {
+        const row = document.querySelector<HTMLElement>(`[data-tree-id="${itemId}"]`);
+        if (row) openDescribePopover({ kind: "request", id: itemId }, row);
+      }
       if (action === "duplicate" && itemId) duplicateItem(itemId);
       if (action === "copy-curl" && itemId) void copyRequestAsCurl(itemId);
       if (action === "delete" && itemId) deleteItem(itemId);
@@ -1778,6 +1886,12 @@ function ensureContextMenuHandlers() {
       if (action === "close-other-tabs") closeOtherTabs(menu.requestId);
       if (action === "close-all-tabs") closeAllTabs();
       if (action === "duplicate") duplicateItem(menu.requestId);
+      if (action === "describe") {
+        const anchor =
+          document.querySelector<HTMLElement>(`[data-open-tab="${menu.requestId}"]`) ??
+          document.querySelector<HTMLElement>("[data-request-actions-trigger]");
+        if (anchor) openDescribePopover({ kind: "request", id: menu.requestId }, anchor);
+      }
       return;
     }
     if (menu.kind === "response-copy") {
@@ -1795,6 +1909,10 @@ function ensureContextMenuHandlers() {
       const tab = state.tabs[menu.requestId];
       if (!request || !tab) return;
       if (action === "duplicate") duplicateItem(menu.requestId);
+      if (action === "describe") {
+        const anchor = document.querySelector<HTMLElement>("[data-request-actions-trigger]");
+        if (anchor) openDescribePopover({ kind: "request", id: menu.requestId }, anchor);
+      }
       if (action === "clear") {
         clearRequestResponse(request, tab);
         scheduleSave();
@@ -1881,7 +1999,7 @@ function bindTree() {
         selected.expanded = false;
         scheduleSave();
         render();
-      } else if (selected.parentId) {
+      } else if (!isCollectionRoot(selected.parentId)) {
         selectTreeItem(selected.parentId, { render: true, focus: true });
       }
     }
@@ -1909,17 +2027,22 @@ function bindTree() {
       onLeaveContainer: clearTreeDropRoot,
       onCommitToRoot: (sourceId) => {
         clearTreeDropRoot();
-        moveItemTo(sourceId, null, state.items.filter((item) => item.parentId === null).length);
+        const conflict = moveItemTo(
+          sourceId,
+          COLLECTION_ROOT_PARENT_ID,
+          childCount(COLLECTION_ROOT_PARENT_ID)
+        );
+        if (conflict) void showSiblingNameConflictDialog(conflict);
       },
       onCommit: (sourceId, targetId, placement) => {
         clearTreeDropRoot();
         const target = getItem(targetId);
         if (!target) return;
-        if (placement === "inside") {
-          moveDroppedItem(sourceId, target, "inside");
-          return;
-        }
-        moveDroppedItem(sourceId, target, placement);
+        const conflict =
+          placement === "inside"
+            ? moveDroppedItem(sourceId, target, "inside")
+            : moveDroppedItem(sourceId, target, placement);
+        if (conflict) void showSiblingNameConflictDialog(conflict);
       }
     });
   }
@@ -1981,7 +2104,7 @@ function bindTree() {
 function visibleTreeItems(): TreeItem[] {
   const result: TreeItem[] = [];
   const searchVisible = collectionSearchVisibleIds(state.items, state.collectionSearchQuery);
-  const walk = (parentId: string | null) => {
+  const walk = (parentId: string) => {
     for (const item of childrenOf(parentId)) {
       if (searchVisible && !searchVisible.has(item.id)) continue;
       result.push(item);
@@ -1990,7 +2113,7 @@ function visibleTreeItems(): TreeItem[] {
       }
     }
   };
-  walk(null);
+  walk(COLLECTION_ROOT_PARENT_ID);
   return result;
 }
 
@@ -2022,6 +2145,19 @@ function startTreeRename(itemId: string) {
   focusTreeRenameInput(itemId);
 }
 
+async function showSiblingNameConflictDialog(conflict: SiblingNameConflict) {
+  const labels = t().tree;
+  const paths = conflict.existing.map((entry) => `• ${entry.path}`).join("\n");
+  await messageDialog(
+    "warning",
+    labels.duplicateNameTitle,
+    labels.duplicateNameBody
+      .replace("{title}", conflict.title)
+      .replace("{parent}", conflict.parentPath)
+      .replace("{paths}", paths)
+  );
+}
+
 function commitTreeRename(itemId: string) {
   const item = getItem(itemId);
   const input = document.querySelector<HTMLInputElement>(`.tree-row[data-tree-id="${itemId}"] .tree-rename-input`);
@@ -2031,7 +2167,16 @@ function commitTreeRename(itemId: string) {
     render();
     return;
   }
-  if (nextTitle) item.title = nextTitle;
+  if (nextTitle) {
+    const conflict = buildSiblingNameConflict(item.parentId, nextTitle, item.id);
+    if (conflict) {
+      void showSiblingNameConflictDialog(conflict);
+      render();
+      focusTreeSelection();
+      return;
+    }
+    item.title = nextTitle;
+  }
   scheduleSave();
   render();
   focusTreeSelection();
@@ -2090,7 +2235,7 @@ function pickTreeFocusAfterDelete(itemId: string): string | null {
     return remaining[remaining.length - 1].id;
   }
 
-  if (item.parentId) return item.parentId;
+  if (!isCollectionRoot(item.parentId)) return item.parentId;
 
   const visible = visibleTreeItems().filter((entry) => entry.id !== itemId && !collectChildren(itemId).includes(entry.id));
   return visible[0]?.id ?? null;
@@ -2439,8 +2584,7 @@ async function sendRequest() {
         form: buildFormPayload(request),
         stream: request.streamResponse
       },
-      proxy: proxyPayload(state.settings.proxy),
-      network: networkPayload(state.settings, request.streamResponse)
+      ...httpTransportPayload(state.settings, request.streamResponse)
     };
 
     if (request.streamResponse) {
@@ -2539,24 +2683,31 @@ async function copyRequestAsCurl(requestId: string) {
   }
 }
 
-function parentIdForTreeCreate(contextItemId: string | null | undefined): string | null {
-  if (!contextItemId) return null;
+function parentIdForTreeCreate(contextItemId: string | null | undefined): string {
+  if (!contextItemId) return COLLECTION_ROOT_PARENT_ID;
   const item = getItem(contextItemId);
-  if (!item) return null;
+  if (!item) return COLLECTION_ROOT_PARENT_ID;
   if (item.kind === "folder") return item.id;
   return item.parentId;
 }
 
-function createFolder(parentId: string | null = null) {
+function createFolder(parentId: string = COLLECTION_ROOT_PARENT_ID) {
   focusRequestWorkspace();
-  const folder: TreeItem = { id: id(), kind: "folder", parentId, title: "New folder", expanded: true };
+  const folder: TreeItem = {
+    id: id(),
+    kind: "folder",
+    parentId,
+    title: uniquifySiblingTitle(parentId, "New folder"),
+    expanded: true
+  };
   insertItemAt(folder, parentId, childCount(parentId));
   scheduleSave();
   startTreeRename(folder.id);
 }
 
-function createRequest(parentId: string | null = null) {
+function createRequest(parentId: string = COLLECTION_ROOT_PARENT_ID) {
   const request = blankRequest(parentId);
+  request.title = uniquifySiblingTitle(parentId, request.title);
   insertItemAt(request, parentId, childCount(parentId));
   state.autoTitleFromUrlId = request.id;
   openRequest(request.id);
@@ -2573,6 +2724,7 @@ function focusRequestUrl() {
 function applyAutoTitleFromUrl(request: SavedRequest) {
   const derived = titleFromUrl(displayRequestUrl(request));
   if (!derived) return;
+  if (buildSiblingNameConflict(request.parentId, derived, request.id)) return;
   request.title = derived;
   syncRequestTitle(request.id);
 }
@@ -2643,6 +2795,17 @@ async function deleteItem(itemId: string) {
   scheduleSave();
   render();
   requestAnimationFrame(() => focusTreeSelection());
+}
+
+function openFunctionWorkspace(functionId: string) {
+  if (!state.functions.some((f) => f.id === functionId)) return;
+  closeRequestPopovers();
+  state.activeFunctionId = functionId;
+  if (state.activePanel !== "functions") {
+    state.activePanel = "functions";
+  }
+  state.contextMenu = null;
+  render();
 }
 
 function openRequest(requestId: string) {
@@ -2796,7 +2959,7 @@ async function mountFunctionEditor(func: AppFunction) {
         scheduleSave();
       },
       onSend: () => {
-        void testFunction(func);
+        void sendFunctionRequest(func);
       }
     });
   }
@@ -2812,7 +2975,7 @@ async function mountFunctionEditor(func: AppFunction) {
         scheduleSave();
       },
       onSend: () => {
-        void testFunction(func);
+        void runFunctionExtractor(func);
       }
     });
   }
@@ -3015,54 +3178,60 @@ function bindFuncAuthPanel(func: AppFunction, onChange: () => void) {
 function renderFunctionWorkspace(func: AppFunction) {
   const labels = t().request;
   const funcLabels = t().functions;
+  const aiExtractorEnabled =
+    state.settings.ai.enabled && Boolean(state.settings.ai.model.trim());
 
   // Render Console Output Panels
-  const res = func.lastTestResult;
+  const httpRes = func.lastHttpResponse;
+  const extractRes = func.lastTestResult;
 
   // 1. Raw Response Panel (Left Panel bottom)
   let rawResponsePanel = "";
-  if (state.activeFunctionConsoleLoading) {
+  if (state.activeFunctionHttpLoading) {
     rawResponsePanel = `
       <div class="flex flex-col items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; height: 180px; min-height: 180px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
         <span class="send-icon-spin" style="margin-bottom: 8px; width: 16px; height: 16px; border: 2px solid var(--rp-text-muted); border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;"></span>
-        ${funcLabels.testing}
+        ${funcLabels.sending}
       </div>
     `;
-  } else if (!res) {
+  } else if (!httpRes) {
     rawResponsePanel = `
       <div class="flex items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; text-align: center; padding: 24px; height: 180px; min-height: 180px; border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
-        No response body yet.
+        ${funcLabels.noHttpResponse}
       </div>
     `;
   } else {
     rawResponsePanel = `
       <div class="flex flex-col flex-1 min-h-0" style="padding: 12px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); font-family: monospace; font-size: 13px; overflow-y: auto; text-align: left; height: 180px; min-height: 180px;">
-        <pre style="margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--rp-text-muted);">${escapeHtml(res.responseBody || "No response body.")}</pre>
+        <pre style="margin: 0; white-space: pre-wrap; word-break: break-all; color: var(--rp-text-muted);">${escapeHtml(httpRes.body || "")}</pre>
       </div>
     `;
   }
 
   // 2. Extracted Outcome Panel (Right Panel bottom)
   let extractedOutcomePanel = "";
-  if (state.activeFunctionConsoleLoading) {
+  if (state.activeFunctionExtractorLoading) {
     extractedOutcomePanel = `
       <div class="flex flex-col items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; height: 180px; min-height: 180px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
         <span class="send-icon-spin" style="margin-bottom: 8px; width: 16px; height: 16px; border: 2px solid var(--rp-text-muted); border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;"></span>
         ${funcLabels.testing}
       </div>
     `;
-  } else if (!res) {
+  } else if (!extractRes) {
     extractedOutcomePanel = `
       <div class="flex items-center justify-center flex-1" style="color: var(--rp-text-muted); font-size: 13px; text-align: center; padding: 24px; height: 180px; min-height: 180px; border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface);">
         ${funcLabels.emptyTestResult}
       </div>
     `;
-  } else if (res.success) {
+  } else if (extractRes.success) {
     let formattedVal = "";
     try {
-      formattedVal = typeof res.extractedValue === "object" ? JSON.stringify(res.extractedValue, null, 2) : String(res.extractedValue);
+      formattedVal =
+        typeof extractRes.extractedValue === "object"
+          ? JSON.stringify(extractRes.extractedValue, null, 2)
+          : String(extractRes.extractedValue);
     } catch {
-      formattedVal = String(res.extractedValue);
+      formattedVal = String(extractRes.extractedValue);
     }
     extractedOutcomePanel = `
       <div class="flex flex-col flex-1 min-h-0" style="padding: 12px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); font-family: monospace; font-size: 13px; overflow-y: auto; text-align: left; height: 180px; min-height: 180px;">
@@ -3080,7 +3249,7 @@ function renderFunctionWorkspace(func: AppFunction) {
           <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b54a3a;"></span>
           ${funcLabels.failure}
         </div>
-        <pre style="margin: 0; white-space: pre-wrap; color: #b54a3a;">${escapeHtml(res.error || "Unknown error occurred.")}</pre>
+        <pre style="margin: 0; white-space: pre-wrap; color: #b54a3a;">${escapeHtml(extractRes.error || "Unknown error occurred.")}</pre>
       </div>
     `;
   }
@@ -3093,8 +3262,12 @@ function renderFunctionWorkspace(func: AppFunction) {
         <div class="request-card flex flex-col h-full" style="padding: var(--workspace-panel-inset-block) var(--workspace-panel-inset-inline); min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
           
           <!-- Header -->
-          <div class="flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border);">
-            <span style="font-weight: 600; font-size: 13px; color: var(--rp-text);">${funcLabels.functionType}: HTTP Request</span>
+          <div class="function-workspace-header flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border);">
+            <span style="font-weight: 600; font-size: 13px; color: var(--rp-text); display: block; margin-bottom: 8px;">${funcLabels.functionType}: HTTP Request</span>
+            <label class="function-description-field">
+              <span class="function-description-label">${funcLabels.description}</span>
+              <textarea id="func-description" class="function-description-input" rows="2" spellcheck="true" placeholder="${escapeAttribute(funcLabels.descriptionPlaceholder)}">${escapeHtml(func.description ?? "")}</textarea>
+            </label>
           </div>
 
           <!-- URL Bar -->
@@ -3108,15 +3281,18 @@ function renderFunctionWorkspace(func: AppFunction) {
               <option value="OPTIONS" ${func.method === "OPTIONS" ? "selected" : ""}>OPTIONS</option>
               <option value="HEAD" ${func.method === "HEAD" ? "selected" : ""}>HEAD</option>
             </select>
-            <input
-              id="func-url"
-              class="url-send-input"
-              value="${escapeAttribute(func.url)}"
-              placeholder="https://api.example.com/endpoint"
-              spellcheck="false"
-              autocomplete="off"
-              style="flex: 1; min-width: 0; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);"
-            />
+            <div class="url-send-field" style="flex: 1; min-width: 0;">
+              <input
+                id="func-url"
+                class="url-send-input"
+                value="${escapeAttribute(func.url)}"
+                placeholder="https://api.example.com/endpoint"
+                spellcheck="false"
+                autocomplete="off"
+                aria-label="${labels.resolvedUrl}"
+              />
+              <button id="func-send-btn" class="url-send-btn${state.activeFunctionHttpLoading ? " is-loading" : ""}" type="button"${state.activeFunctionHttpLoading ? " disabled" : ""}>${labels.send}</button>
+            </div>
           </div>
 
           <!-- Popover Badge Buttons Row (Guaranteed horizontal stack with flex row) -->
@@ -3132,6 +3308,9 @@ function renderFunctionWorkspace(func: AppFunction) {
             </button>
             <button type="button" class="segmented-btn" id="func-popover-auth-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
               ${labels.authTab} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.auth.type}</span>
+            </button>
+            <button type="button" class="segmented-btn" id="func-import-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; margin-left: auto;">
+              ${funcLabels.import}
             </button>
           </div>
 
@@ -3185,7 +3364,7 @@ function renderFunctionWorkspace(func: AppFunction) {
           <!-- Divider & Raw Response Title -->
           <div class="flex-shrink-0" style="margin-top: 16px; margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center; justify-content: space-between;">
             <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Raw Response Body</span>
-            ${res ? `<span style="font-size: 11px; font-weight: 600; color: #4b8b3b; font-family: monospace;">HTTP ${res.responseStatus}</span>` : ""}
+            ${httpRes ? `<span style="font-size: 11px; font-weight: 600; color: #4b8b3b; font-family: monospace;">HTTP ${httpRes.status}</span>` : ""}
           </div>
 
           <!-- Raw Response Content -->
@@ -3200,12 +3379,19 @@ function renderFunctionWorkspace(func: AppFunction) {
           <!-- Header -->
           <div class="flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border); display: flex; align-items: center; justify-content: space-between; height: 28px;">
             <span style="font-weight: 600; font-size: 13px; color: var(--rp-text);">${funcLabels.extractorCode} (JavaScript)</span>
-            <button class="quiet-button ${state.activeFunctionConsoleLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
-              <span class="send-icon-spin" style="display: ${state.activeFunctionConsoleLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
-              <svg style="display: ${state.activeFunctionConsoleLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-            </button>
+            <span class="function-extractor-actions" style="display: flex; align-items: center; gap: 4px;">
+              ${
+                aiExtractorEnabled
+                  ? `<button class="quiet-button function-ai-extractor-btn" id="func-ai-extractor-btn" type="button" title="${escapeAttribute(funcLabels.aiExtractorButton)}" aria-label="${escapeAttribute(funcLabels.aiExtractorButton)}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: var(--rp-accent); padding: 4px; border-radius: 4px; min-width: 28px; height: 28px;">${iconAi}</button>`
+                  : ""
+              }
+              <button class="quiet-button ${state.activeFunctionExtractorLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
+                <span class="send-icon-spin" style="display: ${state.activeFunctionExtractorLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                <svg style="display: ${state.activeFunctionExtractorLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </button>
+            </span>
           </div>
 
           <!-- CodeMirror JS Editor Container -->
@@ -3251,6 +3437,24 @@ function bindFunctionWorkspace(func: AppFunction) {
     });
   }
 
+  const descriptionInput = document.querySelector<HTMLTextAreaElement>("#func-description");
+  if (descriptionInput) {
+    descriptionInput.addEventListener("input", () => {
+      const trimmed = descriptionInput.value.trim();
+      func.description = trimmed || undefined;
+      scheduleSave();
+    });
+  }
+
+  const importBtn = document.getElementById("func-import-btn");
+  if (importBtn) {
+    importBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.activeFunctionPopover = null;
+      openFunctionImportPopover(func, importBtn);
+    });
+  }
+
   // B. Handle Popover Badge Buttons Clicking
   ["params", "headers", "body", "auth"].forEach((kind: any) => {
     const btn = document.getElementById(`func-popover-${kind}-btn`);
@@ -3279,7 +3483,23 @@ function bindFunctionWorkspace(func: AppFunction) {
   const testBtn = document.querySelector<HTMLButtonElement>("#test-function-btn");
   if (testBtn) {
     testBtn.addEventListener("click", () => {
-      void testFunction(func);
+      void runFunctionExtractor(func);
+    });
+  }
+
+  const sendBtn = document.getElementById("func-send-btn");
+  if (sendBtn) {
+    sendBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void sendFunctionRequest(func);
+    });
+  }
+
+  const aiBtn = document.getElementById("func-ai-extractor-btn");
+  if (aiBtn) {
+    aiBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openFunctionExtractorAiPopover(func, aiBtn);
     });
   }
 }
@@ -3687,7 +3907,7 @@ function bindFuncPopoverEvents(popover: HTMLElement, func: AppFunction, kind: "p
             onChange();
           },
           onSend: () => {
-            void testFunction(func);
+            void sendFunctionRequest(func);
           }
         });
       });
@@ -3701,154 +3921,115 @@ function bindFuncPopoverEvents(popover: HTMLElement, func: AppFunction, kind: "p
   }
 }
 
-async function testFunction(func: AppFunction) {
-  if (state.activeFunctionConsoleLoading) return;
+type FunctionEditorFocus = {
+  kind: "extractor" | "body" | null;
+  selectionRange: unknown;
+  scrollTop: number;
+};
 
-  // Save focus, selection range, and scroll position
-  let focusKind: "extractor" | "body" | null = null;
-  let selectionRange: any = null;
-  let scrollTopValue = 0;
+function captureFunctionEditorFocus(): FunctionEditorFocus {
+  let kind: FunctionEditorFocus["kind"] = null;
+  let selectionRange: unknown = null;
+  let scrollTop = 0;
 
   const extractorHost = document.getElementById("function-extractor-editor");
   const bodyHost = document.getElementById("function-body-editor");
+  const extractorView = extractorHost ? (extractorHost as { __cmView?: { hasFocus: boolean; state: { selection: unknown }; scrollDOM?: { scrollTop: number } } }).__cmView : null;
+  const bodyView = bodyHost ? (bodyHost as { __cmView?: { hasFocus: boolean; state: { selection: unknown }; scrollDOM?: { scrollTop: number } } }).__cmView : null;
 
-  const extractorView = extractorHost ? (extractorHost as any).__cmView : null;
-  const bodyView = bodyHost ? (bodyHost as any).__cmView : null;
-
-  if (extractorView && extractorView.hasFocus) {
-    focusKind = "extractor";
+  if (extractorView?.hasFocus) {
+    kind = "extractor";
     selectionRange = extractorView.state.selection;
-    scrollTopValue = extractorView.scrollDOM?.scrollTop ?? 0;
-  } else if (bodyView && bodyView.hasFocus) {
-    focusKind = "body";
+    scrollTop = extractorView.scrollDOM?.scrollTop ?? 0;
+  } else if (bodyView?.hasFocus) {
+    kind = "body";
     selectionRange = bodyView.state.selection;
-    scrollTopValue = bodyView.scrollDOM?.scrollTop ?? 0;
+    scrollTop = bodyView.scrollDOM?.scrollTop ?? 0;
   }
 
-  state.activeFunctionConsoleLoading = true;
+  return { kind, selectionRange, scrollTop };
+}
+
+function restoreFunctionEditorFocus(focus: FunctionEditorFocus) {
+  if (focus.kind === "extractor") {
+    const host = document.getElementById("function-extractor-editor");
+    const view = host ? (host as { __cmView?: { focus: () => void; dispatch: (arg: { selection: unknown }) => void; scrollDOM?: { scrollTop: number } } }).__cmView : null;
+    if (view) {
+      view.focus();
+      if (focus.selectionRange) view.dispatch({ selection: focus.selectionRange });
+      if (focus.scrollTop > 0 && view.scrollDOM) view.scrollDOM.scrollTop = focus.scrollTop;
+    }
+    return;
+  }
+  if (focus.kind === "body") {
+    state.activeFunctionPopover = "body";
+    syncFunctionPopover();
+    const host = document.getElementById("function-body-editor");
+    const view = host ? (host as { __cmView?: { focus: () => void; dispatch: (arg: { selection: unknown }) => void; scrollDOM?: { scrollTop: number } } }).__cmView : null;
+    if (view) {
+      view.focus();
+      if (focus.selectionRange) view.dispatch({ selection: focus.selectionRange });
+      if (focus.scrollTop > 0 && view.scrollDOM) view.scrollDOM.scrollTop = focus.scrollTop;
+    }
+  }
+}
+
+async function sendFunctionRequest(func: AppFunction) {
+  if (state.activeFunctionHttpLoading) return;
+  state.activeFunctionHttpLoading = true;
+  await renderWorkspace();
+  try {
+    func.lastHttpResponse = await invokeFunctionHttp(func);
+    scheduleSave();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    func.lastHttpResponse = {
+      status: 0,
+      status_text: "Error",
+      duration_ms: 0,
+      headers: {},
+      body: message
+    };
+  } finally {
+    state.activeFunctionHttpLoading = false;
+    await renderWorkspace();
+  }
+}
+
+async function runFunctionExtractor(func: AppFunction) {
+  if (state.activeFunctionExtractorLoading) return;
+
+  const focus = captureFunctionEditorFocus();
+  if (!func.lastHttpResponse) {
+    func.lastTestResult = {
+      success: false,
+      error: t().functions.noHttpResponse
+    };
+    scheduleSave();
+    await renderWorkspace();
+    restoreFunctionEditorFocus(focus);
+    return;
+  }
+
+  state.activeFunctionExtractorLoading = true;
   await renderWorkspace();
 
   try {
-    // 1. Prepare and compile request details
-    // We can simulate an outbound SavedRequest from the AppFunction
-    const fakeRequest: SavedRequest = {
-      id: func.id,
-      kind: "request",
-      parentId: null,
-      title: func.name,
-      method: func.method,
-      url: func.url,
-      queryParams: func.queryParams,
-      headers: func.headers,
-      bodyMode: func.bodyMode,
-      rawType: func.rawType,
-      body: func.body,
-      form: func.form,
-      auth: func.auth,
-      streamResponse: false,
-      lastResponse: null,
-      lastError: null
-    };
-
-    // Use RestPilot's standard resolvers for variables and headers!
-    const effectiveVariables = getEffectiveVariables();
-    const headers = withContentType(fakeRequest, buildRequestHeaders(fakeRequest));
-    const resolvedUrl = resolvedOutboundUrl(fakeRequest, effectiveVariables).trim();
-
-    const payload = {
-      request: {
-        id: func.id,
-        method: func.method,
-        url: resolvedUrl,
-        headers,
-        body_mode: func.bodyMode,
-        raw_type: func.rawType,
-        body: func.bodyMode === "raw" ? applyVariables(func.body, effectiveVariables) : "",
-        form: buildFormPayload(fakeRequest),
-        stream: false
-      },
-      proxy: proxyPayload(state.settings.proxy),
-      network: networkPayload(state.settings, false)
-    };
-
-    // 2. Dispatch to Tauri backend
-    const response = await invoke<ApiResponse>("send_request", { payload });
-
-    // 3. Evaluate the JavaScript Extractor Code inside a safe Function context
-    const codeToEval = func.extractorCode;
-    let parsedBody = response.body;
-    if (typeof response.body === "string") {
-      try {
-        parsedBody = JSON.parse(response.body);
-      } catch {
-        // stay as string
-      }
-    }
-
-    const extractorFunc = new Function("__rawResponse__", "__parsedBody__", `
-      "use strict";
-      const response = {
-        status: __rawResponse__.status,
-        statusText: __rawResponse__.status_text,
-        headers: __rawResponse__.headers,
-        body: __parsedBody__
-      };
-      
-      try {
-        ${codeToEval}
-      } catch(e) {
-        throw new Error("Extractor error: " + e.message);
-      }
-    `);
-
-    const extractedResult = extractorFunc(response, parsedBody);
-
-    // Update func.lastTestResult
+    const extractedResult = runExtractorOnResponse(func, func.lastHttpResponse);
     func.lastTestResult = {
       success: true,
-      extractedValue: extractedResult,
-      responseStatus: response.status,
-      responseBody: response.body
+      extractedValue: extractedResult
     };
-  } catch (error: any) {
+    scheduleSave();
+  } catch (error: unknown) {
     func.lastTestResult = {
       success: false,
-      error: error.message || String(error)
+      error: error instanceof Error ? error.message : String(error)
     };
   } finally {
-    state.activeFunctionConsoleLoading = false;
+    state.activeFunctionExtractorLoading = false;
     await renderWorkspace();
-
-    // Restore focus, selection and scroll position
-    if (focusKind === "extractor") {
-      const newExtractorHost = document.getElementById("function-extractor-editor");
-      const newExtractorView = newExtractorHost ? (newExtractorHost as any).__cmView : null;
-      if (newExtractorView) {
-        newExtractorView.focus();
-        if (selectionRange) {
-          newExtractorView.dispatch({ selection: selectionRange });
-        }
-        if (scrollTopValue > 0 && newExtractorView.scrollDOM) {
-          newExtractorView.scrollDOM.scrollTop = scrollTopValue;
-        }
-      }
-    } else if (focusKind === "body") {
-      // Re-open body popover
-      state.activeFunctionPopover = "body";
-      syncFunctionPopover();
-
-      const newBodyHost = document.getElementById("function-body-editor");
-      const newBodyView = newBodyHost ? (newBodyHost as any).__cmView : null;
-      if (newBodyView) {
-        newBodyView.focus();
-        if (selectionRange) {
-          newBodyView.dispatch({ selection: selectionRange });
-        }
-        if (scrollTopValue > 0 && newBodyView.scrollDOM) {
-          newBodyView.scrollDOM.scrollTop = scrollTopValue;
-        }
-      }
-    }
+    restoreFunctionEditorFocus(focus);
   }
 }
 
@@ -3881,7 +4062,11 @@ function renderFunctionsList(): string {
             ${
               editing
                 ? `<input class="tree-rename-input function-rename-input" value="${escapeAttribute(func.name)}" spellcheck="false" aria-label="${labels.rename}" />`
-                : `<span class="tree-title">${escapeHtml(func.name)}</span>`
+                : `<span class="tree-title"${
+                    func.description?.trim()
+                      ? ` title="${escapeAttribute(func.description.trim())}"`
+                      : ""
+                  }>${escapeHtml(func.name)}</span>`
             }
           </div>
           ${
@@ -4075,6 +4260,7 @@ function createNewFunction() {
   const newFunc: AppFunction = {
     id: id(),
     name: "New function",
+    description: undefined,
     code: "",
     functionType: "http",
     method: "GET",
@@ -4087,6 +4273,7 @@ function createNewFunction() {
     form: [],
     auth: { type: "none" },
     extractorCode: `// Extract data from the response\nif (response.status === 200) {\n  return response.body.title;\n}\nreturn undefined;\n`,
+    lastHttpResponse: null,
     lastTestResult: null
   };
   state.functions.push(newFunc);
@@ -4124,82 +4311,14 @@ async function runSidebarFunction(funcId: string, anchorButton: HTMLButtonElemen
   }
 
   try {
-    const fakeRequest: SavedRequest = {
-      id: func.id,
-      kind: "request",
-      parentId: null,
-      title: func.name,
-      method: func.method,
-      url: func.url,
-      queryParams: func.queryParams,
-      headers: func.headers,
-      bodyMode: func.bodyMode,
-      rawType: func.rawType,
-      body: func.body,
-      form: func.form,
-      auth: func.auth,
-      streamResponse: false,
-      lastResponse: null,
-      lastError: null
-    };
-
-    const effectiveVariables = getEffectiveVariables();
-    const headers = withContentType(fakeRequest, buildRequestHeaders(fakeRequest));
-    const resolvedUrl = resolvedOutboundUrl(fakeRequest, effectiveVariables).trim();
-
-    const payload = {
-      request: {
-        id: func.id,
-        method: func.method,
-        url: resolvedUrl,
-        headers,
-        body_mode: func.bodyMode,
-        raw_type: func.rawType,
-        body: func.bodyMode === "raw" ? applyVariables(func.body, effectiveVariables) : "",
-        form: buildFormPayload(fakeRequest),
-        stream: false
-      },
-      proxy: proxyPayload(state.settings.proxy),
-      network: networkPayload(state.settings, false)
-    };
-
-    const response = await invoke<ApiResponse>("send_request", { payload });
-
-    const codeToEval = func.extractorCode;
-    let parsedBody = response.body;
-    if (typeof response.body === "string") {
-      try {
-        parsedBody = JSON.parse(response.body);
-      } catch {
-        // stay as string
-      }
-    }
-
-    const extractorFunc = new Function("__rawResponse__", "__parsedBody__", `
-      "use strict";
-      const response = {
-        status: __rawResponse__.status,
-        statusText: __rawResponse__.status_text,
-        headers: __rawResponse__.headers,
-        body: __parsedBody__
-      };
-      
-      try {
-        ${codeToEval}
-      } catch(e) {
-        throw new Error("Extractor error: " + e.message);
-      }
-    `);
-
-    const extractedResult = extractorFunc(response, parsedBody);
-
-    // Save to test result for the main view too, so they are in sync!
+    const response = await invokeFunctionHttp(func);
+    func.lastHttpResponse = response;
+    const extractedResult = runExtractorOnResponse(func, response);
     func.lastTestResult = {
       success: true,
-      extractedValue: extractedResult,
-      responseStatus: response.status,
-      responseBody: response.body
+      extractedValue: extractedResult
     };
+    scheduleSave();
 
     // Render workspace only if we are currently looking at this active function
     if (state.activeFunctionId === funcId) {

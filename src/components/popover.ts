@@ -1,4 +1,5 @@
 import { t } from "../i18n";
+import { computePopoverPosition } from "./popover-position";
 
 export type PopoverShellOptions = {
   className?: string;
@@ -32,12 +33,27 @@ export function renderPopoverShell(options: PopoverShellOptions): string {
 }
 
 export function positionPopoverElement(popover: HTMLElement, anchor: HTMLElement) {
-  const rect = anchor.getBoundingClientRect();
-  const width = popover.offsetWidth || 400;
-  const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
-  const top = rect.bottom + 6;
-  popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
+  const anchorRect = anchor.getBoundingClientRect();
+
+  popover.style.visibility = "hidden";
+  popover.style.left = "0px";
+  popover.style.top = "0px";
+  popover.style.maxHeight = "";
+
+  const width = popover.offsetWidth;
+  const height = popover.offsetHeight;
+  let position = computePopoverPosition(anchorRect, { width, height });
+
+  if (position.maxHeight) {
+    popover.style.maxHeight = `${position.maxHeight}px`;
+    const fittedHeight = popover.offsetHeight;
+    position = computePopoverPosition(anchorRect, { width, height: fittedHeight });
+  }
+
+  popover.style.left = `${Math.round(position.left)}px`;
+  popover.style.top = `${Math.round(position.top)}px`;
+  popover.style.visibility = "";
+  popover.dataset.placement = position.placement;
 }
 
 export function mountPopover(html: string, anchor: HTMLElement): HTMLElement {

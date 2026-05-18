@@ -4,14 +4,15 @@ import type { SavedRequest, TreeItem } from "../types";
 vi.mock("./render", () => ({ render: vi.fn() }));
 vi.mock("./persistence", () => ({ scheduleSave: vi.fn() }));
 
+import { COLLECTION_ROOT_PARENT_ID } from "./collection-parent";
 import { moveDroppedItem, moveItemTo } from "./collection-store";
 import { state } from "./state";
 
-function folder(id: string, parentId: string | null, title: string): TreeItem {
+function folder(id: string, parentId: string, title: string): TreeItem {
   return { id, kind: "folder", parentId, title, expanded: true };
 }
 
-function request(id: string, parentId: string | null, title: string): SavedRequest {
+function request(id: string, parentId: string, title: string): SavedRequest {
   return {
     id,
     kind: "request",
@@ -35,11 +36,11 @@ function request(id: string, parentId: string | null, title: string): SavedReque
 describe("collection-store reorder", () => {
   beforeEach(() => {
     state.items = [
-      folder("f1", null, "Folder 1"),
+      folder("f1", COLLECTION_ROOT_PARENT_ID, "Folder 1"),
       request("r1", "f1", "Request 1"),
       request("r2", "f1", "Request 2"),
-      folder("f2", null, "Folder 2"),
-      request("r3", null, "Request 3")
+      folder("f2", COLLECTION_ROOT_PARENT_ID, "Folder 2"),
+      request("r3", COLLECTION_ROOT_PARENT_ID, "Request 3")
     ];
   });
 
@@ -60,6 +61,11 @@ describe("collection-store reorder", () => {
 
   it("moves an item to the collection root at the end", () => {
     moveItemTo("r1", null, 2);
-    expect(state.items.filter((i) => i.parentId === null).map((i) => i.id)).toEqual(["f1", "f2", "r1", "r3"]);
+    expect(state.items.filter((i) => i.parentId === COLLECTION_ROOT_PARENT_ID).map((i) => i.id)).toEqual([
+      "f1",
+      "f2",
+      "r1",
+      "r3"
+    ]);
   });
 });

@@ -1,8 +1,10 @@
 import { clampTabSize } from "../types";
+import { normalizeAiSettings } from "./ai-settings";
 import { normalizeProxySettings } from "./proxy-settings";
 import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth, normalizeRequestAuth } from "./request-auth";
 import { migrateRequestQuery } from "../url-params";
+import { normalizeParentId } from "./collection-parent";
 import {
   clampRequestTimeoutSecs,
   DEFAULT_PROXY_TEST_URL,
@@ -46,6 +48,7 @@ function normalizeFunction(func: any): AppFunction {
   return {
     id: String(func.id),
     name: String(func.name ?? "Function").trim() || "Function",
+    description: typeof func.description === "string" ? func.description.trim() || undefined : undefined,
     code: String(func.code ?? ""),
     functionType: "http",
     method: String(func.method ?? "GET"),
@@ -58,7 +61,39 @@ function normalizeFunction(func: any): AppFunction {
     form,
     auth: normalizeRequestAuth(func.auth),
     extractorCode: String(func.extractorCode ?? `// Extract data from the response\nif (response.status === 200) {\n  return response.body;\n}\nreturn undefined;\n`),
-    lastTestResult: func.lastTestResult ?? null
+    lastHttpResponse: normalizeFunctionLastHttp(func),
+    lastTestResult: normalizeFunctionLastTestResult(func)
+  };
+}
+
+function normalizeFunctionLastHttp(func: Record<string, unknown>): AppFunction["lastHttpResponse"] {
+  const stored = func.lastHttpResponse as AppFunction["lastHttpResponse"];
+  if (stored && typeof stored === "object" && typeof (stored as { status?: number }).status === "number") {
+    return stored;
+  }
+  const legacy = func.lastTestResult as { responseStatus?: number; responseBody?: string } | null | undefined;
+  if (legacy?.responseBody != null && legacy.responseStatus != null) {
+    return {
+      status: legacy.responseStatus,
+      status_text: "",
+      duration_ms: 0,
+      headers: {},
+      body: String(legacy.responseBody)
+    };
+  }
+  return null;
+}
+
+function normalizeFunctionLastTestResult(func: Record<string, unknown>): AppFunction["lastTestResult"] {
+  const legacy = func.lastTestResult as AppFunction["lastTestResult"] & {
+    responseStatus?: number;
+    responseBody?: string;
+  };
+  if (!legacy || typeof legacy !== "object") return null;
+  return {
+    success: legacy.success === true,
+    extractedValue: legacy.extractedValue,
+    error: legacy.error ? String(legacy.error) : undefined
   };
 }
 
@@ -95,7 +130,8 @@ function migrateBodyMode(mode: string, form: Pair[]): BodyMode {
 }
 
 function normalizeTreeItem(item: TreeItem): TreeItem {
-  if (item.kind === "folder") return item;
+  const parentId = normalizeParentId(item.parentId);
+  if (item.kind === "folder") return { ...item, parentId };
   const request = item as SavedRequest & {
     rawType?: RawType;
     lastResponse?: ApiResponse | null;
@@ -107,8 +143,14 @@ function normalizeTreeItem(item: TreeItem): TreeItem {
     ...field,
     partType: (field.partType === "file" ? "file" : "text") as FormPartType
   }));
+  const description =
+    typeof (request as SavedRequest & { description?: string }).description === "string"
+      ? (request as SavedRequest & { description?: string }).description!.trim() || undefined
+      : undefined;
   const normalized = {
     ...request,
+    parentId,
+    description,
     bodyMode: migrateBodyMode(String(request.bodyMode ?? "raw"), form),
     rawType: normalizeRawType(request.rawType),
     headers: request.headers ?? [],
@@ -154,7 +196,8 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       proxyTestUrl:
         typeof config.settings?.proxyTestUrl === "string" && config.settings.proxyTestUrl.trim()
           ? config.settings.proxyTestUrl.trim()
-          : DEFAULT_PROXY_TEST_URL
+          : DEFAULT_PROXY_TEST_URL,
+      ai: normalizeAiSettings(config.settings?.ai)
     }
   };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { collectionSearchVisibleIds, itemMatchesCollectionSearch } from "./collection-search";
 import type { SavedRequest, TreeItem } from "../types";
 
-const request = (id: string, title: string, parentId: string | null, url: string, method = "GET"): SavedRequest => ({
+const request = (id: string, title: string, parentId: string, url: string, method = "GET"): SavedRequest => ({
   id,
   kind: "request",
   parentId,
@@ -23,7 +23,7 @@ const request = (id: string, title: string, parentId: string | null, url: string
 
 describe("collection-search", () => {
   const items: TreeItem[] = [
-    { id: "f1", kind: "folder", parentId: null, title: "API", expanded: true },
+    { id: "f1", kind: "folder", parentId: "/", title: "API", expanded: true },
     request("r1", "List users", "f1", "https://api.example.com/users"),
     request("r2", "Health", null, "https://example.com/health", "POST")
   ];

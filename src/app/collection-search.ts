@@ -1,4 +1,5 @@
 import type { Folder, SavedRequest, TreeItem } from "../types";
+import { isCollectionRoot, normalizeParentId } from "./collection-parent";
 
 export function itemMatchesCollectionSearch(item: TreeItem, query: string) {
   const needle = query.trim().toLowerCase();
@@ -19,7 +20,11 @@ function collectDescendantIds(items: TreeItem[], rootId: string) {
   while (changed) {
     changed = false;
     for (const item of items) {
-      if (item.parentId && ids.has(item.parentId) && !ids.has(item.id)) {
+      if (
+        !isCollectionRoot(item.parentId) &&
+        ids.has(item.parentId) &&
+        !ids.has(item.id)
+      ) {
         ids.add(item.id);
         changed = true;
       }
@@ -43,10 +48,10 @@ export function collectionSearchVisibleIds(items: TreeItem[], query: string): Se
     for (const id of collectDescendantIds(items, matchId)) {
       visible.add(id);
     }
-    let parentId = byId.get(matchId)?.parentId ?? null;
-    while (parentId) {
+    let parentId = normalizeParentId(byId.get(matchId)?.parentId);
+    while (!isCollectionRoot(parentId)) {
       visible.add(parentId);
-      parentId = byId.get(parentId)?.parentId ?? null;
+      parentId = normalizeParentId(byId.get(parentId)?.parentId);
     }
   }
 

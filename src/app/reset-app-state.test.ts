@@ -5,7 +5,7 @@ import type { AppState } from "./state";
 
 function mockPopulatedState(): AppState {
   return {
-    items: [{ id: "1", kind: "folder", parentId: null, title: "X", expanded: true }],
+    items: [{ id: "1", kind: "folder", parentId: "/", title: "X", expanded: true }],
     variables: [{ id: "v1", name: "a", value: "b", enabled: true }],
     environments: [{ id: "e1", name: "Prod", variables: [] }],
     activeEnvironmentId: "e1",
@@ -53,9 +53,16 @@ function mockPopulatedState(): AppState {
     functionSearchQuery: "find func",
     activeFunctionRequestTab: "params",
     activeFunctionConsoleTab: "test-result",
-    activeFunctionConsoleLoading: false,
+    activeFunctionHttpLoading: false,
+    activeFunctionExtractorLoading: false,
     activeFunctionPopover: null,
-    activeSidebarFunctionPlayLoading: null
+    activeSidebarFunctionPlayLoading: null,
+    aiChat: {
+      messages: [{ id: "m1", role: "user", content: "hi", pending: false }],
+      streaming: true,
+      streamRunId: "run-1",
+      pendingToolCalls: null
+    }
   };
 }
 

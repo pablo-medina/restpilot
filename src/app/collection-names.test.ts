@@ -6,7 +6,7 @@ import {
 } from "./collection-names";
 import type { TreeItem } from "../types";
 
-const folder = (id: string, title: string, parentId: string | null = null): TreeItem => ({
+const folder = (id: string, title: string, parentId: string = "/"): TreeItem => ({
   id,
   kind: "folder",
   parentId,
@@ -15,11 +15,6 @@ const folder = (id: string, title: string, parentId: string | null = null): Tree
 });
 
 describe("collection-names", () => {
-  it("keeps the original title when configured", () => {
-    const items = [folder("a", "API"), folder("b", "API")];
-    expect(titleForDuplicate("API", null, items, "original")).toBe("API");
-  });
-
   it("uses copy-of prefix when configured", () => {
     const items = [folder("a", "API")];
     expect(titleForDuplicate("API", null, items, "copyOf")).toBe("Copy of API");
@@ -38,6 +33,6 @@ describe("collection-names", () => {
   it("migrates legacy numbered checkbox setting", () => {
     expect(normalizeDuplicateNaming(undefined, true)).toBe("numbered");
     expect(normalizeDuplicateNaming(undefined, false)).toBe("copyOf");
-    expect(normalizeDuplicateNaming("original", true)).toBe("original");
+    expect(normalizeDuplicateNaming("original", true)).toBe("copyOf");
   });
 });

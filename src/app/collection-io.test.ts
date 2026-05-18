@@ -10,7 +10,7 @@ import {
 } from "./collection-format";
 import type { CollectionSnapshot, SavedRequest, TreeItem, Variable } from "../types";
 
-const request = (id: string, title: string, parentId: string | null = null): SavedRequest => ({
+const request = (id: string, title: string, parentId: string = "/"): SavedRequest => ({
   id,
   kind: "request",
   parentId,

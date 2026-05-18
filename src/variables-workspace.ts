@@ -152,13 +152,8 @@ function renderEnvironmentsTab() {
 export function renderVariablesWorkspace() {
   const labels = t().environments;
   const tab = state.variablesWorkspaceTab;
-  const closeLabel = t().dialog.close;
-
   return `
     <section class="variables-view variables-workspace">
-      <div class="panel-close-sticky">
-        <button class="mini-btn panel-close-btn" id="panel-back" type="button" title="${closeLabel}" aria-label="${closeLabel}">×</button>
-      </div>
       <div class="segmented variables-workspace-tabs" role="tablist">
         <button class="${tab === "globals" ? "active" : ""}" type="button" data-variables-tab="globals" role="tab" aria-selected="${tab === "globals"}">${labels.tabGlobals}</button>
         <button class="${tab === "environments" ? "active" : ""}" type="button" data-variables-tab="environments" role="tab" aria-selected="${tab === "environments"}">${labels.tabEnvironments}</button>

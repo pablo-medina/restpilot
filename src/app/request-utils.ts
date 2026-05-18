@@ -2,6 +2,7 @@ import { applyVariables } from "../variables";
 import { buildOutboundHeaders, defaultRequestAuth } from "./request-auth";
 import { clampRequestTimeoutSecs, type SavedRequest, type UserSettings } from "../types";
 import { getEffectiveVariables } from "./environments";
+import { COLLECTION_ROOT_PARENT_ID, normalizeParentId } from "./collection-parent";
 import { id } from "./state";
 
 export function networkPayload(settings: UserSettings, stream: boolean) {
@@ -13,11 +14,11 @@ export function networkPayload(settings: UserSettings, stream: boolean) {
   };
 }
 
-export function blankRequest(parentId: string | null): SavedRequest {
+export function blankRequest(parentId: string | null | undefined = COLLECTION_ROOT_PARENT_ID): SavedRequest {
   return {
     id: id(),
     kind: "request",
-    parentId,
+    parentId: normalizeParentId(parentId),
     title: "New request",
     method: "GET",
     url: "",

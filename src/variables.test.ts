@@ -11,7 +11,7 @@ function sampleRequest(): SavedRequest {
   return {
     id: "r1",
     kind: "request",
-    parentId: null,
+    parentId: "/",
     title: "Test",
     method: "GET",
     url: "${base_url}",

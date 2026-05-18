@@ -6,7 +6,7 @@ function request(form: SavedRequest["form"]): SavedRequest {
   return {
     id: "r1",
     kind: "request",
-    parentId: null,
+    parentId: "/",
     title: "T",
     method: "POST",
     url: "https://example.com",

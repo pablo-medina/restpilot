@@ -5,7 +5,7 @@ import type { SavedRequest } from "./types";
 function requestWithAuth(auth: SavedRequest["auth"]): SavedRequest {
   return {
     id: "r1",
-    parentId: null,
+    parentId: "/",
     kind: "request",
     title: "Test",
     method: "GET",

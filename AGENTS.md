@@ -202,6 +202,61 @@ Settings UI: `src/settings.ts`. Persisted in `AppConfig.settings.proxy` via `pro
 
 - Collection order is a flat `items[]` with `parentId`. Drag-and-drop must support reordering, nesting folders, moving requests between folders, and moving items to the root.
 
+## AI assistant
+
+OpenAI-compatible chat panel (activity bar → **AI** when `settings.ai.enabled`). Settings live under **Settings → AI** tab (`src/settings-ai.ts`). Chat UI: `src/ai-workspace.ts`. Orchestration: `src/ai/chat-controller.ts`.
+
+- **Persistence:** `AppConfig.settings.ai` (URL, API key, model, `toolPolicy`, `instructions`). Chat history is **runtime only** (`state.aiChat` in `src/app/state.ts`); not saved to `config.json`.
+- **Custom instructions:** `settings.ai.instructions` (Settings → AI textarea) is appended to the system prompt in `buildAiSystemPrompt()` (`src/ai/context.ts`) under “User-defined instructions”. Max length: `MAX_AI_INSTRUCTIONS_CHARS` in `src/app/ai-settings.ts`.
+- **Collection mutations from tools:** `create_request_draft` updates `state.items` and calls `notifyCollectionChanged()` (`src/app/collection-mutation.ts`) so the explorer tree refreshes and config saves. The AI panel shows the collection sidebar (same as request workspace) so new items are visible without leaving the chat.
+- **HTTP:** Same stack as real requests (`ai_chat_stream` / `list_ai_models` / `test_ai_connection` in `src-tauri/src/ai_openai.rs`), including proxy and network timeouts via `httpTransportPayload()`.
+- **System prompt:** Built in `src/ai/context.ts` (`buildAiSystemPrompt`). Includes **current local date/time** (refreshed each message via `formatCurrentDateTimeForAi`), collection catalog, variable names, and function list for reference. Instructs the model to answer in the app locale, when to call tools, and conversation continuity (ordinals, `get_request` for body questions, etc.).
+- **Tools on the wire:** All tool definitions are sent with `tool_choice: "auto"` (`chat-controller.ts`). The model decides whether to call tools; there is no separate client-side “tool gating” layer.
+
+### AI behavior fixes (for agents)
+
+When the user reports weak or confused AI chat behavior (wrong tool use, ignored lists, bad JSON bodies, etc.):
+
+- **Default fix: prompt engineering** — improve `buildAiSystemPrompt()` in `src/ai/context.ts` and/or tool descriptions in `src/ai/tools.ts` (`AI_TOOL_DEFINITIONS`). Keep system prompt text in **English**; user-facing chat still follows app locale via existing instructions.
+- **Do not add** client-side “preflight” layers, keyword/regex routers, or locale-specific intent detectors (e.g. matching ordinals or body-inspect phrases per language) to substitute for the model. They do not scale (every new locale needs more patches) and were explicitly rejected.
+- **Do not add** i18n strings whose only purpose is to drive those routers.
+- **Acceptable code** when it is not a substitute for prompts: deterministic normalization of data the model already produced (e.g. `src/json-request-body.ts` repairing invalid JSON bodies on tool write), UI affordances, or real bugs in tool execution / persistence.
+- **If a non-prompt code change seems necessary**, describe it briefly and **ask the user to validate** before implementing — especially anything that intercepts user messages before the LLM or bypasses tool calling.
+
+### AI tools (function calling)
+
+Definitions and execution: `src/ai/tools.ts`. Runner for HTTP side effects: `src/ai/request-runner.ts`.
+
+| Tool | Read/write | What it does |
+|------|------------|--------------|
+| `list_requests` | Read | Returns JSON of all folders and saved requests (`id`, title, method, url, parent). |
+| `get_request` | Read | Returns full saved request by `request_id`. Auth secrets are **redacted** (`redactRequestAuthForExport`). |
+| `send_request` | HTTP + read | Executes a saved request by `request_id` (variables, proxy, real `send_request`). Returns status, headers, truncated body (~12k chars). |
+| `run_function` | HTTP + write | Runs a RestPilot **Function** by `function_id` (HTTP + variable extractor). May update environments. |
+| `create_request_draft` | Write | Creates a new saved request (`title`, `method`, `url`, optional `parent_id` folder). Persists via `scheduleSave()`. |
+
+**Parameters (OpenAI function schema):**
+
+- `list_requests` — none.
+- `get_request` — `request_id` (string, required).
+- `send_request` — `request_id` (string, required).
+- `run_function` — `function_id` (string, required).
+- `create_request_draft` — `title`, `method`, `url` (required); `parent_id` (string or null, optional).
+
+**Tool policy** (`settings.ai.toolPolicy`, Settings → AI behavior):
+
+| Policy | Behavior |
+|--------|----------|
+| `confirm_all` | Confirm before every tool (default). |
+| `read_only_auto` | Auto-run `list_requests` and `get_request` only; confirm HTTP and writes. |
+| `auto_all` | Run all tools without confirmation. |
+
+Read-only tools: `list_requests`, `get_request` (`isReadOnlyAiTool()` in `tools.ts`). Confirmation UI: `applicationDialog` in `chat-controller.ts` (`confirmToolCalls`).
+
+**Multi-round flow:** Up to 5 tool rounds per user message (`MAX_TOOL_ROUNDS` in `chat-controller.ts`). Assistant `tool_calls` are stored as JSON in message content for API rebuild; tool results use role `tool` with `tool_call_id`.
+
+**When changing tools:** Update `AI_TOOL_DEFINITIONS`, `executeAiTool()`, `describeAiToolCall()`, system prompt in `context.ts`, and relevant tests under `src/ai/`.
+
 ## Startup and performance
 
 - **Release builds** are the benchmark for startup UX: the static shell in `index.html` paints immediately; `src/bootstrap.ts` applies theme/locale and loads config while `src/app.ts` is fetched as a separate chunk. CodeMirror loads only via `src/app/editor-runtime.ts` when editors mount.
@@ -219,6 +274,8 @@ Settings UI: `src/settings.ts`. Persisted in `AppConfig.settings.proxy` via `pro
 - `src/app/request-utils.ts` — blank request factory, content-type, form payload for HTTP.
 - `src/app/render.ts` — `render()` dispatcher so non-UI modules can request a re-render without importing `main.ts`.
 - `src/curl.ts`, `src/url-params.ts`, `src/variables.ts`, `src/content-display.ts` — pure helpers covered by unit tests.
+- `src/ai-workspace.ts`, `src/ai/` — AI panel, chat controller, tools, context, actions/markdown rendering.
+- `src/settings-ai.ts` — AI section in Settings (model picker, presets, test connection).
 
 ## Tests
 

@@ -110,7 +110,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
   const request: SavedRequest = {
     id: id(),
     kind: "request",
-    parentId: null,
+    parentId: "/",
     title: "Imported curl",
     method: "GET",
     url: "",

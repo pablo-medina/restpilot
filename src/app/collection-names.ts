@@ -1,4 +1,5 @@
 import { t } from "../i18n";
+import { normalizeParentId } from "./collection-parent";
 import type { DuplicateNamingMode, TreeItem } from "../types";
 
 function escapeRegExp(value: string) {
@@ -9,9 +10,10 @@ export function duplicateBaseTitle(title: string) {
   return title.replace(/\s+\(\d+\)$/, "").trim() || title;
 }
 
-export function numberedDuplicateTitle(title: string, parentId: string | null, items: TreeItem[]) {
+export function numberedDuplicateTitle(title: string, parentId: string, items: TreeItem[]) {
   const base = duplicateBaseTitle(title);
-  const siblings = items.filter((item) => item.parentId === parentId);
+  const parent = normalizeParentId(parentId);
+  const siblings = items.filter((item) => normalizeParentId(item.parentId) === parent);
   const pattern = new RegExp(`^${escapeRegExp(base)}(?: \\((\\d+)\\))?$`);
   let maxIndex = 1;
 
@@ -33,11 +35,10 @@ function copyOfDuplicateTitle(title: string) {
 /** Title for a duplicated tree item among siblings in the same parent folder. */
 export function titleForDuplicate(
   sourceTitle: string,
-  parentId: string | null,
+  parentId: string,
   items: TreeItem[],
   mode: DuplicateNamingMode
 ) {
-  if (mode === "original") return sourceTitle.trim() || sourceTitle;
   if (mode === "numbered") return numberedDuplicateTitle(sourceTitle, parentId, items);
   return copyOfDuplicateTitle(sourceTitle);
 }
@@ -46,7 +47,8 @@ export function normalizeDuplicateNaming(
   value: unknown,
   legacyNumberDuplicateNames?: unknown
 ): DuplicateNamingMode {
-  if (value === "original" || value === "copyOf" || value === "numbered") return value;
+  if (value === "copyOf" || value === "numbered") return value;
+  if (value === "original") return "copyOf";
   if (legacyNumberDuplicateNames === true) return "numbered";
   return "copyOf";
 }

@@ -55,7 +55,7 @@ describe("requestToCurl", () => {
     const request: SavedRequest = {
       id: "r1",
       kind: "request",
-      parentId: null,
+      parentId: "/",
       title: "T",
       method: "GET",
       url: "https://api.example.com/items",

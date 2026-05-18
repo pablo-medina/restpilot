@@ -1,5 +1,6 @@
 import type { CollectionSnapshot, Environment, TreeItem, UserSettings, Variable } from "../types";
 import { normalizeConfig } from "./config-normalize";
+import { COLLECTION_ROOT_PARENT_ID, isCollectionRoot, normalizeParentId } from "./collection-parent";
 
 function newId() {
   return crypto.randomUUID();
@@ -114,7 +115,11 @@ function collectSkipIds(items: TreeItem[], existingIds: Set<string>): Set<string
   while (changed) {
     changed = false;
     for (const item of items) {
-      if (item.parentId && skip.has(item.parentId) && !skip.has(item.id)) {
+      if (
+        !isCollectionRoot(item.parentId) &&
+        skip.has(item.parentId) &&
+        !skip.has(item.id)
+      ) {
         skip.add(item.id);
         changed = true;
       }
@@ -138,7 +143,9 @@ export function mergeItems(existing: TreeItem[], incoming: TreeItem[], conflict:
     for (const item of incoming) {
       const nextId = idMap.get(item.id);
       if (!nextId) continue;
-      const parentId = item.parentId === null ? null : (idMap.get(item.parentId) ?? item.parentId);
+      const parentId = isCollectionRoot(item.parentId)
+        ? COLLECTION_ROOT_PARENT_ID
+        : (idMap.get(item.parentId) ?? item.parentId);
       const title = nextId === item.id ? item.title : uniquifyTitle(item.title, usedTitles);
       merged.push({ ...item, id: nextId, parentId, title });
       existingIds.add(nextId);
@@ -152,8 +159,11 @@ export function mergeItems(existing: TreeItem[], incoming: TreeItem[], conflict:
   const merged = [...existing];
   for (const item of incoming) {
     if (skip.has(item.id)) continue;
-    const parentId =
-      item.parentId === null ? null : skip.has(item.parentId) ? null : item.parentId;
+    const parentId = isCollectionRoot(item.parentId)
+      ? COLLECTION_ROOT_PARENT_ID
+      : skip.has(item.parentId)
+        ? COLLECTION_ROOT_PARENT_ID
+        : normalizeParentId(item.parentId);
     merged.push({ ...item, parentId });
     existingIds.add(item.id);
   }

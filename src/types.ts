@@ -29,11 +29,76 @@ export type Locale = "en" | "es";
 export type ProxyMode = "none" | "system" | "manual";
 /** Proxy authentication negotiated by libcurl (manual) or forced scheme. */
 export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
-export type ActivePanel = "request" | "variables" | "settings" | "functions";
+export type ActivePanel = "request" | "variables" | "ai" | "settings" | "functions";
+
+export type AiToolPolicy = "confirm_all" | "read_only_auto" | "auto_all";
+
+export type AiSettings = {
+  enabled: boolean;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  toolPolicy: AiToolPolicy;
+  /** Appended to the AI system prompt when non-empty. */
+  instructions: string;
+};
+
+export type AiChatRole = "user" | "assistant" | "system" | "tool";
+
+export type AiChatActionKind = "open_request" | "open_function";
+
+export type AiChatAction = {
+  id: string;
+  kind: AiChatActionKind;
+  targetId: string;
+  label: string;
+};
+
+export type AiChatMessage = {
+  id: string;
+  role: AiChatRole;
+  content: string;
+  thinking?: string;
+  thinkingExpanded?: boolean;
+  toolName?: string;
+  toolCallId?: string;
+  pending?: boolean;
+  actions?: AiChatAction[];
+};
+
+export type AiChatRuntimeState = {
+  messages: AiChatMessage[];
+  streaming: boolean;
+  streamRunId: string | null;
+  pendingToolCalls: AiPendingToolCall[] | null;
+};
+
+export type AiPendingToolCall = {
+  id: string;
+  name: string;
+  argumentsJson: string;
+};
+
+export type AiStreamPayload = {
+  chat_id: string;
+  delta?: string | null;
+  thinking?: string | null;
+  done: boolean;
+  error?: string | null;
+  tool_calls?: AiStreamToolCall[] | null;
+};
+
+export type AiStreamToolCall = {
+  id: string;
+  name: string;
+  arguments: string;
+};
 
 export type AppFunction = {
   id: string;
   name: string;
+  /** Human-oriented summary for the user and AI; shown in the function editor only. */
+  description?: string;
   code: string;
   functionType: "http";
   method: string;
@@ -46,11 +111,12 @@ export type AppFunction = {
   form: Pair[];
   auth: RequestAuth;
   extractorCode: string;
+  /** Last HTTP response from Send in the function workspace (not updated by extractor run). */
+  lastHttpResponse?: ApiResponse | null;
+  /** Last extractor script outcome (not updated by Send alone). */
   lastTestResult?: {
     success: boolean;
-    extractedValue?: any;
-    responseStatus?: number;
-    responseBody?: string;
+    extractedValue?: unknown;
     error?: string;
   } | null;
 };
@@ -89,15 +155,19 @@ export type UserSettings = {
   duplicateNaming: DuplicateNamingMode;
   /** Last URL used in Settings → network proxy test. */
   proxyTestUrl: string;
+  ai: AiSettings;
 };
 
-export type DuplicateNamingMode = "original" | "copyOf" | "numbered";
+export type DuplicateNamingMode = "copyOf" | "numbered";
 
 export type SavedRequest = {
   id: string;
   kind: "request";
-  parentId: string | null;
+  /** Folder id, or `/` for collection root. */
+  parentId: string;
   title: string;
+  /** Human-oriented summary; tree shows as tooltip only. */
+  description?: string;
   method: string;
   url: string;
   /** Fragment without leading # (synced with the URL field). */
@@ -117,7 +187,8 @@ export type SavedRequest = {
 export type Folder = {
   id: string;
   kind: "folder";
-  parentId: string | null;
+  /** Folder id, or `/` ({@link COLLECTION_ROOT_PARENT_ID}) for collection root. */
+  parentId: string;
   title: string;
   expanded: boolean;
 };
@@ -197,7 +268,15 @@ export function defaultSettings(): UserSettings {
     followRedirects: true,
     clickToSelect: true,
     duplicateNaming: "copyOf",
-    proxyTestUrl: DEFAULT_PROXY_TEST_URL
+    proxyTestUrl: DEFAULT_PROXY_TEST_URL,
+    ai: {
+      enabled: false,
+      baseUrl: "http://127.0.0.1:1234/v1",
+      apiKey: "",
+      model: "",
+      toolPolicy: "confirm_all",
+      instructions: ""
+    }
   };
 }
 

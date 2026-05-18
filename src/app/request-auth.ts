@@ -161,6 +161,28 @@ export function resolvedOutboundUrl(request: SavedRequest, variables: Variable[]
   return buildRequestUrl(base, resolvedParams, hash);
 }
 
+export function redactRequestAuthForExport(auth: RequestAuth): RequestAuth {
+  if (auth.type === "bearer") {
+    return { type: "bearer", bearerToken: auth.bearerToken ? "***" : "" };
+  }
+  if (auth.type === "basic") {
+    return {
+      type: "basic",
+      basicUsername: auth.basicUsername ?? "",
+      basicPassword: auth.basicPassword ? "***" : ""
+    };
+  }
+  if (auth.type === "apikey") {
+    return {
+      type: "apikey",
+      apiKeyName: auth.apiKeyName ?? "",
+      apiKeyValue: auth.apiKeyValue ? "***" : "",
+      apiKeyIn: auth.apiKeyIn ?? "header"
+    };
+  }
+  return defaultRequestAuth();
+}
+
 export function hydrateRequestAuth(request: SavedRequest): SavedRequest {
   const auth = normalizeRequestAuth(request.auth);
   if (auth.type !== "none") return { ...request, auth };

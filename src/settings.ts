@@ -5,16 +5,53 @@ import { applicationDialog } from "./components/dialogs";
 import { iconEye, iconEyeOff } from "./icons";
 import { t } from "./i18n";
 import { hiddenClass, setVisible } from "./ui/visibility";
+import { bindAiSettings, renderAiSettingsCard, resetAiSettingsSessionState } from "./settings-ai";
 import { clampRequestTimeoutSecs, DEFAULT_PROXY_TEST_URL, type UserSettings } from "./types";
+
+/** How much of the app to re-render after a settings mutation. */
+export type SettingsChangeScope = "full" | "activity-bar" | "persist";
+
+export type SettingsChangeHandler = (scope?: SettingsChangeScope) => void;
+
+export type SettingsTabId = "general" | "editor" | "network" | "ai" | "about";
 
 const proxyUrlRevealed = { http: false, https: false };
 let lastProxyTestResult: ProxyTestResult | null = null;
+let settingsActiveTab: SettingsTabId = "general";
+
+/** Opens the AI tab when navigating to Settings from the AI panel. */
+export function setSettingsActiveTab(tab: SettingsTabId) {
+  settingsActiveTab = tab;
+}
 
 /** Clears settings-panel session state after Clear all data. */
 export function resetSettingsSessionState() {
   proxyUrlRevealed.http = false;
   proxyUrlRevealed.https = false;
   lastProxyTestResult = null;
+  settingsActiveTab = "general";
+  resetAiSettingsSessionState();
+}
+
+function renderSettingsTabs(active: SettingsTabId): string {
+  const labels = t().settings;
+  const tabs: Array<{ id: SettingsTabId; label: string }> = [
+    { id: "general", label: labels.tabGeneral },
+    { id: "editor", label: labels.tabEditor },
+    { id: "network", label: labels.tabNetwork },
+    { id: "ai", label: labels.tabAi },
+    { id: "about", label: labels.tabAbout }
+  ];
+  return `
+    <div class="segmented settings-tabs" role="tablist">
+      ${tabs
+        .map(
+          (tab) =>
+            `<button type="button" class="${active === tab.id ? "active" : ""}" data-settings-tab="${tab.id}" role="tab" aria-selected="${active === tab.id}">${tab.label}</button>`
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 export function renderSettings(settings: UserSettings): string {
@@ -23,14 +60,11 @@ export function renderSettings(settings: UserSettings): string {
   const manualOpen = settings.proxy.mode === "manual";
   const proxyAuthOpen = settings.proxy.mode !== "none";
   const proxyTestUrl = settings.proxyTestUrl.trim() || DEFAULT_PROXY_TEST_URL;
-  const closeLabel = t().dialog.close;
-
   return `
     <section class="settings-view">
-      <div class="panel-close-sticky">
-        <button class="mini-btn panel-close-btn" id="settings-back" type="button" title="${closeLabel}" aria-label="${closeLabel}">×</button>
-      </div>
+      ${renderSettingsTabs(settingsActiveTab)}
       <div class="settings-grid">
+        ${settingsActiveTab === "general" ? `
         <section class="settings-card">
           <h2>${labels.appearance}</h2>
           <label class="settings-field">
@@ -49,15 +83,12 @@ export function renderSettings(settings: UserSettings): string {
             <input id="setting-maximize-on-startup" type="checkbox" ${settings.maximizeOnStartup ? "checked" : ""} />
           </label>
         </section>
-
+        ` : ""}
+        ${settingsActiveTab === "editor" ? `
         <section class="settings-card settings-collections-card">
           <h2>${labels.collectionsSection}</h2>
           <fieldset class="settings-duplicate-naming">
               <legend class="settings-option-label">${labels.duplicateNamingSection}</legend>
-              <label class="settings-radio-row">
-                <input type="radio" name="duplicate-naming" value="original" ${settings.duplicateNaming === "original" ? "checked" : ""} />
-                <span>${labels.duplicateNamingOriginal}</span>
-              </label>
               <label class="settings-radio-row">
                 <input type="radio" name="duplicate-naming" value="copyOf" ${settings.duplicateNaming === "copyOf" ? "checked" : ""} />
                 <span>${labels.duplicateNamingCopyOf}</span>
@@ -95,7 +126,8 @@ export function renderSettings(settings: UserSettings): string {
             </div>
           </div>
         </section>
-
+        ` : ""}
+        ${settingsActiveTab === "general" ? `
         <section class="settings-card">
           <h2>${labels.languageSection}</h2>
           <label class="settings-field">
@@ -106,7 +138,8 @@ export function renderSettings(settings: UserSettings): string {
             </select>
           </label>
         </section>
-
+        ` : ""}
+        ${settingsActiveTab === "network" ? `
         <section class="settings-card settings-card-wide settings-network-card">
           <h2>${labels.network}</h2>
 
@@ -198,7 +231,9 @@ export function renderSettings(settings: UserSettings): string {
             </label>
           </div>
         </section>
-
+        ` : ""}
+        ${settingsActiveTab === "ai" ? renderAiSettingsCard(settings) : ""}
+        ${settingsActiveTab === "about" ? `
         <section class="settings-card settings-card-wide">
           <h2>${labels.shortcutsSection}</h2>
           <dl class="settings-shortcuts">
@@ -227,6 +262,7 @@ export function renderSettings(settings: UserSettings): string {
           <p class="settings-danger-copy">${labels.clearDataBody}</p>
           <button class="danger-button settings-clear-btn" id="clear-all-data" type="button">${labels.clearData}</button>
         </section>
+        ` : ""}
       </div>
     </section>
   `;
@@ -338,12 +374,19 @@ function bindProxyFieldClear(
 
 export function bindSettings(
   settings: UserSettings,
-  onChange: () => void,
-  onBack: () => void,
+  onChange: SettingsChangeHandler,
   onClearAll: () => void
 ) {
-  document.querySelector("#settings-back")?.addEventListener("click", onBack);
   document.querySelector("#clear-all-data")?.addEventListener("click", onClearAll);
+
+  document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = button.dataset.settingsTab as SettingsTabId | undefined;
+      if (!next || next === settingsActiveTab) return;
+      settingsActiveTab = next;
+      onChange("full");
+    });
+  });
 
   document.querySelector<HTMLSelectElement>("#setting-theme")?.addEventListener("change", (event) => {
     settings.theme = (event.target as HTMLSelectElement).value as UserSettings["theme"];
@@ -464,6 +507,7 @@ export function bindSettings(
   });
 
   syncProxyPanels(settings);
+  bindAiSettings(settings, onChange);
 }
 
 type ProxyTestResult = {

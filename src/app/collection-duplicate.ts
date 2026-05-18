@@ -1,9 +1,10 @@
 import type { DuplicateNamingMode, Folder, SavedRequest, TreeItem } from "../types";
 import { titleForDuplicate } from "./collection-names";
+import { uniquifySiblingTitle } from "./collection-sibling-names";
 import { insertItemAt, insertSubtreeAfter } from "./collection-store";
 import { id } from "./state";
 
-function cloneRequest(source: SavedRequest, nextId: string, parentId: string | null, title: string): SavedRequest {
+function cloneRequest(source: SavedRequest, nextId: string, parentId: string, title: string): SavedRequest {
   const copy = structuredClone(source);
   copy.id = nextId;
   copy.parentId = parentId;
@@ -38,7 +39,10 @@ export function duplicateRequestItem(
   duplicateNaming: DuplicateNamingMode,
   insertIndex: number
 ) {
-  const title = titleForDuplicate(source.title, source.parentId, items, duplicateNaming);
+  const title = uniquifySiblingTitle(
+    source.parentId,
+    titleForDuplicate(source.title, source.parentId, items, duplicateNaming)
+  );
   const copy = cloneRequest(source, id(), source.parentId, title);
   insertItemAt(copy, source.parentId, insertIndex);
   return copy.id;
@@ -66,13 +70,15 @@ export function duplicateFolderItem(source: Folder, items: TreeItem[], duplicate
     const nextId = item.id === source.id ? newRootId : id();
     idMap.set(item.id, nextId);
     const parentId =
-      item.id === source.id ? source.parentId : (idMap.get(item.parentId ?? "") ?? source.parentId);
+      item.id === source.id ? source.parentId : (idMap.get(item.parentId) ?? item.parentId);
 
     if (item.kind === "folder") {
-      const title =
+      const title = uniquifySiblingTitle(
+        item.id === source.id ? source.parentId : parentId,
         item.id === source.id
           ? titleForDuplicate(item.title, source.parentId, items, duplicateNaming)
-          : item.title;
+          : item.title
+      );
       clones.push({
         ...item,
         id: nextId,
