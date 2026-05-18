@@ -933,6 +933,37 @@ function renderApp() {
   const labels = t();
   const isRequest = state.activePanel === "request";
 
+  // If AI is disabled, fallback active/selected function to non-AI options
+  if (!state.settings.ai.enabled) {
+    if (state.activeFunctionId) {
+      const activeFunc = state.functions.find((f) => f.id === state.activeFunctionId);
+      if (
+        activeFunc &&
+        (activeFunc.functionType === "ai" ||
+          (activeFunc.functionType === "http" && activeFunc.extractorType === "ai"))
+      ) {
+        const fallback = state.functions.find(
+          (f) =>
+            !(
+              f.functionType === "ai" ||
+              (f.functionType === "http" && f.extractorType === "ai")
+            )
+        );
+        state.activeFunctionId = fallback ? fallback.id : null;
+      }
+    }
+    if (state.selectedFunctionId) {
+      const selFunc = state.functions.find((f) => f.id === state.selectedFunctionId);
+      if (
+        selFunc &&
+        (selFunc.functionType === "ai" ||
+          (selFunc.functionType === "http" && selFunc.extractorType === "ai"))
+      ) {
+        state.selectedFunctionId = state.activeFunctionId;
+      }
+    }
+  }
+
   unmountTabDisplay(state.activeTabId);
   unmountFunctionEditors();
   syncAppFrameLayout();
@@ -3575,10 +3606,18 @@ function renderFunctionWorkspace(func: AppFunction) {
                            data-body-editor-host="true"
                            style="flex: 1; min-height: 0; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden; height: 100%;"
                          ></div>`
-                       : `<label class="flex flex-col flex-1" style="margin-bottom: 8px; display: flex; flex-direction: column; flex: 1;">
+                       : `<label class="flex flex-col flex-1" style="margin-bottom: 8px; display: flex; flex-direction: column; flex: 1; position: relative;">
                            <span style="font-size: 11px; font-weight: 600; color: var(--rp-text-muted); margin-bottom: 4px;">${funcLabels.extractorPromptLabel}</span>
                            <textarea id="func-extractor-prompt" class="url-send-input" style="flex: 1; font-family: monospace; font-size: 13px; padding: 8px; resize: none; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); color: var(--rp-text);" placeholder="${escapeAttribute(funcLabels.extractorPromptPlaceholder)}">${escapeHtml(func.extractorPrompt ?? "")}</textarea>
-                         </label>`
+                            ${
+                              !state.settings.ai.enabled
+                                ? `<div class="ai-disabled-warning-overlay" style="position: absolute; inset: 0; background: rgba(var(--rp-surface-rgb, 255, 255, 255), 0.7); backdrop-filter: blur(1.5px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px; border-radius: var(--rp-radius); border: 1px dashed var(--rp-border); box-sizing: border-box; pointer-events: none;">
+                                    <span style="font-size: 18px; margin-bottom: 6px;">⚠️</span>
+                                    <span style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted); max-width: 260px; line-height: 1.4;">${escapeHtml(funcLabels.aiDisabledWarning)}</span>
+                                   </div>`
+                                : ""
+                            }
+                          </label>`
                    }
                  </div>
 
@@ -4490,9 +4529,14 @@ function reorderFunction(sourceId: string, targetId: string, placement: PointerR
 function renderFunctionsList(): string {
   const labels = t().tree;
   const query = state.functionSearchQuery.toLowerCase().trim();
-  const filtered = state.functions.filter((func) =>
-    func.name.toLowerCase().includes(query)
-  );
+  const aiEnabled = state.settings.ai.enabled;
+  const filtered = state.functions.filter((func) => {
+    if (!aiEnabled) {
+      if (func.functionType === "ai") return false;
+      if (func.functionType === "http" && func.extractorType === "ai") return false;
+    }
+    return func.name.toLowerCase().includes(query);
+  });
 
   if (!filtered.length) {
     return `<div class="tree-empty" style="padding: 8px 12px; color: var(--rp-text-muted); font-size: 13px;">${t().functions.noFunctionSelected}</div>`;

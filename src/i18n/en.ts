@@ -134,7 +134,8 @@ export const en = {
     importSearch: "Search requests…",
     importEmpty: "No saved requests in the collection.",
     namingPlaceholderTitle: "Name your function",
-    namingPlaceholderDesc: "Enter a name in the sidebar and press <strong>Enter</strong> to start configuring your HTTP request or AI prompt."
+    namingPlaceholderDesc: "Enter a name in the sidebar and press <strong>Enter</strong> to start configuring your HTTP request or AI prompt.",
+    aiDisabledWarning: "AI features are currently disabled. Please enable AI in Settings to use the AI Extractor."
   },
   describe: {
     requestTitle: "Describe request",

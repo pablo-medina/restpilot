@@ -134,7 +134,8 @@ export const es = {
     importSearch: "Buscar solicitudes…",
     importEmpty: "No hay solicitudes guardadas en la colección.",
     namingPlaceholderTitle: "Nombre su función",
-    namingPlaceholderDesc: "Ingrese un nombre en la barra lateral y presione <strong>Enter</strong> para comenzar a configurar su solicitud HTTP o prompt de IA."
+    namingPlaceholderDesc: "Ingrese un nombre en la barra lateral y presione <strong>Enter</strong> para comenzar a configurar su solicitud HTTP o prompt de IA.",
+    aiDisabledWarning: "Las funciones de IA están actualmente deshabilitadas. Habilite la IA en Configuración para usar el Extractor de IA."
   },
   describe: {
     requestTitle: "Describir solicitud",
