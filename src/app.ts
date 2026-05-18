@@ -8,12 +8,7 @@ import {
   renderDialogLayer
 } from "./components/dialogs";
 import {
-  bodySourceKey,
   escapeHtml,
-  detectContentKind,
-  formatResponseBody,
-  highlightResponse,
-  isLargeText,
   tryPrettifyJson
 } from "./content-display";
 import {
@@ -125,8 +120,25 @@ import {
 import { insertItemAt, moveDroppedItem, moveItemTo } from "./app/collection-store";
 import { attachTabStripReorder } from "./app/tab-strip-reorder";
 import { finishBoot } from "./app/boot-loader";
-import { shouldOfferTreeRootDrop, treeRowAtPointer } from "./app/collection-tree-drag";
-import { attachPointerReorder, type PointerReorderPlacement } from "./app/pointer-reorder";
+import {
+  renderExplorerTree,
+  visibleTreeItems,
+  bindTree
+} from "./ui/collection-tree";
+import { attachPointerReorder } from "./app/pointer-reorder";
+import type { PointerReorderPlacement } from "./app/pointer-reorder";
+import {
+  initResponsePanel,
+  renderResponse,
+  bindResponseTabs,
+  bindResponseCopyMenu,
+  mountResponseDisplays,
+  unmountResponseDisplays,
+  scheduleResponseRender,
+  copyResponseStatus,
+  copyResponseBody,
+  copyResponseHeaders
+} from "./ui/response-panel";
 import {
   applyUserSettings,
   loadStoredConfig,
@@ -182,6 +194,18 @@ import {
   syncMaximizeControl
 } from "./window-chrome";
 
+import {
+  renderRequestActionsTrigger,
+  renderTabBar,
+  renderTab,
+  removeStrayTabBars,
+  applyOpenTabOrder,
+  updateTabStripScroll,
+  updateTabStripActive,
+  bindTabStripScroll,
+  bindTabBar
+} from "./ui/tabs-bar";
+
 const STREAM_EVENT = "restpilot:request-stream";
 let responseRenderFrame: number | undefined;
 
@@ -200,6 +224,11 @@ export async function startApp(
   configPromise: ReturnType<typeof loadStoredConfig> = loadStoredConfig()
 ) {
   initDialogs(render);
+  initResponsePanel({
+    closeContextMenu,
+    syncContextMenu,
+    showToast
+  });
   ensureContextMenuHandlers();
   bindGlobalShortcuts({
     send: () => void trySendRequest(),
@@ -286,7 +315,7 @@ export async function startApp(
     const tree = document.querySelector(".collection-sidebar-panel .tree");
     if (!tree) return;
     tree.innerHTML = renderExplorerTree(COLLECTION_ROOT_PARENT_ID, 0);
-    bindTree();
+    bindAppTree();
   });
   setAiNavigation({
     openRequest: (requestId) => openRequest(requestId),
@@ -399,14 +428,7 @@ function renderWorkspace(): any {
 }
 
 
-function updateTabStripActive() {
-  document.querySelectorAll<HTMLElement>("[data-open-tab]").forEach((element) => {
-    const tabId = element.dataset.openTab ?? "";
-    const active = tabId === state.activeTabId;
-    element.classList.toggle("active", active);
-    element.setAttribute("aria-selected", active ? "true" : "false");
-  });
-}
+// (updateTabStripActive extracted to src/ui/tabs-bar.ts)
 
 function updateActivityBarActive() {
   document.querySelectorAll<HTMLButtonElement>("[data-activity]").forEach((button) => {
@@ -498,44 +520,7 @@ function focusRequestWorkspace(): boolean {
   return true;
 }
 
-function removeStrayTabBars() {
-  const host = document.querySelector(".title-bar-tabs-host");
-  document.querySelectorAll<HTMLElement>(".tab-bar").forEach((bar) => {
-    if (host?.contains(bar)) return;
-    bar.remove();
-  });
-}
-
-function applyOpenTabOrder(strip: HTMLElement, tabIds: readonly string[]) {
-  for (const id of tabIds) {
-    const el = strip.querySelector<HTMLElement>(
-      `[data-open-tab="${typeof CSS !== "undefined" && "escape" in CSS ? CSS.escape(id) : id}"]`
-    );
-    if (el) strip.appendChild(el);
-  }
-}
-
-function updateTabStripScroll() {
-  const wrap = document.querySelector<HTMLElement>(".title-bar-tabs-host .tab-strip-wrap");
-  if (!wrap) return;
-
-  const viewport = wrap.querySelector<HTMLElement>(".tab-strip-viewport");
-  const strip = wrap.querySelector<HTMLElement>(".tab-strip");
-  const back = wrap.querySelector<HTMLButtonElement>(".tab-scroll-back");
-  const forward = wrap.querySelector<HTMLButtonElement>(".tab-scroll-forward");
-  if (!viewport || !strip || !back || !forward) return;
-
-  const overflow = strip.scrollWidth > viewport.clientWidth + 1;
-  const atStart = viewport.scrollLeft <= 1;
-  const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 1;
-  const showBack = overflow && !atStart;
-  const showForward = overflow && !atEnd;
-  wrap.classList.toggle("has-overflow", overflow);
-  wrap.classList.toggle("has-scroll-back", showBack);
-  wrap.classList.toggle("has-scroll-forward", showForward);
-  back.classList.toggle("is-hidden", !showBack);
-  forward.classList.toggle("is-hidden", !showForward);
-}
+// (removeStrayTabBars, applyOpenTabOrder, updateTabStripScroll extracted to src/ui/tabs-bar.ts)
 
 function refreshTabBar() {
   const request = getActiveRequest();
@@ -580,121 +565,7 @@ function refreshTabBar() {
   }
 }
 
-function bindTabStripScroll() {
-  const host = document.querySelector<HTMLElement>(".title-bar-tabs-host");
-  const wrap = host?.querySelector<HTMLElement>(".tab-strip-wrap");
-  if (!wrap || wrap.dataset.scrollBound === "true") return;
-
-  const viewport = wrap.querySelector<HTMLElement>(".tab-strip-viewport");
-  const strip = wrap.querySelector<HTMLElement>(".tab-strip");
-  const back = wrap.querySelector<HTMLButtonElement>(".tab-scroll-back");
-  const forward = wrap.querySelector<HTMLButtonElement>(".tab-scroll-forward");
-  if (!viewport || !strip || !back || !forward) return;
-
-  wrap.dataset.scrollBound = "true";
-
-  const scrollByPage = (direction: -1 | 1) => {
-    const delta = Math.max(120, viewport.clientWidth * 0.65) * direction;
-    viewport.scrollBy({ left: delta, behavior: "smooth" });
-  };
-
-  back.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    scrollByPage(-1);
-  });
-  forward.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    scrollByPage(1);
-  });
-
-  viewport.addEventListener("scroll", updateTabStripScroll, { passive: true });
-  const observer = new ResizeObserver(() => updateTabStripScroll());
-  observer.observe(viewport);
-  observer.observe(strip);
-  requestAnimationFrame(updateTabStripScroll);
-}
-
-function bindTabBar() {
-  const boundKey = "__restpilotTabBarUi";
-  const win = window as Window & { [boundKey]?: boolean };
-  if (win[boundKey]) return;
-  win[boundKey] = true;
-
-  const tabHost = () => document.querySelector<HTMLElement>(".title-bar-tabs-host");
-
-  document.addEventListener("click", (event) => {
-    const host = tabHost();
-    const strip = host?.querySelector(".tab-strip");
-    if (!strip?.contains(event.target as Node)) return;
-
-    const closeTarget = (event.target as HTMLElement).closest<HTMLElement>("[data-close-tab]");
-    if (closeTarget) {
-      event.preventDefault();
-      event.stopPropagation();
-      closeTab(closeTarget.getAttribute("data-close-tab") ?? "");
-      return;
-    }
-    const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
-    if (tabEl) openRequest(tabEl.dataset.openTab ?? "");
-  });
-
-  document.addEventListener("auxclick", (event) => {
-    if (event.button !== 1) return;
-    const host = tabHost();
-    const strip = host?.querySelector(".tab-strip");
-    if (!strip?.contains(event.target as Node)) return;
-
-    const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
-    if (!tabEl || (event.target as HTMLElement).closest("[data-close-tab]")) return;
-    event.preventDefault();
-    closeTab(tabEl.dataset.openTab ?? "");
-  });
-
-  document.addEventListener("mousedown", (event) => {
-    if (event.button !== 1) return;
-    const host = tabHost();
-    const strip = host?.querySelector(".tab-strip");
-    if (!strip?.contains(event.target as Node)) return;
-
-    const tabEl = (event.target as HTMLElement).closest<HTMLElement>("[data-open-tab]");
-    if (!tabEl || (event.target as HTMLElement).closest("[data-close-tab]")) return;
-    event.preventDefault();
-    closeTab(tabEl.dataset.openTab ?? "");
-  });
-
-  attachTabStripReorder({
-    getHost: tabHost,
-    getTabIds: () => state.openTabs,
-    onCommit: (next) => {
-      state.openTabs = next;
-      scheduleSave();
-      const strip = tabHost()?.querySelector<HTMLElement>(".tab-strip");
-      if (strip) applyOpenTabOrder(strip, next);
-      updateTabStripActive();
-      requestAnimationFrame(updateTabStripScroll);
-    }
-  });
-}
-
-function renderRequestActionsTrigger(streamActive: boolean) {
-  const labels = t().request;
-  return `
-    <button
-      type="button"
-      id="request-actions-trigger"
-      class="tab-actions-trigger${streamActive ? " has-stream" : ""}"
-      data-request-actions-trigger
-      aria-haspopup="menu"
-      aria-expanded="false"
-      title="${labels.actions}"
-    >
-      <span class="tab-actions-label">${labels.actions}</span>
-      ${iconChevronRight}
-    </button>
-  `;
-}
+// (bindTabStripScroll, bindTabBar, renderRequestActionsTrigger extracted to src/ui/tabs-bar.ts)
 
 let requestActionsMenuBound = false;
 
@@ -737,13 +608,7 @@ function updateTreeRowActive() {
   });
 }
 
-function treeRowClassName(item: TreeItem, editing: boolean) {
-  const classes = ["tree-row"];
-  if (editing) classes.push("is-editing");
-  if (state.selectedTreeId === item.id) classes.push("is-selected");
-  if (item.kind === "request" && state.activeTabId === item.id) classes.push("is-open-tab");
-  return classes.join(" ");
-}
+// (treeRowClassName extracted to src/ui/collection-tree.ts)
 
 function unmountTabDisplay(requestId: string | null | undefined) {
   if (!requestId) return;
@@ -766,63 +631,9 @@ function invalidateLineCache(tab: TabState) {
   tab.responseDisplayBody = undefined;
 }
 
-function getResponseBodyForDisplay(tab: TabState, body: string, headers: Record<string, string>) {
-  if (tab.streaming) return body;
-  const cacheKey = `${bodySourceKey(body, headers)}:display`;
-  if (tab.responseDisplayKey === cacheKey && tab.responseDisplayBody) return tab.responseDisplayBody;
-  const display = formatResponseBody(body, headers);
-  tab.responseDisplayKey = cacheKey;
-  tab.responseDisplayBody = display;
-  return display;
-}
-
-function responseViewerMode(body: string, headers: Record<string, string>): RawType {
-  return detectContentKind(body, headers);
-}
-
-async function mountResponseBodyViewer(request: SavedRequest, tab: TabState) {
-  tab.responseBodyUnmount?.();
-  tab.responseBodyUnmount = undefined;
-
-  const host = document.querySelector<HTMLElement>("[data-response-body-viewer]");
-  if (!host || !tab.response || tab.selectedResponseTab !== "body") return;
-
-  const editors = await getEditorRuntime();
-  const body = tab.response.body;
-  const headers = tab.response.headers;
-  const displayBody = getResponseBodyForDisplay(tab, body, headers);
-  tab.responseBodyUnmount = editors.mountReadonlyViewer(
-    host,
-    displayBody,
-    responseViewerMode(body, headers),
-    state.settings.tabSize
-  );
-}
-
-function mountHeadersPanel(tab: TabState) {
-  tab.headersTableUnmount?.();
-  tab.headersTableUnmount = undefined;
-
-  const host = document.querySelector<HTMLElement>("[data-headers-table]");
-  if (!host || !tab.response || tab.selectedResponseTab !== "headers") return;
-
-  const labels = t().request;
-  const rows = Object.entries(tab.response.headers).map(([key, value]) => ({ key, value }));
-  tab.headersTableUnmount = mountHeadersTable(host, rows, {
-    search: labels.headersSearch,
-    key: labels.headersKey,
-    value: labels.headersValue,
-    empty: labels.headersEmpty
-  });
-}
-
 async function mountWorkspaceDisplays(request: SavedRequest, tab: TabState) {
   tab.bodyEditorUnmount?.();
-  tab.responseBodyUnmount?.();
-  tab.headersTableUnmount?.();
   tab.bodyEditorUnmount = undefined;
-  tab.responseBodyUnmount = undefined;
-  tab.headersTableUnmount = undefined;
 
   const editors = await getEditorRuntime();
   const editorHost = document.querySelector<HTMLElement>("[data-body-editor-host]");
@@ -839,68 +650,13 @@ async function mountWorkspaceDisplays(request: SavedRequest, tab: TabState) {
     });
   }
 
-  await mountResponseBodyViewer(request, tab);
-  mountHeadersPanel(tab);
+  await mountResponseDisplays(request, tab);
 
   tab.displayUnmount = () => {
     tab.bodyEditorUnmount?.();
-    tab.responseBodyUnmount?.();
-    tab.headersTableUnmount?.();
     tab.bodyEditorUnmount = undefined;
-    tab.responseBodyUnmount = undefined;
-    tab.headersTableUnmount = undefined;
+    unmountResponseDisplays(tab);
   };
-}
-
-function renderResponseHead(tab: TabState) {
-  const labels = t().request;
-  const response = tab.response!;
-  const statusClass = response.status >= 200 && response.status < 300 ? "ok" : response.status >= 400 ? "bad" : "soft";
-  const streamingBadge = tab.streaming ? `<span class="stream-badge">${labels.streaming}</span>` : "";
-  return `
-    <div class="response-head">
-      <div class="status ${statusClass}">${response.status} ${escapeHtml(response.status_text)}</div>${streamingBadge}
-      <div class="response-head-actions">
-        <div class="metrics"><span>${response.duration_ms} ms</span><span>${formatBytes(response.body.length)}</span></div>
-        <button
-          class="icon-btn"
-          data-copy-menu-trigger
-          id="copy-response-menu"
-          type="button"
-          aria-label="${labels.copyResponseMenu}"
-          aria-haspopup="menu"
-          aria-expanded="false"
-        >${iconCopy}</button>
-      </div>
-    </div>
-  `;
-}
-
-async function refreshResponseBodyDisplay(request: SavedRequest, tab: TabState) {
-  if (!tab.response) return;
-
-  const body = tab.response.body;
-  const headers = tab.response.headers;
-  const displayBody = getResponseBodyForDisplay(tab, body, headers);
-
-  const head = document.querySelector(".response-head");
-  if (head) {
-    head.outerHTML = renderResponseHead(tab);
-    bindResponseCopyMenu(tab);
-  }
-
-  const streamHost = document.querySelector<HTMLElement>("[data-response-body-stream]");
-  if (streamHost) {
-    streamHost.textContent = displayBody;
-    return;
-  }
-
-  const host = document.querySelector<HTMLElement>("[data-response-body-viewer]");
-  if (!host) return;
-
-  const editors = await getEditorRuntime();
-  if (editors.setReadonlyViewerValue(host, displayBody)) return;
-  await mountResponseBodyViewer(request, tab);
 }
 
 function activateRequestTab(requestId: string) {
@@ -1107,7 +863,7 @@ function buildContextMenuMarkup() {
   `;
 }
 
-function syncContextMenu() {
+export function syncContextMenu() {
   document.querySelector(".context-menu")?.remove();
   const markup = buildContextMenuMarkup();
   if (!markup) return;
@@ -1121,43 +877,7 @@ function syncContextMenu() {
 }
 
 
-function renderTabBar(request: SavedRequest | undefined, tab: TabState | null | undefined) {
-  if (!state.openTabs.length) return "";
-  const labels = t().request;
-  const tools =
-    request && tab
-      ? `
-      <div class="tab-bar-tools">
-        ${renderEnvironmentChipButton()}
-        ${renderVariablesPopoverButton()}
-        ${renderRequestActionsTrigger(request.streamResponse)}
-      </div>`
-      : "";
-  return `
-    <header class="tab-bar">
-      <div class="tab-strip-wrap">
-        <button class="tab-scroll-btn tab-scroll-back is-hidden" type="button" aria-label="${labels.tabScrollBack}">${iconChevronLeft}</button>
-        <div class="tab-strip-viewport">
-          <div class="tab-strip">${state.openTabs.map(renderTab).join("")}</div>
-        </div>
-        <button class="tab-scroll-btn tab-scroll-forward is-hidden" type="button" aria-label="${labels.tabScrollForward}">${iconChevronRight}</button>
-      </div>
-      <div class="title-bar-drag" data-tauri-drag-region aria-hidden="true"></div>
-      ${tools}
-    </header>
-  `;
-}
-
-function renderTab(requestId: string) {
-  const request = getRequest(requestId);
-  if (!request) return "";
-  return `
-    <div class="request-tab ${state.activeTabId === requestId ? "active" : ""}" data-open-tab="${requestId}" role="tab" aria-selected="${state.activeTabId === requestId}" tabindex="0">
-      <span class="tab-label">${escapeHtml(request.title)}</span>
-      <button class="mini-btn tab-close field-remove-btn" data-close-tab="${requestId}" type="button" aria-label="${t().dialog.close}">×</button>
-    </div>
-  `;
-}
+// (renderTabBar, renderTab extracted to src/ui/tabs-bar.ts)
 
 function renderRequest(request: SavedRequest, tab: TabState) {
   const labels = t().request;
@@ -1321,84 +1041,9 @@ function renderPair(pair: Pair, scope: "header" | "form" | "query") {
   `;
 }
 
-function renderResponseBodyMarkup(body: string, headers: Record<string, string>, streaming = false) {
-  if (streaming && !isLargeText(body)) {
-    return `<pre class="response-body response-body-stream" data-response-body-stream></pre>`;
-  }
-  if (isLargeText(body)) {
-    return `<div class="response-body response-body-viewer" data-response-body-viewer></div>`;
-  }
-  return `<pre class="response-body">${highlightResponse(body, headers)}</pre>`;
-}
+// (Response Viewer Panel markup helpers extracted to src/ui/response-panel.ts)
 
-function renderResponseHeadersMarkup() {
-  return `<div class="response-headers-panel" data-headers-table></div>`;
-}
-
-function renderResponse(tab: TabState) {
-  const labels = t().request;
-  if (tab.loading && !tab.response) {
-    return `<div class="response-empty"><div class="loader"></div><h2>${labels.waitingTitle}</h2><p>${labels.waitingBody}</p></div>`;
-  }
-  if (tab.error && !tab.response) return `<div class="response-empty error"><h2>${labels.failedTitle}</h2><p>${escapeHtml(tab.error)}</p></div>`;
-  if (!tab.response) return `<div class="response-empty"><h2>${labels.emptyTitle}</h2><p>${labels.emptyBody}</p></div>`;
-
-  const response = tab.response;
-  return `
-    ${renderResponseHead(tab)}
-    <div class="tabs">
-      <button class="${tab.selectedResponseTab === "body" ? "active" : ""}" data-response-tab="body" type="button">${labels.body}</button>
-      <button class="${tab.selectedResponseTab === "headers" ? "active" : ""}" data-response-tab="headers" type="button">${labels.responseHeaders}</button>
-    </div>
-    ${
-      tab.selectedResponseTab === "body"
-        ? renderResponseBodyMarkup(response.body, response.headers, tab.streaming)
-        : renderResponseHeadersMarkup()
-    }
-  `;
-}
-
-function renderExplorerTree(parentId: string, depth: number): string {
-  const labels = t().tree;
-  const searchVisible = collectionSearchVisibleIds(state.items, state.collectionSearchQuery);
-  return state.items
-    .filter((item) => item.parentId === parentId)
-    .filter((item) => !searchVisible || searchVisible.has(item.id))
-    .map((item) => {
-      const editing = state.editingTreeId === item.id;
-      const expanded =
-        item.kind === "folder" && folderExpandedForSearch(item, searchVisible, state.items);
-      const children = item.kind === "folder" && item.expanded ? renderExplorerTree(item.id, depth + 1) : "";
-      return `
-        <div class="${treeRowClassName(item, editing)}" tabindex="0" data-tree-id="${item.id}" data-kind="${item.kind}" style="--depth:${depth}">
-          <span class="tree-chevron">${item.kind === "folder" ? (expanded ? "v" : ">") : ""}</span>
-          ${item.kind === "folder" ? `<span class="tree-item-icon folder-icon"></span>` : item.kind === "request" && !editing ? `<span class="tree-method"${methodDataAttribute(item.method)}>${item.method}</span>` : ""}
-          <div class="tree-main">
-            ${
-              editing
-                ? `<input class="tree-rename-input" value="${escapeAttribute(item.title)}" spellcheck="false" aria-label="${labels.rename}" />`
-                : `<span class="tree-title"${
-                    item.kind === "request" && item.description?.trim()
-                      ? ` title="${escapeAttribute(item.description.trim())}"`
-                      : ""
-                  }>${escapeHtml(item.title)}</span>`
-            }
-          </div>
-          ${
-            editing
-              ? ""
-              : `<span class="tree-row-actions">
-                  <button class="mini-btn tree-action-btn" data-tree-action="rename" data-tree-id="${item.id}" type="button" title="${labels.rename}" aria-label="${labels.rename}">${iconRename}</button>
-                  <button class="mini-btn tree-action-btn" data-tree-action="duplicate" data-tree-id="${item.id}" type="button" title="${labels.duplicate}" aria-label="${labels.duplicate}">${iconDuplicate}</button>
-                  <button class="mini-btn tree-action-btn danger" data-tree-action="delete" data-tree-id="${item.id}" type="button" title="${labels.delete}" aria-label="${labels.delete}">${iconRemove}</button>
-                </span>`
-          }
-        </div>
-        ${children}
-      `;
-    })
-    .join("");
-}
+// (renderExplorerTree extracted to src/ui/collection-tree.ts)
 
 function renderEmpty() {
   const text = state.activePanel === "functions" ? t().functions.noFunctionSelected : t().request.noTab;
@@ -1595,13 +1240,33 @@ function bindCollectionSearch() {
   });
 }
 
+function bindAppTree() {
+  bindTree({
+    commitTreeRename: (id) => commitTreeRename(id),
+    cancelTreeRename: () => cancelTreeRename(),
+    selectAdjacentTreeItem: (dir) => selectAdjacentTreeItem(dir),
+    selectTreeItem: (id, opts) => selectTreeItem(id, opts),
+    deleteItem: (id) => deleteItem(id),
+    activateTreeItem: (id) => activateTreeItem(id),
+    startTreeRename: (id) => startTreeRename(id),
+    duplicateItem: (id) => duplicateItem(id),
+    showSiblingNameConflictDialog: (conf) => showSiblingNameConflictDialog(conf),
+    closeContextMenu: () => closeContextMenu(),
+    focusTreeSelection: () => focusTreeSelection(),
+    activateRequestTab: (id) => activateRequestTab(id)
+  });
+}
+
 function bindEvents() {
   bindWindowChrome();
   void syncMaximizeControl();
-  bindTree();
+  bindAppTree();
   bindDialogs();
   bindActivityBar();
-  bindTabBar();
+  bindTabBar({
+    closeTab: (id) => closeTab(id),
+    openRequest: (id) => openRequest(id)
+  });
   bindTabStripScroll();
   bindCollectionSearch();
   bindFunctionsSearch();
@@ -1736,7 +1401,7 @@ async function clearAllData() {
 
 let toastTimeout: ReturnType<typeof setTimeout> | undefined;
 
-function showToast(message: string) {
+export function showToast(message: string) {
   if (toastTimeout) clearTimeout(toastTimeout);
 
   let toast = document.getElementById("app-toast");
@@ -1757,7 +1422,7 @@ function showToast(message: string) {
   }, 2200);
 }
 
-function closeContextMenu() {
+export function closeContextMenu() {
   if (!state.contextMenu) return;
   state.contextMenu = null;
   document.querySelector(".context-menu")?.remove();
@@ -1999,196 +1664,7 @@ function ensureContextMenuHandlers() {
   });
 }
 
-function bindTree() {
-  if (state.activePanel !== "request") return;
-  const tree = document.querySelector<HTMLElement>(".tree");
-  tree?.addEventListener("keydown", async (event) => {
-    if (state.editingTreeId) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        commitTreeRename(state.editingTreeId);
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancelTreeRename();
-      }
-      return;
-    }
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      selectAdjacentTreeItem(1);
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      selectAdjacentTreeItem(-1);
-      return;
-    }
-    if (event.key === "Home") {
-      event.preventDefault();
-      const first = visibleTreeItems()[0];
-      if (first) selectTreeItem(first.id, { render: true, focus: true });
-      return;
-    }
-    if (event.key === "End") {
-      event.preventDefault();
-      const visible = visibleTreeItems();
-      const last = visible[visible.length - 1];
-      if (last) selectTreeItem(last.id, { render: true, focus: true });
-      return;
-    }
-
-    const selected = state.selectedTreeId ? getItem(state.selectedTreeId) : null;
-    if (!selected) return;
-
-    if (event.key === "F2") {
-      event.preventDefault();
-      startTreeRename(selected.id);
-      return;
-    }
-    if (event.key === "Delete") {
-      event.preventDefault();
-      await deleteItem(selected.id);
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      activateTreeItem(selected.id);
-      return;
-    }
-    if (event.key === "ArrowRight" && selected.kind === "folder") {
-      event.preventDefault();
-      if (!selected.expanded) {
-        selected.expanded = true;
-        scheduleSave();
-        render();
-      }
-      return;
-    }
-    if (event.key === "ArrowLeft" && selected.kind === "folder") {
-      event.preventDefault();
-      if (selected.expanded) {
-        selected.expanded = false;
-        scheduleSave();
-        render();
-      } else if (!isCollectionRoot(selected.parentId)) {
-        selectTreeItem(selected.parentId, { render: true, focus: true });
-      }
-    }
-  });
-  const treeDropHost = tree?.closest<HTMLElement>(".collection-sidebar-panel") ?? tree;
-  if (tree && treeDropHost && tree.dataset.pointerReorderBound !== "true") {
-    tree.dataset.pointerReorderBound = "true";
-    const clearTreeDropRoot = () => {
-      tree.classList.remove("drop-root");
-      treeDropHost.classList.remove("is-drop-root-target");
-    };
-    attachPointerReorder({
-      container: treeDropHost,
-      itemSelector: ".tree-row[data-tree-id]",
-      ignoreSelector: "[data-tree-action], .tree-rename-input",
-      getItemId: (element) => element.dataset.treeId ?? "",
-      resolvePlacement: (target, event, sourceId) => dropPlacementFor(target, event, sourceId),
-      resolveTarget: (event) => treeRowAtPointer(tree, event.clientX, event.clientY),
-      shouldOfferRootDrop: (event) =>
-        shouldOfferTreeRootDrop(tree, treeDropHost, event.clientX, event.clientY),
-      onOverContainer: () => {
-        tree.classList.add("drop-root");
-        treeDropHost.classList.add("is-drop-root-target");
-      },
-      onLeaveContainer: clearTreeDropRoot,
-      onCommitToRoot: (sourceId) => {
-        clearTreeDropRoot();
-        const conflict = moveItemTo(
-          sourceId,
-          COLLECTION_ROOT_PARENT_ID,
-          childCount(COLLECTION_ROOT_PARENT_ID)
-        );
-        if (conflict) void showSiblingNameConflictDialog(conflict);
-      },
-      onCommit: (sourceId, targetId, placement) => {
-        clearTreeDropRoot();
-        const target = getItem(targetId);
-        if (!target) return;
-        const conflict =
-          placement === "inside"
-            ? moveDroppedItem(sourceId, target, "inside")
-            : moveDroppedItem(sourceId, target, placement);
-        if (conflict) void showSiblingNameConflictDialog(conflict);
-      }
-    });
-  }
-
-  document.querySelectorAll<HTMLElement>(".tree-row[data-tree-id]").forEach((row) => {
-    const item = getItem(row.dataset.treeId ?? "");
-    if (!item) return;
-
-    row.querySelector<HTMLInputElement>(".tree-rename-input")?.addEventListener("keydown", (event) => {
-      event.stopPropagation();
-      if (event.key === "Enter") {
-        event.preventDefault();
-        commitTreeRename(item.id);
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        cancelTreeRename();
-      }
-    });
-    row.querySelector<HTMLInputElement>(".tree-rename-input")?.addEventListener("blur", () => {
-      if (state.editingTreeId === item.id) commitTreeRename(item.id);
-    });
-
-    row.querySelectorAll<HTMLButtonElement>("[data-tree-action]").forEach((button) => {
-      button.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const action = button.dataset.treeAction ?? "";
-        const targetId = button.dataset.treeId ?? item.id;
-        if (action === "rename") startTreeRename(targetId);
-        if (action === "duplicate") duplicateItem(targetId);
-        if (action === "delete") {
-          void deleteItem(targetId);
-        }
-      });
-    });
-
-    row.addEventListener("click", (event) => {
-      if ((event.target as HTMLElement).closest("[data-tree-action], .tree-rename-input")) return;
-      closeContextMenu();
-      if (
-        item.kind === "request" &&
-        state.settings.clickToSelect &&
-        state.openTabs.includes(item.id)
-      ) {
-        activateRequestTab(item.id);
-        return;
-      }
-      selectTreeItem(item.id, { render: true, focus: true });
-    });
-    row.addEventListener("dblclick", (event) => {
-      if ((event.target as HTMLElement).closest("[data-tree-action], .tree-rename-input")) return;
-      activateTreeItem(item.id);
-    });
-  });
-
-  focusTreeSelection();
-}
-
-function visibleTreeItems(): TreeItem[] {
-  const result: TreeItem[] = [];
-  const searchVisible = collectionSearchVisibleIds(state.items, state.collectionSearchQuery);
-  const walk = (parentId: string) => {
-    for (const item of childrenOf(parentId)) {
-      if (searchVisible && !searchVisible.has(item.id)) continue;
-      result.push(item);
-      if (item.kind === "folder" && folderExpandedForSearch(item, searchVisible, state.items)) {
-        walk(item.id);
-      }
-    }
-  };
-  walk(COLLECTION_ROOT_PARENT_ID);
-  return result;
-}
+// (bindTree and visibleTreeItems extracted to src/ui/collection-tree.ts)
 
 function selectTreeItem(itemId: string | null, options: { render?: boolean; focus?: boolean } = {}) {
   if (itemId) focusRequestWorkspace();
@@ -2314,24 +1790,7 @@ function pickTreeFocusAfterDelete(itemId: string): string | null {
   return visible[0]?.id ?? null;
 }
 
-function dropPlacementFor(row: HTMLElement, event: PointerEvent, sourceId: string): PointerReorderPlacement {
-  const item = getItem(row.dataset.treeId ?? "");
-  const source = getItem(sourceId);
-  if (!item || !source) return "after";
-
-  const rect = row.getBoundingClientRect();
-  const y = event.clientY - rect.top;
-  const third = rect.height / 3;
-
-  if (item.kind === "folder" && source.id !== item.id && !collectChildren(source.id).includes(item.id)) {
-    if (y < third) return "before";
-    if (y > rect.height - third) return "after";
-    return "inside";
-  }
-
-  if (y < rect.height / 2) return "before";
-  return "after";
-}
+// (dropPlacementFor extracted to src/ui/collection-tree.ts)
 
 function activateTreeItem(itemId: string) {
   const item = getItem(itemId);
@@ -2445,31 +1904,7 @@ function updateUrlPreview(request: SavedRequest) {
   preview.textContent = resolvedRequestUrl(request, effectiveVariables);
 }
 
-function bindResponseCopyMenu(tab: TabState) {
-  const button = document.querySelector<HTMLButtonElement>("#copy-response-menu");
-  button?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    if (state.contextMenu?.kind === "response-copy" && state.contextMenu.requestId === tab.requestId) {
-      closeContextMenu();
-      return;
-    }
-    const rect = button.getBoundingClientRect();
-    state.contextMenu = {
-      kind: "response-copy",
-      x: rect.right,
-      y: rect.bottom + 4,
-      requestId: tab.requestId,
-      canCopySelection: hasResponseBodySelection()
-    };
-    syncContextMenu();
-  });
-}
-
-async function copyResponseStatus(tab: TabState) {
-  if (!tab.response) return;
-  const line = `${tab.response.status} ${tab.response.status_text} · ${tab.response.duration_ms} ms`;
-  await copyText(line);
-}
+// (bindResponseCopyMenu and copy response actions extracted to src/ui/response-panel.ts)
 
 async function trySendRequest() {
   if (state.activePanel !== "request") return;
@@ -2486,20 +1921,6 @@ async function trySendRequest() {
   }
 
   await sendRequest();
-}
-
-async function copyResponseBody(request: SavedRequest, tab: TabState) {
-  if (!tab.response) return;
-  const body = getResponseBodyForDisplay(tab, tab.response.body, tab.response.headers);
-  await copyText(body);
-}
-
-async function copyResponseHeaders(tab: TabState) {
-  if (!tab.response) return;
-  const text = Object.entries(tab.response.headers)
-    .map(([key, value]) => `${key}: ${value}`)
-    .join("\n");
-  await copyText(text);
 }
 
 async function copyText(text: string) {
@@ -2566,31 +1987,7 @@ function handleStreamEvent(
   scheduleResponseRender();
 }
 
-function scheduleResponseRender() {
-  if (responseRenderFrame) return;
-  responseRenderFrame = requestAnimationFrame(() => {
-    responseRenderFrame = undefined;
-    const request = getActiveRequest();
-    if (!request) return;
-    const tab = state.tabs[request.id];
-    if (!tab?.response) return;
-    const card = document.querySelector(".response-card");
-    if (!card) return;
-
-    const canPatchBody =
-      tab.selectedResponseTab === "body" &&
-      card.querySelector("[data-response-body-viewer], [data-response-body-stream]");
-
-    if (canPatchBody) {
-      void refreshResponseBodyDisplay(request, tab);
-      return;
-    }
-
-    card.innerHTML = renderResponse(tab);
-    bindResponseTabs(request.id);
-    void mountWorkspaceDisplays(request, tab);
-  });
-}
+// (scheduleResponseRender and bindResponseTabs extracted to src/ui/response-panel.ts)
 
 function bindRequestTabs(requestId: string) {
   const tab = state.tabs[requestId];
@@ -2598,17 +1995,6 @@ function bindRequestTabs(requestId: string) {
   document.querySelectorAll<HTMLButtonElement>(".request-card [data-request-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       tab.selectedRequestTab = button.dataset.requestTab as RequestTab;
-      renderWorkspace();
-    });
-  });
-}
-
-function bindResponseTabs(requestId: string) {
-  const tab = state.tabs[requestId];
-  if (!tab) return;
-  document.querySelectorAll<HTMLButtonElement>(".response-card [data-response-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      tab.selectedResponseTab = button.dataset.responseTab as ResponseTab;
       renderWorkspace();
     });
   });
