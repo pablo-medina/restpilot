@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { AI_PROVIDER_PRESETS } from "./app/ai-presets";
 import { MAX_AI_INSTRUCTIONS_CHARS } from "./app/ai-settings";
 import { scheduleSave } from "./app/persistence";
 import { aiConnectionPayload } from "./ai/payload";
+import { AI_STREAM_EVENT } from "./ai/events";
 import type { SettingsChangeHandler } from "./settings";
 import {
   bindPopoverClose,
@@ -15,7 +17,7 @@ import { messageDialog } from "./components/dialogs";
 import { iconEye, iconEyeOff } from "./icons";
 import { t } from "./i18n";
 import { hiddenClass, setVisible } from "./ui/visibility";
-import type { AiToolPolicy, UserSettings } from "./types";
+import type { AiToolPolicy, UserSettings, AiStreamPayload, AiStreamToolCall } from "./types";
 
 const aiKeyRevealed = { api: false };
 let cachedModels: string[] = [];
@@ -116,10 +118,13 @@ export function renderAiSettingsCard(settings: UserSettings): string {
 
         <label class="settings-field">
           <span>${labels.model}</span>
-          <button class="settings-ai-model-chip env-chip" id="ai-model-btn" type="button" ${aiOpen ? "" : "disabled"}>
-            <span id="ai-model-label" class="env-chip-label">${escapeAttribute(modelLabel)}</span>
-            <span class="env-chip-caret" aria-hidden="true">▾</span>
-          </button>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button class="settings-ai-model-chip env-chip" id="ai-model-btn" type="button" ${aiOpen ? "" : "disabled"}>
+              <span id="ai-model-label" class="env-chip-label">${escapeAttribute(modelLabel)}</span>
+              <span class="env-chip-caret" aria-hidden="true">▾</span>
+            </button>
+            <button class="settings-proxy-test-btn" id="ai-test-tools-btn" type="button" ${aiOpen ? "" : "disabled"} style="border-color: var(--rp-accent); color: var(--rp-accent); margin: 0; padding: 4px 10px; font-size: 12px; height: 26px;">${labels.testTools || "Test AI"}</button>
+          </div>
           <p class="settings-ai-models-error${hiddenClass(true)}" id="ai-models-error"></p>
         </label>
 
@@ -161,7 +166,7 @@ function syncAiPanels(settings: UserSettings) {
   });
   const instructions = document.querySelector<HTMLTextAreaElement>("#setting-ai-instructions");
   if (instructions) instructions.disabled = disabled;
-  ["ai-presets-btn", "ai-test-btn", "ai-model-btn", "toggle-ai-api-key", "clear-ai-api-key"].forEach((id) => {
+  ["ai-presets-btn", "ai-test-btn", "ai-test-tools-btn", "ai-model-btn", "toggle-ai-api-key", "clear-ai-api-key"].forEach((id) => {
     const el = document.querySelector<HTMLButtonElement>(`#${id}`);
     if (el) el.disabled = disabled;
   });
@@ -391,6 +396,229 @@ async function runAiTest(settings: UserSettings) {
   }
 }
 
+async function runToolsDiagnostics(settings: UserSettings): Promise<{ ok: boolean; message: string }> {
+  const messages = [
+    {
+      role: "system" as const,
+      content: "You are a tool-calling diagnostic assistant. You must check the weather in Paris using the check_weather tool. Do not answer without using the tool."
+    },
+    {
+      role: "user" as const,
+      content: "Please check the weather in Paris."
+    }
+  ];
+
+  const testTools = [
+    {
+      type: "function",
+      function: {
+        name: "check_weather",
+        description: "Get the current weather for a specific city.",
+        parameters: {
+          type: "object",
+          properties: {
+            city: { type: "string", description: "The city to check, e.g. Paris" }
+          },
+          required: ["city"]
+        }
+      }
+    }
+  ];
+
+  const chatId1 = crypto.randomUUID();
+  let accumulatedToolCalls: AiStreamToolCall[] = [];
+  let streamError1: string | null = null;
+  let done1 = false;
+
+  const unlisten1 = await listen<AiStreamPayload>(AI_STREAM_EVENT, (event) => {
+    const payload = event.payload;
+    if (payload.chat_id !== chatId1) return;
+    if (payload.error) streamError1 = payload.error;
+    if (payload.tool_calls) {
+      accumulatedToolCalls = payload.tool_calls;
+    }
+    if (payload.done) done1 = true;
+  });
+
+  const conn = aiConnectionPayload(settings, true);
+  try {
+    await invoke("ai_chat_stream", {
+      payload: {
+        chat_id: chatId1,
+        base_url: settings.ai.baseUrl,
+        api_key: settings.ai.apiKey.trim() || null,
+        model: settings.ai.model.trim(),
+        messages,
+        tools: testTools,
+        tool_choice: "auto",
+        proxy: conn.proxy,
+        network: conn.network
+      }
+    });
+  } catch (error) {
+    await unlisten1();
+    return { ok: false, message: `Failed to initiate tool-calling stream: ${error instanceof Error ? error.message : String(error)}` };
+  }
+
+  const deadline1 = Date.now() + 30000;
+  while (!done1 && Date.now() < deadline1) {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
+  await unlisten1();
+
+  if (streamError1) {
+    return { ok: false, message: `Tool-calling round failed: ${streamError1}` };
+  }
+  if (!done1 && !accumulatedToolCalls.length) {
+    return { ok: false, message: "Tool-calling round timed out." };
+  }
+
+  if (!accumulatedToolCalls.length || !accumulatedToolCalls.some(c => c.name === "check_weather")) {
+    return {
+      ok: false,
+      message: "The AI did not invoke the check_weather tool. Ensure your configured model supports function/tool calling."
+    };
+  }
+
+  const targetCall = accumulatedToolCalls.find(c => c.name === "check_weather")!;
+
+  const secondMessages = [
+    ...messages,
+    {
+      role: "assistant" as const,
+      content: "",
+      tool_calls: accumulatedToolCalls.map(c => ({
+        id: c.id,
+        type: "function" as const,
+        function: {
+          name: c.name,
+          arguments: c.arguments
+        }
+      }))
+    },
+    {
+      role: "tool" as const,
+      tool_call_id: targetCall.id,
+      name: "check_weather",
+      content: JSON.stringify({ temperature: "22°C", condition: "Sunny" })
+    },
+    {
+      role: "user" as const,
+      content: "Please summarize the check_weather result in strict JSON format: {\"paris_temp\": \"22°C\", \"paris_condition\": \"Sunny\", \"verdict\": \"string\"}. Output only the JSON block without markdown formatting."
+    }
+  ];
+
+  const chatId2 = crypto.randomUUID();
+  let responseContent = "";
+  let streamError2: string | null = null;
+  let done2 = false;
+
+  const unlisten2 = await listen<AiStreamPayload>(AI_STREAM_EVENT, (event) => {
+    const payload = event.payload;
+    if (payload.chat_id !== chatId2) return;
+    if (payload.delta) responseContent += payload.delta;
+    if (payload.error) streamError2 = payload.error;
+    if (payload.done) done2 = true;
+  });
+
+  try {
+    await invoke("ai_chat_stream", {
+      payload: {
+        chat_id: chatId2,
+        base_url: settings.ai.baseUrl,
+        api_key: settings.ai.apiKey.trim() || null,
+        model: settings.ai.model.trim(),
+        messages: secondMessages,
+        proxy: conn.proxy,
+        network: conn.network
+      }
+    });
+  } catch (error) {
+    await unlisten2();
+    return { ok: false, message: `Failed to initiate summarization stream: ${error instanceof Error ? error.message : String(error)}` };
+  }
+
+  const deadline2 = Date.now() + 30000;
+  while (!done2 && Date.now() < deadline2) {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
+  await unlisten2();
+
+  if (streamError2) {
+    return { ok: false, message: `Summarization round failed: ${streamError2}` };
+  }
+  if (!done2) {
+    return { ok: false, message: "Summarization round timed out." };
+  }
+
+  const trimmedResponse = responseContent.trim();
+  let cleanJson = trimmedResponse;
+  if (cleanJson.startsWith("```")) {
+    const lines = cleanJson.split("\n");
+    if (lines[0]?.startsWith("```")) {
+      lines.shift();
+    }
+    if (lines[lines.length - 1]?.startsWith("```")) {
+      lines.pop();
+    }
+    cleanJson = lines.join("\n").trim();
+  }
+
+  try {
+    const parsed = JSON.parse(cleanJson);
+    if (parsed.paris_temp && parsed.paris_condition && parsed.verdict) {
+      return {
+        ok: true,
+        message: `Success! Tool check_weather invoked successfully, processed correctly, and returned a coherent JSON response: temperature is ${parsed.paris_temp}, condition is ${parsed.paris_condition}, verdict is "${parsed.verdict}".`
+      };
+    } else {
+      return {
+        ok: false,
+        message: `Response is JSON but missing expected keys. Received: ${cleanJson}`
+      };
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      message: `Failed to parse response as JSON. Received: "${trimmedResponse}"`
+    };
+  }
+}
+
+async function runAiToolsTest(settings: UserSettings) {
+  const labels = t().settings.ai;
+  const testBtn = document.querySelector<HTMLButtonElement>("#ai-test-btn");
+  const toolsBtn = document.querySelector<HTMLButtonElement>("#ai-test-tools-btn");
+  const outcome = document.querySelector<HTMLElement>("#ai-test-outcome");
+  
+  if (!toolsBtn) return;
+
+  if (testBtn) testBtn.disabled = true;
+  toolsBtn.disabled = true;
+  toolsBtn.textContent = labels.testingTools || "Testing...";
+  setVisible(outcome, false);
+
+  try {
+    const result = await runToolsDiagnostics(settings);
+    if (outcome) {
+      outcome.textContent = result.message;
+      outcome.classList.toggle("is-success", result.ok);
+      outcome.classList.toggle("is-error", !result.ok);
+      setVisible(outcome, true);
+    }
+  } catch (error) {
+    if (outcome) {
+      outcome.textContent = error instanceof Error ? error.message : String(error);
+      outcome.classList.add("is-error");
+      setVisible(outcome, true);
+    }
+  } finally {
+    if (testBtn) testBtn.disabled = false;
+    toolsBtn.disabled = false;
+    toolsBtn.textContent = labels.testTools || "Test AI";
+  }
+}
+
 export function bindAiSettings(settings: UserSettings, onChange: SettingsChangeHandler) {
   document.querySelector<HTMLInputElement>("#setting-ai-enabled")?.addEventListener("change", (event) => {
     settings.ai.enabled = (event.target as HTMLInputElement).checked;
@@ -435,6 +663,10 @@ export function bindAiSettings(settings: UserSettings, onChange: SettingsChangeH
 
   document.querySelector("#ai-test-btn")?.addEventListener("click", () => {
     void runAiTest(settings);
+  });
+
+  document.querySelector("#ai-test-tools-btn")?.addEventListener("click", () => {
+    void runAiToolsTest(settings);
   });
 
   document.querySelector("#ai-presets-btn")?.addEventListener("click", () => {

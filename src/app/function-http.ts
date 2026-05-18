@@ -82,3 +82,16 @@ export function runExtractorOnResponse(func: AppFunction, response: ApiResponse)
 
   return extractorFunc(response, parsedBody);
 }
+
+export function runStandaloneJavascript(func: AppFunction): unknown {
+  const codeToEval = func.code;
+  const standaloneFunc = new Function(`
+    "use strict";
+    try {
+      ${codeToEval}
+    } catch(e) {
+      throw new Error("Execution error: " + e.message);
+    }
+  `);
+  return standaloneFunc();
+}

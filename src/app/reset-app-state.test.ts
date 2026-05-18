@@ -50,6 +50,7 @@ function mockPopulatedState(): AppState {
     }],
     activeFunctionId: "f1",
     editingFunctionId: "f1",
+    selectedFunctionId: "f1",
     functionSearchQuery: "find func",
     activeFunctionRequestTab: "params",
     activeFunctionConsoleTab: "test-result",

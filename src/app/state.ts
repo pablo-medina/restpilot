@@ -34,6 +34,7 @@ export type AppState = AppConfig & {
   collectionSearchQuery: string;
   collectionSidebarOpen: boolean;
   editingFunctionId: string | null;
+  selectedFunctionId: string | null;
   functionSearchQuery: string;
   activeFunctionRequestTab: "params" | "headers" | "body" | "auth";
   activeFunctionConsoleTab: "test-result" | "raw-response";
@@ -61,6 +62,7 @@ export const state: AppState = {
   collectionSearchQuery: "",
   collectionSidebarOpen: true,
   editingFunctionId: null,
+  selectedFunctionId: null,
   functionSearchQuery: "",
   activeFunctionRequestTab: "params",
   activeFunctionConsoleTab: "test-result",

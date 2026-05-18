@@ -16,7 +16,7 @@ export const FUNCTION_AI_TOOL_DEFINITIONS = [
     function: {
       name: "list_functions",
       description:
-        "List all saved RestPilot functions (id, name, method, url, has_description). Call when you need function_id or to see what exists.",
+        "List all saved RestPilot functions (id, name, function_type, method/url/ai_request_prompt, has_description). Call when you need function_id or to see what exists.",
       parameters: { type: "object", properties: {}, additionalProperties: false }
     }
   },
@@ -25,7 +25,7 @@ export const FUNCTION_AI_TOOL_DEFINITIONS = [
     function: {
       name: "get_function",
       description:
-        "Load full function details by id: http_request (method, url, query_params, headers, body, auth redacted), extractor_code (JavaScript run on the response), description, and optional last_http_response preview. Use to explain, draft, or update functions.",
+        "Load full function details by id: function_type ('http' or 'ai'), description, and either ai_request_prompt (for AI direct requests) or http_request configuration with extractor_type ('javascript' or 'ai') and extractor_prompt/extractor_code. Use to explain, draft, or update functions.",
       parameters: {
         type: "object",
         properties: { function_id: { type: "string", description: "Function id" } },
@@ -39,12 +39,15 @@ export const FUNCTION_AI_TOOL_DEFINITIONS = [
     function: {
       name: "create_function_draft",
       description:
-        "Create a new HTTP function. Set method, URL, and body when needed. Optionally set description (what it does, for the user and AI) and extractor_code (JavaScript that returns a value from the response).",
+        "Create a new HTTP request function or direct AI Request function. Set function_type to 'ai' for direct AI JSON requests (set ai_request_prompt), or 'http' for HTTP requests (which can use a 'javascript' or 'ai' extractor_type).",
       parameters: {
         type: "object",
         properties: {
           name: { type: "string" },
           description: { type: "string", description: "What this function does (for user and AI)" },
+          function_type: { type: "string", enum: ["http", "ai", "javascript"], description: "Whether this is a standard HTTP request function, a direct AI Request function, or a standalone JavaScript function" },
+          ai_request_prompt: { type: "string", description: "Prompt for direct AI Request function (if function_type is 'ai')" },
+          code: { type: "string", description: "The standalone JavaScript code to run (if function_type is 'javascript')" },
           method: { type: "string" },
           url: { type: "string" },
           body_mode: { type: "string", enum: ["none", "raw", "form"] },
@@ -53,9 +56,11 @@ export const FUNCTION_AI_TOOL_DEFINITIONS = [
             description: "Request body as JSON object when applicable",
             oneOf: [{ type: "object" }, { type: "array" }, { type: "string" }]
           },
-          extractor_code: { type: "string", description: "JavaScript extractor run against the HTTP response" }
+          extractor_type: { type: "string", enum: ["javascript", "ai"], description: "For HTTP function, whether the response extraction script is standard JavaScript or an AI extractor prompt" },
+          extractor_prompt: { type: "string", description: "The prompt for the AI extractor (if extractor_type is 'ai')" },
+          extractor_code: { type: "string", description: "JavaScript extractor run against the HTTP response (if extractor_type is 'javascript')" }
         },
-        required: ["name", "method", "url"],
+        required: ["name"],
         additionalProperties: false
       }
     }
@@ -84,13 +89,16 @@ export const FUNCTION_AI_TOOL_DEFINITIONS = [
     function: {
       name: "update_function",
       description:
-        "Update an existing function (name, description, method, url, body, extractor_code). Requires function_id from list_functions or a prior tool result.",
+        "Update an existing function (name, description, function_type, ai_request_prompt, method, url, body, extractor_type, extractor_prompt, extractor_code). Requires function_id.",
       parameters: {
         type: "object",
         properties: {
           function_id: { type: "string" },
           name: { type: "string" },
           description: { type: "string" },
+          function_type: { type: "string", enum: ["http", "ai", "javascript"] },
+          ai_request_prompt: { type: "string" },
+          code: { type: "string", description: "The standalone JavaScript code to run (if function_type is 'javascript')" },
           method: { type: "string" },
           url: { type: "string" },
           body_mode: { type: "string", enum: ["none", "raw", "form"] },
@@ -98,6 +106,8 @@ export const FUNCTION_AI_TOOL_DEFINITIONS = [
           body: {
             oneOf: [{ type: "object" }, { type: "array" }, { type: "string" }]
           },
+          extractor_type: { type: "string", enum: ["javascript", "ai"] },
+          extractor_prompt: { type: "string" },
           extractor_code: { type: "string" }
         },
         required: ["function_id"],
@@ -165,8 +175,12 @@ export function listFunctionsAi(): string {
   const items = state.functions.map((func) => ({
     id: func.id,
     name: func.name,
-    method: func.method,
-    url: func.url,
+    function_type: func.functionType ?? "http",
+    ...(func.functionType === "ai"
+      ? { ai_request_prompt: func.aiRequestPrompt || "" }
+      : func.functionType === "javascript"
+      ? { code: func.code || "" }
+      : { method: func.method, url: func.url }),
     has_description: Boolean(func.description?.trim())
   }));
   return JSON.stringify({ items }, null, 2);
@@ -182,9 +196,14 @@ export function getFunctionAi(functionId: string): string {
 
 export function createFunctionDraftAi(args: Record<string, unknown>): string {
   const name = String(args.name ?? "New function").trim() || "New function";
+  const functionType = (args.function_type as "http" | "ai" | "javascript") || "http";
+  const aiRequestPrompt = String(args.ai_request_prompt ?? "");
+  const code = String(args.code ?? "");
   const method = String(args.method ?? "GET").trim().toUpperCase() || "GET";
   const url = String(args.url ?? "").trim();
   const description = String(args.description ?? "").trim();
+  const extractorType = (args.extractor_type as "javascript" | "ai") || "javascript";
+  const extractorPrompt = String(args.extractor_prompt ?? "");
   const extractorCode =
     args.extractor_code !== undefined ? String(args.extractor_code) : DEFAULT_FUNCTION_EXTRACTOR;
 
@@ -192,8 +211,9 @@ export function createFunctionDraftAi(args: Record<string, unknown>): string {
     id: id(),
     name,
     description: description || undefined,
-    code: "",
-    functionType: "http",
+    code,
+    functionType,
+    aiRequestPrompt,
     method,
     url,
     queryParams: [],
@@ -203,12 +223,55 @@ export function createFunctionDraftAi(args: Record<string, unknown>): string {
     body: "",
     form: [],
     auth: defaultRequestAuth(),
+    extractorType,
+    extractorPrompt,
     extractorCode,
     lastHttpResponse: null,
     lastTestResult: null
   };
 
   const bodyMeta = applyBodyFields(func, args);
+
+  // Apply clean default rules to avoid stale data!
+  if (functionType === "ai") {
+    func.method = "GET";
+    func.url = "";
+    func.queryParams = [];
+    func.headers = [];
+    func.bodyMode = "none";
+    func.body = "";
+    func.form = [];
+    func.auth = { type: "none" };
+    func.extractorCode = DEFAULT_FUNCTION_EXTRACTOR;
+    func.extractorPrompt = "";
+    func.lastHttpResponse = null;
+    func.code = "";
+  } else if (functionType === "javascript") {
+    func.method = "GET";
+    func.url = "";
+    func.queryParams = [];
+    func.headers = [];
+    func.bodyMode = "none";
+    func.body = "";
+    func.form = [];
+    func.auth = { type: "none" };
+    func.extractorCode = DEFAULT_FUNCTION_EXTRACTOR;
+    func.extractorPrompt = "";
+    func.lastHttpResponse = null;
+    func.aiRequestPrompt = "";
+    if (!func.code.trim()) {
+      func.code = `// Standalone JavaScript Function\n// Return the result of the execution\nconst items = ["Apple", "Banana", "Cherry"];\nconst randomItem = items[Math.floor(Math.random() * items.length)];\nreturn randomItem;\n`;
+    }
+  } else {
+    func.aiRequestPrompt = "";
+    func.code = "";
+    if (extractorType === "ai") {
+      func.extractorCode = DEFAULT_FUNCTION_EXTRACTOR;
+    } else {
+      func.extractorPrompt = "";
+    }
+  }
+
   state.functions.push(func);
   state.activeFunctionId = func.id;
   notifyFunctionsChanged();
@@ -218,10 +281,13 @@ export function createFunctionDraftAi(args: Record<string, unknown>): string {
       created: true,
       function_id: func.id,
       name: func.name,
-      method: func.method,
-      url: func.url,
+      function_type: func.functionType,
       has_description: Boolean(func.description),
-      ...functionBodySummary(func, bodyMeta)
+      ...(func.functionType === "ai"
+        ? { ai_request_prompt: func.aiRequestPrompt }
+        : func.functionType === "javascript"
+        ? { code: func.code }
+        : { method: func.method, url: func.url, ...functionBodySummary(func, bodyMeta) })
     },
     null,
     2
@@ -280,24 +346,85 @@ export function updateFunctionAi(args: Record<string, unknown>): string {
     const description = String(args.description).trim();
     func.description = description || undefined;
   }
+  if (args.function_type !== undefined) {
+    func.functionType = args.function_type as "http" | "ai" | "javascript";
+  }
+  if (args.code !== undefined) {
+    func.code = String(args.code);
+  }
+  if (args.ai_request_prompt !== undefined) {
+    func.aiRequestPrompt = String(args.ai_request_prompt);
+  }
   if (args.method !== undefined) {
     const method = String(args.method).trim().toUpperCase();
     if (method) func.method = method;
   }
   if (args.url !== undefined) func.url = String(args.url).trim();
-  if (args.extractor_code !== undefined) func.extractorCode = String(args.extractor_code);
+  if (args.extractor_type !== undefined) {
+    func.extractorType = args.extractor_type as "javascript" | "ai";
+  }
+  if (args.extractor_prompt !== undefined) {
+    func.extractorPrompt = String(args.extractor_prompt);
+  }
+  if (args.extractor_code !== undefined) {
+    func.extractorCode = String(args.extractor_code);
+  }
 
   const bodyMeta = applyBodyFields(func, args);
+
+  // Apply clean default rules to avoid stale data!
+  if (func.functionType === "ai") {
+    func.method = "GET";
+    func.url = "";
+    func.queryParams = [];
+    func.headers = [];
+    func.bodyMode = "none";
+    func.body = "";
+    func.form = [];
+    func.auth = { type: "none" };
+    func.extractorCode = DEFAULT_FUNCTION_EXTRACTOR;
+    func.extractorPrompt = "";
+    func.lastHttpResponse = null;
+    func.code = "";
+  } else if (func.functionType === "javascript") {
+    func.method = "GET";
+    func.url = "";
+    func.queryParams = [];
+    func.headers = [];
+    func.bodyMode = "none";
+    func.body = "";
+    func.form = [];
+    func.auth = { type: "none" };
+    func.extractorCode = DEFAULT_FUNCTION_EXTRACTOR;
+    func.extractorPrompt = "";
+    func.lastHttpResponse = null;
+    func.aiRequestPrompt = "";
+    if (!func.code.trim()) {
+      func.code = `// Standalone JavaScript Function\n// Return the result of the execution\nconst items = ["Apple", "Banana", "Cherry"];\nconst randomItem = items[Math.floor(Math.random() * items.length)];\nreturn randomItem;\n`;
+    }
+  } else {
+    func.aiRequestPrompt = "";
+    func.code = "";
+    if (func.extractorType === "ai") {
+      func.extractorCode = DEFAULT_FUNCTION_EXTRACTOR;
+    } else {
+      func.extractorPrompt = "";
+    }
+  }
+
   notifyFunctionsChanged();
 
   return JSON.stringify({
     updated: true,
     function_id: func.id,
     name: func.name,
-    method: func.method,
-    url: func.url,
+    function_type: func.functionType,
     has_description: Boolean(func.description),
-    ...functionBodySummary(func, bodyMeta)
+    ...(func.functionType === "ai"
+      ? { ai_request_prompt: func.aiRequestPrompt }
+      : func.functionType === "javascript"
+      ? { code: func.code }
+      : { method: func.method, url: func.url, ...functionBodySummary(func, bodyMeta) })
   });
 }
 

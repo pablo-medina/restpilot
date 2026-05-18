@@ -2940,6 +2940,7 @@ select,
   flex: 1;
   min-width: 0;
   text-align: left;
+  white-space: nowrap;
 }
 
 .context-menu-shortcut {

@@ -965,6 +965,29 @@ mod curl_build_tests {
     }
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(&["/C", "start", "", &url])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg(&url)
+            .spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn();
+    }
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -988,7 +1011,8 @@ pub fn run() {
             load_app_config,
             save_app_config,
             send_request,
-            test_proxy_connection
+            test_proxy_connection,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running RestPilot");

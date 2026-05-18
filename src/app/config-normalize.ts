@@ -50,7 +50,7 @@ function normalizeFunction(func: any): AppFunction {
     name: String(func.name ?? "Function").trim() || "Function",
     description: typeof func.description === "string" ? func.description.trim() || undefined : undefined,
     code: String(func.code ?? ""),
-    functionType: "http",
+    functionType: (func.functionType === "ai" ? "ai" : func.functionType === "javascript" ? "javascript" : "http") as "http" | "ai" | "javascript",
     method: String(func.method ?? "GET"),
     url: String(func.url ?? "https://jsonplaceholder.typicode.com/todos/1"),
     queryParams,
@@ -60,7 +60,10 @@ function normalizeFunction(func: any): AppFunction {
     body: String(func.body ?? ""),
     form,
     auth: normalizeRequestAuth(func.auth),
+    extractorType: (func.extractorType === "ai" ? "ai" : "javascript") as "javascript" | "ai",
     extractorCode: String(func.extractorCode ?? `// Extract data from the response\nif (response.status === 200) {\n  return response.body;\n}\nreturn undefined;\n`),
+    extractorPrompt: func.extractorPrompt ? String(func.extractorPrompt) : "",
+    aiRequestPrompt: func.aiRequestPrompt ? String(func.aiRequestPrompt) : "",
     lastHttpResponse: normalizeFunctionLastHttp(func),
     lastTestResult: normalizeFunctionLastTestResult(func)
   };

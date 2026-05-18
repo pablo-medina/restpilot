@@ -59,6 +59,27 @@ export function parseExtractorAiResponse(raw: string): ExtractorGenerateResult {
   return { ok: true, code };
 }
 
+function standaloneSystemPrompt(): string {
+  const locale = getLocale();
+  const langNote =
+    locale === "es"
+      ? "If you must refuse, write the explanation after the marker in Spanish (es-AR, formal usted)."
+      : "If you must refuse, write the explanation after the marker in English.";
+
+  return [
+    "You write standalone JavaScript functions for RestPilot.",
+    "",
+    "Runtime: your code is executed as a standalone function body. You can use standard JavaScript features.",
+    "",
+    "Rules:",
+    "- Output ONLY valid JavaScript statements for the function body (no markdown fences, no prose before/after).",
+    "- Use `return` to produce the outcome value.",
+    `- If you cannot write appropriate JavaScript, output exactly one line: ${EXTRACTOR_AI_CANNOT_WRITE_JS}`,
+    "- You may add a single short user-facing explanation on the next line after that marker.",
+    langNote
+  ].join("\n");
+}
+
 export async function generateFunctionExtractorCode(
   func: AppFunction,
   userPrompt: string
@@ -69,15 +90,16 @@ export async function generateFunctionExtractorCode(
   }
 
   const context = JSON.stringify(functionDetailsPayload(func), null, 2);
+  const systemPrompt = func.functionType === "javascript" ? standaloneSystemPrompt() : extractorSystemPrompt();
   const completion = await requestStandaloneAiCompletion([
-    { role: "system", content: extractorSystemPrompt() },
+    { role: "system", content: systemPrompt },
     {
       role: "user",
       content: [
         "Function configuration (JSON):",
         context,
         "",
-        "User request for the extractor script:",
+        "User request for the JavaScript code:",
         prompt
       ].join("\n")
     }

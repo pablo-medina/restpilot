@@ -10,6 +10,7 @@ import {
 } from "../app/request-utils";
 import { getItem, id, state } from "../app/state";
 import type { ApiResponse, AppFunction, SavedRequest } from "../types";
+import { requestStandaloneAiCompletion } from "./standalone-completion";
 
 const MAX_BODY_CHARS = 12_000;
 
@@ -102,9 +103,127 @@ export async function runFunctionById(functionId: string): Promise<string> {
     return JSON.stringify({ error: `Function not found: ${functionId}` });
   }
 
+  // 1. Direct AI Request type
+  if (func.functionType === "ai") {
+    const userPrompt = applyVariables(func.aiRequestPrompt ?? "", getEffectiveVariables());
+    const messages = [
+      {
+        role: "system" as const,
+        content: "You are a helpful assistant. You must respond ONLY with a valid JSON object or array as requested. Do NOT include markdown code blocks (such as ```json), explanations, or any other text before or after the JSON."
+      },
+      {
+        role: "user" as const,
+        content: userPrompt
+      }
+    ];
+
+    const res = await requestStandaloneAiCompletion(messages);
+    if (!res.ok) {
+      return JSON.stringify({ error: res.error });
+    }
+
+    let extracted: unknown;
+    try {
+      extracted = JSON.parse(res.content);
+    } catch {
+      let cleaned = res.content.trim();
+      if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
+      }
+      try {
+        extracted = JSON.parse(cleaned);
+      } catch (jsonErr: any) {
+        return JSON.stringify({
+          error: "AI returned invalid JSON: " + jsonErr.message,
+          raw_output: res.content
+        }, null, 2);
+      }
+    }
+
+    return JSON.stringify({ extracted }, null, 2);
+  }
+
+  // 2. Standalone JavaScript type
+  if (func.functionType === "javascript") {
+    try {
+      const standaloneFunc = new Function(`
+        "use strict";
+        try {
+          ${func.code}
+        } catch (e) {
+          throw new Error("Execution error: " + e.message);
+        }
+      `);
+      const extracted = standaloneFunc();
+      return JSON.stringify({ extracted }, null, 2);
+    } catch (error) {
+      return JSON.stringify({
+        error: error instanceof Error ? error.message : String(error)
+      }, null, 2);
+    }
+  }
+
+  // 3. HTTP request type
   const fakeRequest = savedRequestFromFunction(func);
   const bodyText = await dispatchRequest(fakeRequest);
 
+  const response = fakeRequest.lastResponse;
+  if (!response) {
+    return bodyText;
+  }
+
+  // A. HTTP with AI Extractor
+  if (func.extractorType === "ai") {
+    const userPrompt = applyVariables(func.extractorPrompt ?? "", getEffectiveVariables());
+    const messages = [
+      {
+        role: "system" as const,
+        content: userPrompt || "Extract the most relevant data from this HTTP response. Return only the extracted value cleanly."
+      },
+      {
+        role: "user" as const,
+        content: JSON.stringify({
+          status: response.status,
+          statusText: response.status_text,
+          headers: response.headers,
+          body: response.body
+        }, null, 2)
+      }
+    ];
+
+    const res = await requestStandaloneAiCompletion(messages);
+    if (!res.ok) {
+      return JSON.stringify(
+        {
+          http: JSON.parse(bodyText),
+          extractor_error: res.error
+        },
+        null,
+        2
+      );
+    }
+
+    let extracted: unknown = res.content;
+    const trimmed = res.content.trim();
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try {
+        extracted = JSON.parse(trimmed);
+      } catch {
+        // keep string
+      }
+    }
+
+    return JSON.stringify(
+      {
+        http: JSON.parse(bodyText),
+        extracted
+      },
+      null,
+      2
+    );
+  }
+
+  // B. HTTP with JS Extractor (Original code)
   let parsedBody: unknown = bodyText;
   try {
     const parsed = JSON.parse(bodyText);
@@ -113,11 +232,6 @@ export async function runFunctionById(functionId: string): Promise<string> {
     }
   } catch {
     // keep string
-  }
-
-  const response = fakeRequest.lastResponse;
-  if (!response) {
-    return bodyText;
   }
 
   try {

@@ -18,6 +18,7 @@ export function defaultRuntimeState(): Pick<
   | "collectionSearchQuery"
   | "collectionSidebarOpen"
   | "editingFunctionId"
+  | "selectedFunctionId"
   | "functionSearchQuery"
   | "activeFunctionRequestTab"
   | "activeFunctionConsoleTab"
@@ -43,6 +44,7 @@ export function defaultRuntimeState(): Pick<
     collectionSearchQuery: "",
     collectionSidebarOpen: true,
     editingFunctionId: null,
+    selectedFunctionId: null,
     functionSearchQuery: "",
     activeFunctionRequestTab: "params",
     activeFunctionConsoleTab: "test-result",

@@ -80,7 +80,8 @@ import {
 } from "./components/popover";
 import { openDescribePopover } from "./app/describe-popover";
 import { openFunctionImportPopover } from "./app/function-import-popover";
-import { invokeFunctionHttp, runExtractorOnResponse } from "./app/function-http";
+import { invokeFunctionHttp, runExtractorOnResponse, runStandaloneJavascript } from "./app/function-http";
+import { requestStandaloneAiCompletion } from "./ai/standalone-completion";
 import { openFunctionExtractorAiPopover } from "./app/function-extractor-ai-popover";
 import { iconAi } from "./icons";
 import {
@@ -224,25 +225,59 @@ export async function startApp(
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.activeFunctionPopover) {
-      event.stopPropagation();
-      state.activeFunctionPopover = null;
-      removePopovers();
+    if (event.key === "Escape") {
+      const activePopover = document.querySelector(".app-popover");
+      if (activePopover) {
+        event.stopPropagation();
+        closeRequestPopovers();
+        state.activeFunctionPopover = null;
+        removePopovers();
+        render();
+      }
     }
   });
 
   document.addEventListener("click", (event) => {
-    if (!state.activeFunctionPopover) return;
     const target = event.target as HTMLElement;
-    if (target.closest(".app-popover")) return;
-    if (target.closest("#func-popover-params-btn") ||
+    const activePopover = document.querySelector(".app-popover");
+    if (activePopover) {
+      if (target.closest(".app-popover")) return;
+
+      const isTrigger =
+        target.closest(".request-popover-trigger") ||
+        target.closest("#ai-presets-btn") ||
+        target.closest("#ai-model-btn") ||
+        target.closest("#func-popover-params-btn") ||
         target.closest("#func-popover-headers-btn") ||
         target.closest("#func-popover-body-btn") ||
-        target.closest("#func-popover-auth-btn")) {
-      return;
+        target.closest("#func-popover-auth-btn") ||
+        target.closest("#function-ai-extractor-btn") ||
+        target.closest("#function-import-btn") ||
+        target.closest("[data-popover-trigger]") ||
+        target.closest(".env-chip") ||
+        target.closest(".request-tool-btn");
+
+      if (isTrigger) return;
+
+      closeRequestPopovers();
+      state.activeFunctionPopover = null;
+      removePopovers();
+      render();
     }
-    state.activeFunctionPopover = null;
-    removePopovers();
+  }, true);
+
+  // Intercept external link clicks globally to prevent webview navigation
+  document.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const anchor = target.closest("a");
+    if (anchor && anchor.href) {
+      const href = anchor.getAttribute("href") || "";
+      if (href.startsWith("http://") || href.startsWith("https://")) {
+        event.preventDefault();
+        event.stopPropagation();
+        void invoke("open_external_url", { url: anchor.href });
+      }
+    }
   }, true);
 
   setRenderApp(renderApp);
@@ -278,7 +313,7 @@ export async function startApp(
         activeTabId: "",
         settings: migrated.settings,
         functions: migrated.functions ?? [],
-        activeFunctionId: migrated.activeFunctionId ?? null
+        activeFunctionId: null
       });
       state.activeTabId = state.openTabs.includes(migrated.activeTabId) ? migrated.activeTabId : (state.openTabs[0] ?? "");
       if (persist) scheduleSave();
@@ -340,6 +375,9 @@ function renderWorkspaceMarkup() {
   if (state.activePanel === "functions") {
     const activeId = state.activeFunctionId;
     const func = activeId ? state.functions.find((f) => f.id === activeId) : null;
+    if (func && state.editingFunctionId === func.id) {
+      return renderFunctionNamingPlaceholder(func);
+    }
     return func ? renderFunctionWorkspace(func) : renderEmpty();
   }
   if (request && tab) return renderRequest(request, tab);
@@ -1006,9 +1044,9 @@ function buildContextMenuMarkup() {
     const request = getRequest(state.contextMenu.requestId);
     return `
       <div class="context-menu context-menu--anchor-end" style="left:${state.contextMenu.x}px;top:${state.contextMenu.y}px">
-        ${contextMenuButton("duplicate", labels.duplicate)}
-        ${contextMenuButton("describe", treeLabels.describe)}
-        ${contextMenuButton("clear", labels.clear)}
+        ${contextMenuButton("duplicate", labels.duplicate, { checked: false })}
+        ${contextMenuButton("describe", treeLabels.describe, { checked: false })}
+        ${contextMenuButton("clear", labels.clear, { checked: false })}
         <hr>
         ${contextMenuButton("toggle-stream", labels.streamResponse, { checked: request?.streamResponse ?? false })}
       </div>
@@ -1364,6 +1402,9 @@ function bindWorkspace() {
     const activeId = state.activeFunctionId;
     const func = activeId ? state.functions.find((f) => f.id === activeId) : null;
     if (func) {
+      if (state.editingFunctionId === func.id) {
+        return Promise.resolve();
+      }
       bindFunctionWorkspace(func);
       return mountFunctionEditor(func);
     }
@@ -1739,7 +1780,7 @@ function openContextMenuForTarget(target: HTMLElement, x: number, y: number) {
     const row = target.closest<HTMLElement>("[data-function-id]");
     const functionId = row?.dataset.functionId ?? null;
     state.contextMenu = { kind: "functions-tree", x, y, functionId };
-    if (functionId) selectFunction(functionId);
+    if (functionId) selectFunctionInSidebar(functionId);
     syncContextMenu();
     return;
   }
@@ -1928,6 +1969,7 @@ function ensureContextMenuHandlers() {
 }
 
 function bindTree() {
+  if (state.activePanel !== "request") return;
   const tree = document.querySelector<HTMLElement>(".tree");
   tree?.addEventListener("keydown", async (event) => {
     if (state.editingTreeId) {
@@ -2966,12 +3008,28 @@ async function mountFunctionEditor(func: AppFunction) {
 
   // 2. Mount Extractor Editor (JavaScript editor)
   const extractorHost = document.getElementById("function-extractor-editor");
-  if (extractorHost) {
+  if (extractorHost && func.functionType === "http" && func.extractorType !== "ai") {
     functionExtractorEditorUnmount = editors.mountBodyEditor(extractorHost, func.extractorCode, {
       tabSize: state.settings.tabSize,
       rawType: "javascript",
       onChange: (value) => {
         func.extractorCode = value;
+        scheduleSave();
+      },
+      onSend: () => {
+        void runFunctionExtractor(func);
+      }
+    });
+  }
+
+  // 3. Mount Standalone JavaScript Editor
+  const standaloneHost = document.getElementById("function-standalone-editor");
+  if (standaloneHost && func.functionType === "javascript") {
+    functionExtractorEditorUnmount = editors.mountBodyEditor(standaloneHost, func.code, {
+      tabSize: state.settings.tabSize,
+      rawType: "javascript",
+      onChange: (value) => {
+        func.code = value;
         scheduleSave();
       },
       onSend: () => {
@@ -3175,6 +3233,28 @@ function bindFuncAuthPanel(func: AppFunction, onChange: () => void) {
   });
 }
 
+function renderFunctionNamingPlaceholder(func: AppFunction) {
+  const labels = t().functions;
+  return `
+    <div class="empty-editor" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 16px; padding: 32px; background: rgba(255, 252, 246, 0.48); backdrop-filter: blur(10px); border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); margin: 24px; height: calc(100% - 48px);">
+      <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, rgba(46, 204, 113, 0.1), rgba(52, 152, 219, 0.1)); display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--rp-border);">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--rp-accent, #3d7f6f)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--rp-accent);">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"></path>
+        </svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; max-width: 320px;">
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--rp-text); margin: 0; background: linear-gradient(120deg, var(--rp-text), var(--rp-accent, #3d7f6f)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          ${labels.namingPlaceholderTitle || "Name your function"}
+        </h3>
+        <p style="font-size: 12.5px; color: var(--rp-text-muted); line-height: 1.5; margin: 0;">
+          ${labels.namingPlaceholderDesc || "Enter a name in the sidebar and press <strong>Enter</strong> to start configuring your HTTP request or AI prompt."}
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 function renderFunctionWorkspace(func: AppFunction) {
   const labels = t().request;
   const funcLabels = t().functions;
@@ -3255,171 +3335,354 @@ function renderFunctionWorkspace(func: AppFunction) {
   }
 
   return `
-    <div class="request-editor" style="height: 100%; display: flex; flex-direction: column;">
-      <div class="editor-grid" style="grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; height: 100%;">
-        
-        <!-- Left Panel: HTTP Request Builder & Raw Response Body -->
-        <div class="request-card flex flex-col h-full" style="padding: var(--workspace-panel-inset-block) var(--workspace-panel-inset-inline); min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
-          
-          <!-- Header -->
-          <div class="function-workspace-header flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border);">
-            <span style="font-weight: 600; font-size: 13px; color: var(--rp-text); display: block; margin-bottom: 8px;">${funcLabels.functionType}: HTTP Request</span>
-            <label class="function-description-field">
-              <span class="function-description-label">${funcLabels.description}</span>
-              <textarea id="func-description" class="function-description-input" rows="2" spellcheck="true" placeholder="${escapeAttribute(funcLabels.descriptionPlaceholder)}">${escapeHtml(func.description ?? "")}</textarea>
-            </label>
-          </div>
-
-          <!-- URL Bar -->
-          <div class="url-send-row flex-shrink-0" style="margin-bottom: 12px; display: flex; gap: 8px; width: 100%;">
-            <select id="func-method" class="url-method-select" aria-label="HTTP Method" style="font-weight: 700; width: 100px; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);">
-              <option value="GET" ${func.method === "GET" ? "selected" : ""}>GET</option>
-              <option value="POST" ${func.method === "POST" ? "selected" : ""}>POST</option>
-              <option value="PUT" ${func.method === "PUT" ? "selected" : ""}>PUT</option>
-              <option value="DELETE" ${func.method === "DELETE" ? "selected" : ""}>DELETE</option>
-              <option value="PATCH" ${func.method === "PATCH" ? "selected" : ""}>PATCH</option>
-              <option value="OPTIONS" ${func.method === "OPTIONS" ? "selected" : ""}>OPTIONS</option>
-              <option value="HEAD" ${func.method === "HEAD" ? "selected" : ""}>HEAD</option>
+    <div class="request-editor" style="height: 100%; display: flex; flex-direction: column; padding: var(--workspace-panel-inset-block) var(--workspace-panel-inset-inline); gap: 16px;">
+      
+      <!-- Top Bar / Workspace Header -->
+      <div class="function-workspace-topbar flex-shrink-0" style="padding-bottom: 12px; border-bottom: 1px solid var(--rp-border); display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <label style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${funcLabels.functionType}:</span>
+            <select id="func-type-select" style="padding: 4px 8px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); font-weight: 600; font-size: 13px; color: var(--rp-text);">
+              <option value="http" ${func.functionType === "http" ? "selected" : ""}>HTTP Request</option>
+              <option value="javascript" ${func.functionType === "javascript" ? "selected" : ""}>JavaScript Function</option>
+              <option value="ai" ${func.functionType === "ai" ? "selected" : ""}>AI Request</option>
             </select>
-            <div class="url-send-field" style="flex: 1; min-width: 0;">
-              <input
-                id="func-url"
-                class="url-send-input"
-                value="${escapeAttribute(func.url)}"
-                placeholder="https://api.example.com/endpoint"
-                spellcheck="false"
-                autocomplete="off"
-                aria-label="${labels.resolvedUrl}"
-              />
-              <button id="func-send-btn" class="url-send-btn${state.activeFunctionHttpLoading ? " is-loading" : ""}" type="button"${state.activeFunctionHttpLoading ? " disabled" : ""}>${labels.send}</button>
-            </div>
-          </div>
-
-          <!-- Popover Badge Buttons Row (Guaranteed horizontal stack with flex row) -->
-          <div style="display: flex; flex-direction: row; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; width: 100%;" class="flex-shrink-0">
-            <button type="button" class="segmented-btn" id="func-popover-params-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
-              ${labels.params} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.queryParams.length}</span>
-            </button>
-            <button type="button" class="segmented-btn" id="func-popover-headers-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
-              ${labels.headers} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.headers.length}</span>
-            </button>
-            <button type="button" class="segmented-btn" id="func-popover-body-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
-              ${labels.body} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.bodyMode === "none" ? "none" : func.rawType}</span>
-            </button>
-            <button type="button" class="segmented-btn" id="func-popover-auth-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
-              ${labels.authTab} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.auth.type}</span>
-            </button>
-            <button type="button" class="segmented-btn" id="func-import-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; margin-left: auto;">
-              ${funcLabels.import}
-            </button>
-          </div>
-
-          <!-- Summary Dashboard -->
-          <div class="flex-1 min-h-0 overflow-y-auto" style="display: flex; flex-direction: column; gap: 16px; margin-top: 4px; padding-top: 4px; margin-bottom: 8px;">
-            <!-- Active Parameters Summary -->
-            <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-              <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Query Parameters</span>
-              <div id="func-summary-query-params" style="display: flex; flex-direction: column; gap: 4px;">
-                ${func.queryParams.filter(p => p.enabled && p.key.trim()).length === 0
-                  ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active parameters</span>`
-                  : func.queryParams.filter(p => p.enabled && p.key.trim()).map(p => `
-                    <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
-                      <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(p.key)}</span>
-                      <span style="color: var(--rp-text-muted);">${escapeHtml(p.value)}</span>
-                    </div>
-                  `).join("")
-                }
-              </div>
-            </div>
-
-            <!-- Active Headers Summary -->
-            <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-              <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Request Headers</span>
-              <div id="func-summary-headers" style="display: flex; flex-direction: column; gap: 4px;">
-                ${func.headers.filter(h => h.enabled && h.key.trim()).length === 0
-                  ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active headers</span>`
-                  : func.headers.filter(h => h.enabled && h.key.trim()).map(h => `
-                    <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
-                      <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(h.key)}</span>
-                      <span style="color: var(--rp-text-muted);">${escapeHtml(h.value)}</span>
-                    </div>
-                  `).join("")
-                }
-              </div>
-            </div>
-
-            <!-- Body and Auth Summary -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-              <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
-                <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Body Mode</span>
-                <span id="func-summary-body-mode" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.bodyMode === "none" ? "None" : func.rawType.toUpperCase()}</span>
-              </div>
-              <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
-                <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Auth Type</span>
-                <span id="func-summary-auth-type" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.auth.type === "none" ? "No Auth" : func.auth.type.toUpperCase()}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Divider & Raw Response Title -->
-          <div class="flex-shrink-0" style="margin-top: 16px; margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Raw Response Body</span>
-            ${httpRes ? `<span style="font-size: 11px; font-weight: 600; color: #4b8b3b; font-family: monospace;">HTTP ${httpRes.status}</span>` : ""}
-          </div>
-
-          <!-- Raw Response Content -->
-          <div class="flex-shrink-0 flex flex-col" style="height: 180px; min-height: 180px; display: flex; flex-direction: column;">
-            ${rawResponsePanel}
-          </div>
+          </label>
         </div>
-
-        <!-- Right Panel: Extractor Script with green Play action in header -->
-        <div class="request-card flex flex-col h-full" style="padding: var(--workspace-panel-inset-block) var(--workspace-panel-inset-inline); min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
-          
-          <!-- Header -->
-          <div class="flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border); display: flex; align-items: center; justify-content: space-between; height: 28px;">
-            <span style="font-weight: 600; font-size: 13px; color: var(--rp-text);">${funcLabels.extractorCode} (JavaScript)</span>
-            <span class="function-extractor-actions" style="display: flex; align-items: center; gap: 4px;">
-              ${
-                aiExtractorEnabled
-                  ? `<button class="quiet-button function-ai-extractor-btn" id="func-ai-extractor-btn" type="button" title="${escapeAttribute(funcLabels.aiExtractorButton)}" aria-label="${escapeAttribute(funcLabels.aiExtractorButton)}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: var(--rp-accent); padding: 4px; border-radius: 4px; min-width: 28px; height: 28px;">${iconAi}</button>`
-                  : ""
-              }
-              <button class="quiet-button ${state.activeFunctionExtractorLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
-                <span class="send-icon-spin" style="display: ${state.activeFunctionExtractorLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
-                <svg style="display: ${state.activeFunctionExtractorLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-              </button>
-            </span>
-          </div>
-
-          <!-- CodeMirror JS Editor Container -->
-          <div class="flex-1 min-h-0 flex flex-col" style="position: relative; display: flex; flex-direction: column; height: 100%; margin-bottom: 8px;">
-            <div
-              id="function-extractor-editor"
-              data-body-editor-host="true"
-              style="flex: 1; min-height: 0; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden; height: 100%;"
-            ></div>
-          </div>
-
-          <!-- Extracted Outcome Title -->
-          <div class="flex-shrink-0" style="margin-top: 16px; margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center;">
-            <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Extracted Outcome</span>
-          </div>
-
-          <!-- Extracted Outcome Content -->
-          <div class="flex-shrink-0 flex flex-col" style="height: 180px; min-height: 180px; display: flex; flex-direction: column;">
-            ${extractedOutcomePanel}
-          </div>
-        </div>
-
+        
+        <!-- Description Field -->
+        <label class="function-description-field" style="display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-size: 11px; font-weight: 600; color: var(--rp-text-muted);">${funcLabels.description}</span>
+          <textarea id="func-description" class="function-description-input" rows="2" spellcheck="true" placeholder="${escapeAttribute(funcLabels.descriptionPlaceholder)}" style="width: 100%; border: 1px solid var(--rp-border); border-radius: 4px; padding: 6px; font-size: 13px; background: var(--rp-surface); color: var(--rp-text); resize: vertical;">${escapeHtml(func.description ?? "")}</textarea>
+        </label>
       </div>
+
+      <!-- Conditional Workspace Body -->
+      ${
+        func.functionType === "ai"
+          ? `<!-- AI Request Workspace (Single Panel) -->
+             <div class="request-card flex flex-col" style="padding: 16px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; flex: 1; background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius);">
+               
+               <!-- AI Prompt Area -->
+               <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; margin-bottom: 16px;">
+                 <div style="display: flex; align-items: center; justify-content: space-between;">
+                   <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">${funcLabels.aiPromptLabel}</span>
+                   
+                   <button class="quiet-button ${state.activeFunctionExtractorLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
+                     <span class="send-icon-spin" style="display: ${state.activeFunctionExtractorLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                     <svg style="display: ${state.activeFunctionExtractorLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
+                       <path d="M8 5v14l11-7z"/>
+                     </svg>
+                   </button>
+                 </div>
+                 <textarea id="func-ai-request-prompt" class="url-send-input" style="flex: 1; font-family: monospace; font-size: 13px; padding: 8px; resize: none; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); color: var(--rp-text);" placeholder="${escapeAttribute(funcLabels.aiPromptPlaceholder)}">${escapeHtml(func.aiRequestPrompt ?? "")}</textarea>
+               </div>
+
+               <!-- Divider & AI Response Title -->
+               <div class="flex-shrink-0" style="margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center;">
+                 <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">${funcLabels.aiResponseLabel}</span>
+               </div>
+
+               <!-- Extracted Outcome Content (Response) -->
+               <div class="flex-shrink-0 flex flex-col" style="height: 250px; min-height: 250px; display: flex; flex-direction: column;">
+                 ${extractedOutcomePanel}
+               </div>
+             </div>`
+          : func.functionType === "javascript"
+          ? `<!-- Standalone JavaScript Workspace (Single Panel) -->
+             <div class="request-card flex flex-col" style="padding: 16px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; flex: 1; background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius);">
+               
+               <!-- JavaScript Editor Area -->
+               <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; margin-bottom: 16px;">
+                 <div style="display: flex; align-items: center; justify-content: space-between;">
+                   <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">JavaScript Code</span>
+                   
+                   <span class="function-extractor-actions" style="display: flex; align-items: center; gap: 4px;">
+                     ${
+                       aiExtractorEnabled
+                         ? `<button class="quiet-button function-ai-extractor-btn" id="func-ai-extractor-btn" type="button" title="${escapeAttribute(funcLabels.aiExtractorButton)}" aria-label="${escapeAttribute(funcLabels.aiExtractorButton)}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: var(--rp-accent); padding: 4px; border-radius: 4px; min-width: 28px; height: 28px;">${iconAi}</button>`
+                         : ""
+                      }
+                      <button class="quiet-button ${state.activeFunctionExtractorLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
+                        <span class="send-icon-spin" style="display: ${state.activeFunctionExtractorLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                        <svg style="display: ${state.activeFunctionExtractorLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </button>
+                    </span>
+                 </div>
+                 <div
+                   id="function-standalone-editor"
+                   data-body-editor-host="true"
+                   style="flex: 1; min-height: 0; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden; height: 100%;"
+                 ></div>
+               </div>
+
+               <!-- Divider & Standalone Outcome Title -->
+               <div class="flex-shrink-0" style="margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center;">
+                 <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Result / Output</span>
+               </div>
+
+               <!-- Extracted Outcome Content (Response) -->
+               <div class="flex-shrink-0 flex flex-col" style="height: 250px; min-height: 250px; display: flex; flex-direction: column;">
+                 ${extractedOutcomePanel}
+               </div>
+             </div>`
+          : `<!-- HTTP Request Workspace (Two Panels Grid) -->
+             <div class="editor-grid" style="grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0; height: 100%; display: grid;">
+               
+               <!-- Left Panel: HTTP Request Builder & Raw Response Body -->
+               <div class="request-card flex flex-col h-full" style="padding: 16px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius);">
+                 
+                 <!-- URL Bar -->
+                 <div class="url-send-row flex-shrink-0" style="margin-bottom: 12px; display: flex; gap: 8px; width: 100%;">
+                   <select id="func-method" class="url-method-select" aria-label="HTTP Method" style="font-weight: 700; width: 100px; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text);">
+                     <option value="GET" ${func.method === "GET" ? "selected" : ""}>GET</option>
+                     <option value="POST" ${func.method === "POST" ? "selected" : ""}>POST</option>
+                     <option value="PUT" ${func.method === "PUT" ? "selected" : ""}>PUT</option>
+                     <option value="DELETE" ${func.method === "DELETE" ? "selected" : ""}>DELETE</option>
+                     <option value="PATCH" ${func.method === "PATCH" ? "selected" : ""}>PATCH</option>
+                     <option value="OPTIONS" ${func.method === "OPTIONS" ? "selected" : ""}>OPTIONS</option>
+                     <option value="HEAD" ${func.method === "HEAD" ? "selected" : ""}>HEAD</option>
+                   </select>
+                   <div class="url-send-field" style="flex: 1; min-width: 0; display: flex;">
+                     <input
+                       id="func-url"
+                       class="url-send-input"
+                       value="${escapeAttribute(func.url)}"
+                       placeholder="https://api.example.com/endpoint"
+                       spellcheck="false"
+                       autocomplete="off"
+                       aria-label="${labels.resolvedUrl}"
+                       style="flex: 1; min-width: 0; border: 1px solid var(--rp-border); border-radius: 4px 0 0 4px; padding: 6px 12px; font-size: 13px; background: var(--rp-surface); color: var(--rp-text);"
+                     />
+                     <button id="func-send-btn" class="url-send-btn${state.activeFunctionHttpLoading ? " is-loading" : ""}" type="button"${state.activeFunctionHttpLoading ? " disabled" : ""} style="border-radius: 0 4px 4px 0; border-left: none;">${labels.send}</button>
+                   </div>
+                 </div>
+
+                 <!-- Popover Badge Buttons Row -->
+                 <div style="display: flex; flex-direction: row; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; width: 100%;" class="flex-shrink-0">
+                   <button type="button" class="segmented-btn" id="func-popover-params-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+                     ${labels.params} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.queryParams.length}</span>
+                   </button>
+                   <button type="button" class="segmented-btn" id="func-popover-headers-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+                     ${labels.headers} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.headers.length}</span>
+                   </button>
+                   <button type="button" class="segmented-btn" id="func-popover-body-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+                     ${labels.body} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.bodyMode === "none" ? "none" : func.rawType}</span>
+                   </button>
+                   <button type="button" class="segmented-btn" id="func-popover-auth-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
+                     ${labels.authTab} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.auth.type}</span>
+                   </button>
+                   <button type="button" class="segmented-btn" id="func-import-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; margin-left: auto;">
+                     ${funcLabels.import}
+                   </button>
+                 </div>
+
+                 <!-- Summary Dashboard -->
+                 <div class="flex-1 min-h-0 overflow-y-auto" style="display: flex; flex-direction: column; gap: 16px; margin-top: 4px; padding-top: 4px; margin-bottom: 8px;">
+                   <!-- Active Parameters Summary -->
+                   <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                     <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Query Parameters</span>
+                     <div id="func-summary-query-params" style="display: flex; flex-direction: column; gap: 4px;">
+                       ${func.queryParams.filter(p => p.enabled && p.key.trim()).length === 0
+                         ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active parameters</span>`
+                         : func.queryParams.filter(p => p.enabled && p.key.trim()).map(p => `
+                           <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
+                             <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(p.key)}</span>
+                             <span style="color: var(--rp-text-muted);">${escapeHtml(p.value)}</span>
+                           </div>
+                         `).join("")
+                       }
+                     </div>
+                   </div>
+
+                   <!-- Active Headers Summary -->
+                   <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                     <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Request Headers</span>
+                     <div id="func-summary-headers" style="display: flex; flex-direction: column; gap: 4px;">
+                       ${func.headers.filter(h => h.enabled && h.key.trim()).length === 0
+                         ? `<span style="font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No active headers</span>`
+                         : func.headers.filter(h => h.enabled && h.key.trim()).map(h => `
+                           <div class="flex items-center justify-between" style="font-size: 12px; font-family: monospace;">
+                             <span style="color: var(--rp-text-primary); font-weight: 600;">${escapeHtml(h.key)}</span>
+                             <span style="color: var(--rp-text-muted);">${escapeHtml(h.value)}</span>
+                           </div>
+                         `).join("")
+                       }
+                     </div>
+                   </div>
+
+                   <!-- Body and Auth Summary -->
+                   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                     <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+                       <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Body Mode</span>
+                       <span id="func-summary-body-mode" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.bodyMode === "none" ? "None" : func.rawType.toUpperCase()}</span>
+                     </div>
+                     <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+                       <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Auth Type</span>
+                       <span id="func-summary-auth-type" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.auth.type === "none" ? "No Auth" : func.auth.type.toUpperCase()}</span>
+                     </div>
+                   </div>
+                 </div>
+
+                 <!-- Divider & Raw Response Title -->
+                 <div class="flex-shrink-0" style="margin-top: 16px; margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center; justify-content: space-between;">
+                   <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Raw Response Body</span>
+                   ${httpRes ? `<span style="font-size: 11px; font-weight: 600; color: #4b8b3b; font-family: monospace;">HTTP ${httpRes.status}</span>` : ""}
+                 </div>
+
+                 <!-- Raw Response Content -->
+                 <div class="flex-shrink-0 flex flex-col" style="height: 180px; min-height: 180px; display: flex; flex-direction: column;">
+                   ${rawResponsePanel}
+                 </div>
+               </div>
+
+               <!-- Right Panel: Extractor Script -->
+               <div class="request-card flex flex-col h-full" style="padding: 16px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius);">
+                 
+                 <!-- Header -->
+                 <div class="flex-shrink-0" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rp-border); display: flex; align-items: center; justify-content: space-between; height: 28px;">
+                   <label style="display: flex; align-items: center; gap: 8px;">
+                     <span style="font-size: 12px; font-weight: 600; color: var(--rp-text-muted);">${funcLabels.extractorLabel}:</span>
+                     <select id="func-extractor-type-select" style="padding: 2px 6px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); font-weight: 600; font-size: 12px; color: var(--rp-text);">
+                       <option value="javascript" ${func.extractorType !== "ai" ? "selected" : ""}>${funcLabels.extractorJavascript}</option>
+                       <option value="ai" ${func.extractorType === "ai" ? "selected" : ""}>${funcLabels.extractorAi}</option>
+                     </select>
+                   </label>
+                   
+                   <span class="function-extractor-actions" style="display: flex; align-items: center; gap: 4px;">
+                     ${
+                       func.extractorType !== "ai" && aiExtractorEnabled
+                         ? `<button class="quiet-button function-ai-extractor-btn" id="func-ai-extractor-btn" type="button" title="${escapeAttribute(funcLabels.aiExtractorButton)}" aria-label="${escapeAttribute(funcLabels.aiExtractorButton)}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: var(--rp-accent); padding: 4px; border-radius: 4px; min-width: 28px; height: 28px;">${iconAi}</button>`
+                         : ""
+                     }
+                     <button class="quiet-button ${state.activeFunctionExtractorLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
+                       <span class="send-icon-spin" style="display: ${state.activeFunctionExtractorLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                       <svg style="display: ${state.activeFunctionExtractorLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
+                         <path d="M8 5v14l11-7z"/>
+                       </svg>
+                     </button>
+                   </span>
+                 </div>
+
+                 <!-- Content Area (CodeMirror vs Textarea) -->
+                 <div class="flex-1 min-h-0 flex flex-col" style="position: relative; display: flex; flex-direction: column; height: 100%; margin-bottom: 8px;">
+                   ${
+                     func.extractorType !== "ai"
+                       ? `<div
+                           id="function-extractor-editor"
+                           data-body-editor-host="true"
+                           style="flex: 1; min-height: 0; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden; height: 100%;"
+                         ></div>`
+                       : `<label class="flex flex-col flex-1" style="margin-bottom: 8px; display: flex; flex-direction: column; flex: 1;">
+                           <span style="font-size: 11px; font-weight: 600; color: var(--rp-text-muted); margin-bottom: 4px;">${funcLabels.extractorPromptLabel}</span>
+                           <textarea id="func-extractor-prompt" class="url-send-input" style="flex: 1; font-family: monospace; font-size: 13px; padding: 8px; resize: none; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); background: var(--rp-surface); color: var(--rp-text);" placeholder="${escapeAttribute(funcLabels.extractorPromptPlaceholder)}">${escapeHtml(func.extractorPrompt ?? "")}</textarea>
+                         </label>`
+                   }
+                 </div>
+
+                 <!-- Extracted Outcome Title -->
+                 <div class="flex-shrink-0" style="margin-top: 16px; margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center;">
+                   <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">${funcLabels.extractedValueLabel}</span>
+                 </div>
+
+                 <!-- Extracted Outcome Content -->
+                 <div class="flex-shrink-0 flex flex-col" style="height: 180px; min-height: 180px; display: flex; flex-direction: column;">
+                   ${extractedOutcomePanel}
+                 </div>
+               </div>
+
+             </div>`
+      }
     </div>
   `;
 }
 
 function bindFunctionWorkspace(func: AppFunction) {
+  // Select type / mode selectors
+  const typeSelect = document.querySelector<HTMLSelectElement>("#func-type-select");
+  if (typeSelect) {
+    typeSelect.addEventListener("change", () => {
+      const newType = typeSelect.value as "http" | "javascript" | "ai";
+      if (newType === func.functionType) return;
+      func.functionType = newType;
+
+      // Clean up fields to avoid stale HTTP/AI data!
+      if (newType === "ai") {
+        func.method = "GET";
+        func.url = "";
+        func.queryParams = [];
+        func.headers = [];
+        func.bodyMode = "none";
+        func.body = "";
+        func.form = [];
+        func.auth = { type: "none" };
+        func.extractorCode = `// Extract data from the response\nif (response.status === 200) {\n  return response.body.title;\n}\nreturn undefined;\n`;
+        func.extractorPrompt = "";
+        func.lastHttpResponse = null;
+        func.code = "";
+      } else if (newType === "javascript") {
+        func.method = "GET";
+        func.url = "";
+        func.queryParams = [];
+        func.headers = [];
+        func.bodyMode = "none";
+        func.body = "";
+        func.form = [];
+        func.auth = { type: "none" };
+        func.extractorCode = `// Extract data from the response\nif (response.status === 200) {\n  return response.body.title;\n}\nreturn undefined;\n`;
+        func.extractorPrompt = "";
+        func.lastHttpResponse = null;
+        func.aiRequestPrompt = "";
+        if (!func.code.trim()) {
+          func.code = `// Standalone JavaScript Function\n// Return the result of the execution\nconst items = ["Apple", "Banana", "Cherry"];\nconst randomItem = items[Math.floor(Math.random() * items.length)];\nreturn randomItem;\n`;
+        }
+      } else {
+        func.aiRequestPrompt = "";
+        func.code = "";
+      }
+
+      scheduleSave();
+      renderWorkspace();
+    });
+  }
+
+  const extTypeSelect = document.querySelector<HTMLSelectElement>("#func-extractor-type-select");
+  if (extTypeSelect) {
+    extTypeSelect.addEventListener("change", () => {
+      const newType = extTypeSelect.value as "javascript" | "ai";
+      if (newType === func.extractorType) return;
+      func.extractorType = newType;
+
+      // Clean up fields to avoid stale JS/AI extractor data!
+      if (newType === "ai") {
+        func.extractorCode = `// Extract data from the response\nif (response.status === 200) {\n  return response.body.title;\n}\nreturn undefined;\n`;
+      } else {
+        func.extractorPrompt = "";
+      }
+
+      scheduleSave();
+      renderWorkspace();
+    });
+  }
+
+  const extPromptArea = document.querySelector<HTMLTextAreaElement>("#func-extractor-prompt");
+  if (extPromptArea) {
+    extPromptArea.addEventListener("input", () => {
+      func.extractorPrompt = extPromptArea.value;
+      scheduleSave();
+    });
+  }
+
+  const aiReqPromptArea = document.querySelector<HTMLTextAreaElement>("#func-ai-request-prompt");
+  if (aiReqPromptArea) {
+    aiReqPromptArea.addEventListener("input", () => {
+      func.aiRequestPrompt = aiReqPromptArea.value;
+      scheduleSave();
+    });
+  }
+
   // A. Handle Method and URL changes
   const methodSelect = document.querySelector<HTMLSelectElement>("#func-method");
   if (methodSelect) {
@@ -4000,7 +4263,7 @@ async function runFunctionExtractor(func: AppFunction) {
   if (state.activeFunctionExtractorLoading) return;
 
   const focus = captureFunctionEditorFocus();
-  if (!func.lastHttpResponse) {
+  if (func.functionType === "http" && !func.lastHttpResponse) {
     func.lastTestResult = {
       success: false,
       error: t().functions.noHttpResponse
@@ -4015,22 +4278,213 @@ async function runFunctionExtractor(func: AppFunction) {
   await renderWorkspace();
 
   try {
-    const extractedResult = runExtractorOnResponse(func, func.lastHttpResponse);
-    func.lastTestResult = {
-      success: true,
-      extractedValue: extractedResult
-    };
-    scheduleSave();
+    if (func.functionType === "ai") {
+      // AI Request (Direct Prompt Completion)
+      const userPrompt = applyVariables(func.aiRequestPrompt ?? "", getEffectiveVariables());
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are a helpful assistant. You must respond ONLY with a valid JSON object or array as requested. Do NOT include markdown code blocks (such as ```json), explanations, or any other text before or after the JSON."
+        },
+        {
+          role: "user" as const,
+          content: userPrompt
+        }
+      ];
+
+      const res = await requestStandaloneAiCompletion(messages);
+      if (!res.ok) {
+        throw new Error(res.error);
+      }
+
+      let extractedValue: unknown;
+      try {
+        extractedValue = JSON.parse(res.content);
+      } catch {
+        let cleaned = res.content.trim();
+        if (cleaned.startsWith("```")) {
+          cleaned = cleaned.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
+        }
+        try {
+          extractedValue = JSON.parse(cleaned);
+        } catch (jsonErr: any) {
+          throw new Error("AI returned invalid JSON: " + jsonErr.message + "\n\nRaw output:\n" + res.content);
+        }
+      }
+
+      func.lastTestResult = {
+        success: true,
+        extractedValue
+      };
+      scheduleSave();
+    } else if (func.functionType === "javascript") {
+      // Standalone JavaScript Function
+      const extractedValue = runStandaloneJavascript(func);
+      func.lastTestResult = {
+        success: true,
+        extractedValue
+      };
+      scheduleSave();
+    } else if (func.extractorType === "ai") {
+      // HTTP Function Type with AI Extractor
+      const userPrompt = applyVariables(func.extractorPrompt ?? "", getEffectiveVariables());
+      const messages = [
+        {
+          role: "system" as const,
+          content: userPrompt || "Extract the most relevant data from this HTTP response. Return only the extracted value cleanly."
+        },
+        {
+          role: "user" as const,
+          content: JSON.stringify({
+            status: func.lastHttpResponse?.status,
+            statusText: func.lastHttpResponse?.status_text,
+            headers: func.lastHttpResponse?.headers,
+            body: func.lastHttpResponse?.body
+          }, null, 2)
+        }
+      ];
+
+      const res = await requestStandaloneAiCompletion(messages);
+      if (!res.ok) {
+        throw new Error(res.error);
+      }
+
+      let extractedValue: unknown = res.content;
+      const trimmed = res.content.trim();
+      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+        try {
+          extractedValue = JSON.parse(trimmed);
+        } catch {
+          // keep string
+        }
+      }
+
+      func.lastTestResult = {
+        success: true,
+        extractedValue
+      };
+      scheduleSave();
+    } else {
+      // HTTP Function Type with JS Extractor
+      const extractedResult = runExtractorOnResponse(func, func.lastHttpResponse!);
+      func.lastTestResult = {
+        success: true,
+        extractedValue: extractedResult
+      };
+      scheduleSave();
+    }
   } catch (error: unknown) {
     func.lastTestResult = {
       success: false,
       error: error instanceof Error ? error.message : String(error)
     };
+    scheduleSave();
   } finally {
     state.activeFunctionExtractorLoading = false;
     await renderWorkspace();
     restoreFunctionEditorFocus(focus);
   }
+}
+
+function functionDropPlacementFor(row: HTMLElement, event: PointerEvent): PointerReorderPlacement {
+  const rect = row.getBoundingClientRect();
+  const y = event.clientY - rect.top;
+  if (y < rect.height / 2) return "before";
+  return "after";
+}
+
+function functionRowAtPointer(
+  tree: HTMLElement,
+  clientX: number,
+  clientY: number
+): HTMLElement | null {
+  const rows = [...tree.querySelectorAll<HTMLElement>(".tree-row[data-function-id]")];
+  if (!rows.length) return null;
+
+  for (const row of rows) {
+    const rect = row.getBoundingClientRect();
+    if (
+      clientY >= rect.top &&
+      clientY <= rect.bottom &&
+      clientX >= rect.left &&
+      clientX <= rect.right
+    ) {
+      return row;
+    }
+  }
+
+  for (let i = 0; i < rows.length - 1; i++) {
+    const above = rows[i]!.getBoundingClientRect();
+    const below = rows[i + 1]!.getBoundingClientRect();
+    if (clientY <= above.bottom || clientY >= below.top) continue;
+    const spanLeft = Math.min(above.left, below.left);
+    const spanRight = Math.max(above.right, below.right);
+    if (clientX < spanLeft || clientX > spanRight) continue;
+    const mid = (above.bottom + below.top) / 2;
+    return clientY < mid ? rows[i]! : rows[i + 1]!;
+  }
+
+  return null;
+}
+
+function shouldOfferFunctionRootDrop(
+  tree: HTMLElement,
+  panel: HTMLElement,
+  clientX: number,
+  clientY: number
+): boolean {
+  if (functionRowAtPointer(tree, clientX, clientY)) return false;
+
+  const toolbar = panel.querySelector<HTMLElement>(".collection-sidebar-toolbar");
+  if (toolbar) {
+    const rect = toolbar.getBoundingClientRect();
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
+      return true;
+    }
+  }
+
+  const rows = [...tree.querySelectorAll<HTMLElement>(".tree-row[data-function-id]")];
+  const treeRect = tree.getBoundingClientRect();
+  if (clientX < treeRect.left || clientX > treeRect.right) return false;
+  if (clientY < treeRect.top || clientY > treeRect.bottom) return false;
+
+  if (!rows.length) return true;
+
+  const lastRect = rows[rows.length - 1]!.getBoundingClientRect();
+  return clientY > lastRect.bottom + 6;
+}
+
+function functionCommitToRoot(sourceId: string) {
+  const sourceIndex = state.functions.findIndex((f) => f.id === sourceId);
+  if (sourceIndex === -1) return;
+
+  const [sourceFunc] = state.functions.splice(sourceIndex, 1);
+  state.functions.push(sourceFunc);
+  scheduleSave();
+  render();
+}
+
+function reorderFunction(sourceId: string, targetId: string, placement: PointerReorderPlacement) {
+  const sourceIndex = state.functions.findIndex((f) => f.id === sourceId);
+  const targetIndex = state.functions.findIndex((f) => f.id === targetId);
+  if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return;
+
+  const [sourceFunc] = state.functions.splice(sourceIndex, 1);
+  
+  let insertIndex = state.functions.findIndex((f) => f.id === targetId);
+  if (insertIndex === -1) return;
+  if (placement === "after") {
+    insertIndex += 1;
+  }
+  
+  state.functions.splice(insertIndex, 0, sourceFunc);
+  scheduleSave();
+  render();
 }
 
 function renderFunctionsList(): string {
@@ -4047,9 +4501,15 @@ function renderFunctionsList(): string {
   return filtered
     .map((func) => {
       const active = func.id === state.activeFunctionId;
+      const selected = func.id === state.selectedFunctionId;
       const editing = func.id === state.editingFunctionId;
       const classes = ["tree-row", "tree-row--request"];
-      if (active) classes.push("is-selected");
+      if (selected) {
+        classes.push("is-selected");
+      }
+      if (active) {
+        classes.push("is-open-tab");
+      }
       if (editing) classes.push("is-editing");
 
       const isPlayLoading = state.activeSidebarFunctionPlayLoading === func.id;
@@ -4092,25 +4552,59 @@ function renderFunctionsList(): string {
 function bindFunctions() {
   if (state.activePanel !== "functions") return;
 
+  const tree = document.querySelector(".collection-sidebar-panel .tree") as HTMLElement;
+  const treeDropHost = tree?.closest<HTMLElement>(".collection-sidebar-panel") ?? tree;
+  if (tree && treeDropHost && tree.dataset.functionsPointerReorderBound !== "true") {
+    tree.dataset.functionsPointerReorderBound = "true";
+    const clearTreeDropRoot = () => {
+      tree.classList.remove("drop-root");
+      treeDropHost.classList.remove("is-drop-root-target");
+    };
+    attachPointerReorder({
+      container: treeDropHost,
+      itemSelector: ".tree-row[data-function-id]",
+      ignoreSelector: "[data-func-action], .function-rename-input",
+      getItemId: (element) => element.dataset.functionId ?? "",
+      resolvePlacement: (target, event, sourceId) => functionDropPlacementFor(target, event),
+      resolveTarget: (event) => functionRowAtPointer(tree, event.clientX, event.clientY),
+      shouldOfferRootDrop: (event) =>
+        shouldOfferFunctionRootDrop(tree, treeDropHost, event.clientX, event.clientY),
+      onOverContainer: () => {
+        tree.classList.add("drop-root");
+        treeDropHost.classList.add("is-drop-root-target");
+      },
+      onLeaveContainer: clearTreeDropRoot,
+      onCommitToRoot: (sourceId) => {
+        clearTreeDropRoot();
+        functionCommitToRoot(sourceId);
+      },
+      onCommit: (sourceId, targetId, placement) => {
+        clearTreeDropRoot();
+        reorderFunction(sourceId, targetId, placement);
+      }
+    });
+  }
+
   document.querySelectorAll<HTMLElement>(".tree-row[data-function-id]").forEach((row) => {
     const funcId = row.dataset.functionId ?? "";
     
     row.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
       if (target.closest("[data-func-action]") || target.closest(".function-rename-input")) return;
-      selectFunction(funcId);
+      selectFunctionInSidebar(funcId);
     });
 
     row.addEventListener("dblclick", (event) => {
-      event.stopPropagation();
-      startFuncRename(funcId);
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-func-action]") || target.closest(".function-rename-input")) return;
+      openFunctionInWorkspace(funcId);
     });
 
     row.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         const target = event.target as HTMLElement;
         if (target.closest("[data-func-action]") || target.closest(".function-rename-input")) return;
-        selectFunction(funcId);
+        openFunctionInWorkspace(funcId);
       }
     });
 
@@ -4249,8 +4743,15 @@ function focusFuncSelection() {
   }
 }
 
-function selectFunction(funcId: string | null) {
+function selectFunctionInSidebar(funcId: string | null) {
+  state.selectedFunctionId = funcId;
+  state.editingFunctionId = null;
+  render();
+}
+
+function openFunctionInWorkspace(funcId: string | null) {
   state.activeFunctionId = funcId;
+  state.selectedFunctionId = funcId;
   state.editingFunctionId = null;
   scheduleSave();
   render();
@@ -4278,6 +4779,7 @@ function createNewFunction() {
   };
   state.functions.push(newFunc);
   state.activeFunctionId = newFunc.id;
+  state.selectedFunctionId = newFunc.id;
   scheduleSave();
   startFuncRename(newFunc.id);
 }
@@ -4291,6 +4793,9 @@ async function deleteFunction(funcId: string) {
   state.functions = state.functions.filter((f) => f.id !== funcId);
   if (state.activeFunctionId === funcId) {
     state.activeFunctionId = state.functions[0]?.id ?? null;
+  }
+  if (state.selectedFunctionId === funcId) {
+    state.selectedFunctionId = state.functions[0]?.id ?? null;
   }
   scheduleSave();
   render();
@@ -4311,9 +4816,46 @@ async function runSidebarFunction(funcId: string, anchorButton: HTMLButtonElemen
   }
 
   try {
-    const response = await invokeFunctionHttp(func);
-    func.lastHttpResponse = response;
-    const extractedResult = runExtractorOnResponse(func, response);
+    let extractedResult: any;
+    if (func.functionType === "javascript") {
+      extractedResult = runStandaloneJavascript(func);
+    } else if (func.functionType === "ai") {
+      const userPrompt = applyVariables(func.aiRequestPrompt ?? "", getEffectiveVariables());
+      const messages = [
+        {
+          role: "system" as const,
+          content: "You are a helpful assistant. You must respond ONLY with a valid JSON object or array as requested. Do NOT include markdown code blocks (such as ```json), explanations, or any other text before or after the JSON."
+        },
+        {
+          role: "user" as const,
+          content: userPrompt
+        }
+      ];
+
+      const res = await requestStandaloneAiCompletion(messages);
+      if (!res.ok) {
+        throw new Error(res.error);
+      }
+
+      try {
+        extractedResult = JSON.parse(res.content);
+      } catch {
+        let cleaned = res.content.trim();
+        if (cleaned.startsWith("```")) {
+          cleaned = cleaned.replace(/^```[a-zA-Z]*\n/, "").replace(/\n```$/, "").trim();
+        }
+        try {
+          extractedResult = JSON.parse(cleaned);
+        } catch (jsonErr: any) {
+          throw new Error("AI returned invalid JSON: " + jsonErr.message + "\n\nRaw output:\n" + res.content);
+        }
+      }
+    } else {
+      const response = await invokeFunctionHttp(func);
+      func.lastHttpResponse = response;
+      extractedResult = runExtractorOnResponse(func, response);
+    }
+
     func.lastTestResult = {
       success: true,
       extractedValue: extractedResult

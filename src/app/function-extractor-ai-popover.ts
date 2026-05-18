@@ -80,7 +80,11 @@ export function openFunctionExtractorAiPopover(func: AppFunction, anchor: HTMLEl
       return;
     }
 
-    func.extractorCode = result.code;
+    if (func.functionType === "javascript") {
+      func.code = result.code;
+    } else {
+      func.extractorCode = result.code;
+    }
     scheduleSave();
     close();
     render();

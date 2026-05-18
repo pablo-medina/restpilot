@@ -100,7 +100,7 @@ export type AppFunction = {
   /** Human-oriented summary for the user and AI; shown in the function editor only. */
   description?: string;
   code: string;
-  functionType: "http";
+  functionType: "http" | "ai" | "javascript";
   method: string;
   url: string;
   queryParams: Pair[];
@@ -110,7 +110,10 @@ export type AppFunction = {
   body: string;
   form: Pair[];
   auth: RequestAuth;
+  extractorType?: "javascript" | "ai";
   extractorCode: string;
+  extractorPrompt?: string;
+  aiRequestPrompt?: string;
   /** Last HTTP response from Send in the function workspace (not updated by extractor run). */
   lastHttpResponse?: ApiResponse | null;
   /** Last extractor script outcome (not updated by Send alone). */
