@@ -130,7 +130,7 @@ function normalizeBodyMode(value: unknown): BodyMode {
 
 function normalizeRawType(value: unknown): RawType {
   const raw = String(value ?? "").toLowerCase();
-  if (raw === "json" || raw === "xml" || raw === "html") return raw;
+  if (raw === "json" || raw === "xml") return raw;
   return "text";
 }
 

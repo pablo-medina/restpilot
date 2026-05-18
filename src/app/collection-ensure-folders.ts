@@ -40,7 +40,7 @@ export function ensureFolderPathExists(folderPath: string): EnsuredFolderPath {
   }
 
   const segments = normalized.slice(1).split("/").filter(Boolean);
-  let currentParent = COLLECTION_ROOT_PARENT_ID;
+  let currentParent: string = COLLECTION_ROOT_PARENT_ID;
   const created: EnsuredFolderPath["created"] = [];
 
   for (const segment of segments) {

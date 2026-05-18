@@ -17,17 +17,17 @@ const folder = (id: string, title: string, parentId: string = "/"): TreeItem => 
 describe("collection-names", () => {
   it("uses copy-of prefix when configured", () => {
     const items = [folder("a", "API")];
-    expect(titleForDuplicate("API", null, items, "copyOf")).toBe("Copy of API");
+    expect(titleForDuplicate("API", "/", items, "copyOf")).toBe("Copy of API");
   });
 
   it("uses numbered suffix when configured", () => {
     const items = [folder("a", "API"), folder("b", "API (2)")];
-    expect(titleForDuplicate("API", null, items, "numbered")).toBe("API (3)");
+    expect(titleForDuplicate("API", "/", items, "numbered")).toBe("API (3)");
   });
 
   it("numbers from base title when source already has a suffix", () => {
     const items = [folder("a", "API (2)")];
-    expect(numberedDuplicateTitle("API (2)", null, items)).toBe("API (3)");
+    expect(numberedDuplicateTitle("API (2)", "/", items)).toBe("API (3)");
   });
 
   it("migrates legacy numbered checkbox setting", () => {

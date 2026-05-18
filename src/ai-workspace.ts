@@ -283,7 +283,7 @@ function bindThinkingToggles() {
   if (!container || container.dataset.thinkingBound === "1") return;
   container.dataset.thinkingBound = "1";
   container.addEventListener("toggle", (event) => {
-    const details = (event.target as HTMLElement).closest("details.ai-thinking");
+    const details = (event.target as HTMLElement).closest<HTMLDetailsElement>("details.ai-thinking");
     if (!details) return;
     const messageId = details.closest<HTMLElement>("[data-message-id]")?.dataset.messageId;
     if (!messageId) return;

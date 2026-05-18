@@ -64,7 +64,7 @@ export function resolveCollectionPath(path: string): {
   }
 
   const segments = normalized.slice(1).split("/").filter(Boolean);
-  let currentParent = COLLECTION_ROOT_PARENT_ID;
+  let currentParent: string = COLLECTION_ROOT_PARENT_ID;
 
   for (let index = 0; index < segments.length; index += 1) {
     const folder = folderChild(currentParent, segments[index]!);

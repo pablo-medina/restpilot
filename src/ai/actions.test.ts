@@ -19,12 +19,15 @@ describe("actionsFromToolResult", () => {
       method: "GET",
       url: "https://api.example.com/health",
       headers: [],
-      params: [],
+      queryParams: [],
       auth: { type: "none" },
       bodyMode: "none",
       rawType: "json",
-      rawBody: "",
-      formParts: []
+      body: "",
+      form: [],
+      streamResponse: false,
+      lastResponse: null,
+      lastError: null
     });
 
     const actions = actionsFromToolResult(
@@ -48,12 +51,15 @@ describe("actionsFromToolResult", () => {
       method: "POST",
       url: "/login",
       headers: [],
-      params: [],
+      queryParams: [],
       auth: { type: "none" },
       bodyMode: "none",
       rawType: "json",
-      rawBody: "",
-      formParts: []
+      body: "",
+      form: [],
+      streamResponse: false,
+      lastResponse: null,
+      lastError: null
     });
 
     const text = describeAiToolCall("send_request", JSON.stringify({ request_id: "req-2" }));

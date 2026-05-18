@@ -47,8 +47,11 @@ describe("collection paths", () => {
       rawType: "text",
       body: "",
       form: [],
-      auth: { type: "none" }
+      auth: { type: "none" },
+      streamResponse: false,
+      lastResponse: null,
+      lastError: null
     });
-    expect(collectionPathForRequest(state.items[2] as never)).toBe("/Prueba/OpenRouter/Chat");
+    expect(collectionPathForRequest(state.items[2] as any)).toBe("/Prueba/OpenRouter/Chat");
   });
 });

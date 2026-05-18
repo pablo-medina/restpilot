@@ -25,7 +25,7 @@ describe("collection-search", () => {
   const items: TreeItem[] = [
     { id: "f1", kind: "folder", parentId: "/", title: "API", expanded: true },
     request("r1", "List users", "f1", "https://api.example.com/users"),
-    request("r2", "Health", null, "https://example.com/health", "POST")
+    request("r2", "Health", "/", "https://example.com/health", "POST")
   ];
 
   it("matches title, method, and url", () => {
