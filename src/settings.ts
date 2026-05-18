@@ -465,15 +465,15 @@ export function bindSettings(
 
   document.querySelector<HTMLInputElement>("#setting-proxy-http")?.addEventListener("input", (event) => {
     settings.proxy.httpProxy = (event.target as HTMLInputElement).value;
-    onChange();
+    onChange("persist");
   });
   document.querySelector<HTMLInputElement>("#setting-proxy-https")?.addEventListener("input", (event) => {
     settings.proxy.httpsProxy = (event.target as HTMLInputElement).value;
-    onChange();
+    onChange("persist");
   });
   document.querySelector<HTMLInputElement>("#setting-proxy-no-proxy")?.addEventListener("input", (event) => {
     settings.proxy.noProxy = (event.target as HTMLInputElement).value;
-    onChange();
+    onChange("persist");
   });
 
   document.querySelector("#toggle-proxy-http")?.addEventListener("click", () => {
@@ -498,7 +498,7 @@ export function bindSettings(
   const testUrlInput = document.querySelector<HTMLInputElement>("#setting-proxy-test-url");
   testUrlInput?.addEventListener("input", (event) => {
     settings.proxyTestUrl = (event.target as HTMLInputElement).value;
-    onChange();
+    onChange("persist");
   });
   testUrlInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
