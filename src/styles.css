@@ -2612,7 +2612,7 @@ select,
 .variables-table-head,
 .variable-item {
   display: grid;
-  grid-template-columns: 52px 36px minmax(140px, 0.9fr) minmax(120px, 0.8fr) minmax(180px, 1.2fr) 36px;
+  grid-template-columns: 46px 64px minmax(140px, 1fr) minmax(180px, 1.5fr) 36px;
   align-items: center;
   gap: 10px;
 }
@@ -5475,4 +5475,533 @@ html[data-modal-open] .title-bar * {
   border-color: rgba(61, 127, 111, 0.55);
   box-shadow: 0 0 0 3px var(--rp-accent-soft-strong);
   outline: none;
+}
+
+/* 8. Microsoft Fluent-Style Layout Overrides & Material Design */
+
+/* Fluent Glassmorphic Acrylic for Sidebar & Rails */
+.activity-bar {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 0 !important;
+  background: rgba(232, 231, 228, 0.72) !important;
+  backdrop-filter: blur(24px) saturate(130%) !important;
+}
+
+[data-theme="dark"] .activity-bar {
+  background: rgba(26, 25, 23, 0.72) !important;
+  backdrop-filter: blur(24px) saturate(130%) !important;
+}
+
+.collection-sidebar {
+  background: rgba(248, 247, 245, 0.76) !important;
+  backdrop-filter: blur(24px) saturate(110%) !important;
+}
+
+[data-theme="dark"] .collection-sidebar {
+  background: rgba(24, 23, 21, 0.76) !important;
+  backdrop-filter: blur(24px) saturate(110%) !important;
+}
+
+/* Inset Fluent-Style Navigation Links in Activity Bar */
+.activity-item {
+  position: relative !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 6px !important;
+  margin: 2px 0 !important;
+  transition: all 180ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.activity-item.is-active {
+  background: var(--rp-accent-soft-md) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] .activity-item.is-active {
+  background: var(--rp-accent-soft-strong) !important;
+}
+
+/* Vertical active indicator bar on current activity selection */
+.activity-item.is-active::before {
+  content: "" !important;
+  position: absolute !important;
+  left: -2px !important;
+  top: 8px !important;
+  bottom: 8px !important;
+  width: 3px !important;
+  border-radius: 2px !important;
+  background: var(--rp-accent) !important;
+}
+
+[data-theme="dark"] .activity-item.is-active::before {
+  background: var(--rp-accent-strong) !important;
+}
+
+/* Clean, flat bottom active bar indicator on request tabs */
+.request-tab.active {
+  box-shadow: none !important;
+}
+
+.request-tab.active::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 12px !important;
+  right: 12px !important;
+  bottom: 0 !important;
+  height: 3px !important;
+  border-radius: 2px 2px 0 0 !important;
+  background: var(--rp-accent) !important;
+}
+
+[data-theme="dark"] .request-tab.active::after {
+  background: var(--rp-accent-strong) !important;
+}
+
+/* Minimalist tab close control (only colorizes on hover to reduce clutter) */
+.request-tab .tab-close {
+  color: var(--rp-text-muted) !important;
+  transition: color 150ms ease, background-color 150ms ease !important;
+}
+
+.request-tab:hover .tab-close,
+.request-tab.active .tab-close {
+  opacity: 0.65 !important;
+}
+
+.request-tab .tab-close:hover {
+  opacity: 1 !important;
+  color: var(--field-remove-color) !important;
+}
+
+[data-theme="dark"] .request-tab .tab-close:hover {
+  color: var(--field-remove-color-hover) !important;
+}
+
+/* Solid Modern Fluent Action Fill for Primary & Cancel Buttons */
+.url-send-btn {
+  background: var(--rp-accent) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  border-left: none !important;
+}
+
+.url-send-btn:hover {
+  background: var(--rp-accent-strong) !important;
+}
+
+.url-send-btn--cancel {
+  background: var(--field-remove-color) !important;
+}
+
+.url-send-btn--cancel:hover {
+  background: var(--field-remove-color-hover) !important;
+}
+
+/* Base focus styles for Code Editors and Textareas */
+.code-editor {
+  transition: border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.code-editor:focus-within {
+  border-color: rgba(61, 127, 111, 0.55) !important;
+  box-shadow: 0 0 0 3px var(--rp-accent-soft-strong) !important;
+}
+
+/* Font-family prioritizes Microsoft Segoe UI Variable Display for Fluent aesthetics */
+:root {
+  font-family: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, -apple-system, sans-serif !important;
+}
+
+/* Scoped Excel-Style Variables Spreadsheet Grid (Scoped strictly under .variables-workspace) */
+.variables-workspace .variables-panel {
+  padding: 0;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  background: var(--rp-surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.variables-workspace .variables-panel-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rp-border);
+  background: var(--rp-chrome);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.variables-workspace .variables-table-head {
+  background: var(--rp-chrome-elevated);
+  border-bottom: 1px solid var(--rp-border);
+  padding: 0 12px;
+  margin: 0;
+  color: var(--rp-text-muted);
+  height: 36px;
+  max-height: 36px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 46px minmax(140px, 1fr) minmax(180px, 1.5fr) var(--field-remove-size);
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.variables-workspace .variables-list {
+  gap: 0;
+  background: var(--rp-surface);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.variables-workspace .variable-item {
+  height: 36px;
+  max-height: 36px;
+  box-sizing: border-box;
+  padding: 4px 12px;
+  border: none;
+  border-bottom: 1px solid var(--rp-border-subtle);
+  border-radius: 0;
+  background: transparent;
+  display: grid;
+  grid-template-columns: 46px minmax(140px, 1fr) minmax(180px, 1.5fr) var(--field-remove-size);
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.variables-workspace .variable-item:hover {
+  background: rgba(61, 127, 111, 0.04);
+  box-shadow: none;
+}
+
+.variables-workspace .variable-item:last-child {
+  border-bottom: none;
+}
+
+/* Excel Cell Form Behavior */
+.variables-workspace .variable-item input:not([type="checkbox"]),
+.variables-workspace .env-manage-var-row input:not([type="checkbox"]),
+.variables-workspace .variable-field-name input,
+.variables-workspace .variable-field-value input,
+.variables-workspace .variable-name,
+.variables-workspace .variable-value {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 2px 6px;
+  height: 28px;
+  max-height: 28px;
+  line-height: 24px;
+  color: var(--rp-text);
+  transition: all 120ms ease;
+  margin: 0;
+  font-family: "Segoe UI Variable Display", "Segoe UI", Inter, sans-serif;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.variables-workspace .variable-item input:not([type="checkbox"]):focus,
+.variables-workspace .env-manage-var-row input:not([type="checkbox"]):focus,
+.variables-workspace .variable-field-name input:focus,
+.variables-workspace .variable-field-value input:focus,
+.variables-workspace .variable-name:focus,
+.variables-workspace .variable-value:focus {
+  background: var(--rp-input-bg);
+  box-shadow: 0 0 0 1px var(--rp-accent);
+  border-radius: 3px;
+  outline: none;
+}
+
+/* Search Box & Controls for Variables Toolbar */
+.variables-workspace .variables-search-wrap {
+  position: relative;
+  min-width: 240px;
+}
+
+.variables-workspace .variables-search-input,
+.variables-workspace .env-search-input {
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rp-input-border);
+  border-radius: 6px;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-size: 12px;
+}
+
+.variables-workspace .variables-search-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--rp-text-muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* Excel-Style Environment Variables Grid */
+.variables-workspace .env-manage-var-table {
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  background: var(--rp-surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.variables-workspace .env-manage-var-head {
+  background: var(--rp-chrome-elevated);
+  border-bottom: 1px solid var(--rp-border);
+  padding: 0 12px;
+  margin: 0;
+  color: var(--rp-text-muted);
+  height: 36px;
+  max-height: 36px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 46px minmax(140px, 1fr) minmax(180px, 1.5fr) var(--field-remove-size);
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.variables-workspace .env-manage-var-list {
+  gap: 0;
+  background: var(--rp-surface);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.variables-workspace .env-manage-var-row {
+  height: 36px;
+  max-height: 36px;
+  box-sizing: border-box;
+  padding: 4px 12px;
+  border: none;
+  border-bottom: 1px solid var(--rp-border-subtle);
+  border-radius: 0;
+  background: transparent;
+  display: grid;
+  grid-template-columns: 46px minmax(140px, 1fr) minmax(180px, 1.5fr) var(--field-remove-size);
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.variables-workspace .env-manage-var-row:hover {
+  background: rgba(61, 127, 111, 0.04);
+  box-shadow: none;
+}
+
+.variables-workspace .env-manage-var-row:last-child {
+  border-bottom: none;
+}
+
+/* Environment manage page compact layout */
+.variables-workspace .env-editor-head {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rp-border);
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.variables-workspace .env-editor-name {
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--rp-text);
+  padding: 2px 6px;
+  height: 28px;
+  width: 200px;
+}
+
+.variables-workspace .env-editor-name:focus {
+  background: var(--rp-input-bg);
+  box-shadow: 0 0 0 1px var(--rp-accent);
+  border-radius: 4px;
+  outline: none;
+}
+
+.variables-workspace .env-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Reorganize variables workspace side-by-side */
+.variables-workspace-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.variables-workspace-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.variables-workspace .variables-column-title-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.variables-workspace .variables-column-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--rp-text);
+  margin: 0;
+}
+
+/* Environments Panel Dropdown Selector */
+.variables-workspace .env-selector-wrap {
+  position: relative;
+  min-width: 180px;
+}
+
+.variables-workspace .env-selector-dropdown {
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rp-input-border);
+  border-radius: 6px;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.variables-workspace .env-selector-dropdown:focus {
+  border-color: var(--rp-accent);
+}
+
+/* Compact Environment toolbar layout */
+.variables-workspace .env-manage-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--rp-border);
+  border-bottom: none;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  background: var(--rp-chrome);
+}
+
+.variables-workspace .env-manage-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.variables-workspace .env-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Ensure no stacked grid layout or margins stretch the compact spreadsheet cells */
+.variables-workspace .variable-item .variable-field,
+.variables-workspace .env-manage-var-row .variable-field {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.variables-workspace .variable-field-value {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.variables-workspace .variable-field-value input {
+  padding-right: 28px !important;
+  width: 100%;
+}
+
+/* Compact eye secret icon styling */
+.variables-workspace .variable-secret-btn {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--rp-text-muted);
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.variables-workspace .variable-secret-btn:hover {
+  background: rgba(61, 127, 111, 0.08);
+  color: var(--rp-text);
+}
+
+.variables-workspace .variable-secret-btn.is-active {
+  color: var(--rp-accent);
+  background: rgba(61, 127, 111, 0.12);
+}
+
+.variables-workspace .variable-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 28px;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
 }

@@ -1,5 +1,5 @@
 import { escapeAttribute } from "./content-display";
-import { iconKey } from "./icons";
+import { iconEye, iconEyeOff } from "./icons";
 import { t } from "./i18n";
 import type { Variable } from "./types";
 
@@ -13,7 +13,7 @@ export function renderVariableSecretButton(variable: Variable) {
       title="${labels.secretToggle}"
       aria-label="${labels.secretToggle}"
       aria-pressed="${variable.secret ? "true" : "false"}"
-    >${iconKey}</button>
+    >${variable.secret ? iconEyeOff : iconEye}</button>
   `;
 }
 
@@ -33,6 +33,7 @@ export function syncVariableRowSecretUi(row: HTMLElement, variable: Variable) {
   if (button) {
     button.classList.toggle("is-active", Boolean(variable.secret));
     button.setAttribute("aria-pressed", variable.secret ? "true" : "false");
+    button.innerHTML = variable.secret ? iconEyeOff : iconEye;
   }
   const valueInput = row.querySelector<HTMLInputElement>(".variable-value");
   if (valueInput) {

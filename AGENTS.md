@@ -89,6 +89,16 @@ Use for deleting a row in params, headers, form, or closing a request tab when t
 - Do **not** reuse `field-remove-btn` for `+` add buttons, tree SVG actions, or panel close—those stay default `.mini-btn` or `.danger` with icons.
 - New repeatable rows: last grid column = `var(--field-remove-size)`.
 
+#### High-density datagrids / Excel-style spreadsheets (Globals & Environments)
+
+RestPilot uses high-density Excel-style datagrids for Globals and Environment Variables.
+
+**Rules for adding or editing spreadsheet tables:**
+- **No Inline Labels**: Never render `<span class="variable-field-label">` inside row items. Stacking labels inside rows causes major row height bloat. Column headers belong exclusively in the table's header row (`.variables-table-head`, `.env-manage-var-head`).
+- **Compact Row Height**: Spreadsheet rows (`.variable-item`, `.env-manage-var-row`) must have a uniform compact height. Row padding is `padding: 4px 12px !important` and input field height is `28px !important` to achieve exactly `36px` of total vertical row space.
+- **Esc / Enter Escape Hatch**: All editable cell inputs must have keydown listeners that blur the active input when `Enter` or `Escape` is pressed.
+- **No Token Preview Column**: Maximize horizontal width for actual variable names and values by completely excluding any token preview columns.
+
 #### Rules (read every time)
 
 | Goal | Do | Do not |

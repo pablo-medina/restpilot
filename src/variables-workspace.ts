@@ -18,12 +18,6 @@ function formatVariablesStats(total: number, active: number) {
   return t().variables.stats.replace("{total}", String(total)).replace("{active}", String(active));
 }
 
-function renderVariableToken(name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) return `<span class="variable-token variable-token-empty">—</span>`;
-  return `<code class="variable-token">${escapeHtml(`\${${trimmed}}`)}</code>`;
-}
-
 function renderGlobalVariableItem(variable: Variable) {
   const labels = t().variables;
   const disabledClass = variable.enabled ? "" : " is-disabled";
@@ -34,20 +28,14 @@ function renderGlobalVariableItem(variable: Variable) {
         <input class="variable-enabled" type="checkbox" ${variable.enabled ? "checked" : ""} />
         <span class="variable-toggle-ui" aria-hidden="true"></span>
       </label>
-      ${renderVariableSecretButton(variable)}
       <div class="variable-field variable-field-name">
-        <span class="variable-field-label">${labels.colName}</span>
         <input class="variable-name" value="${escapeAttribute(variable.name)}" placeholder="${labels.namePlaceholder}" spellcheck="false" autocomplete="off" />
       </div>
-      <div class="variable-field variable-field-token">
-        <span class="variable-field-label">${labels.tokenPreview}</span>
-        ${renderVariableToken(variable.name)}
-      </div>
       <div class="variable-field variable-field-value">
-        <span class="variable-field-label">${labels.colValue}</span>
         ${renderVariableValueInput(variable, labels.valuePlaceholder)}
+        ${renderVariableSecretButton(variable)}
       </div>
-      <button class="mini-btn variable-remove remove-variable" type="button" aria-label="${t().tree.delete}">${iconRemove}</button>
+      <button class="mini-btn field-remove-btn variable-remove remove-variable" type="button" aria-label="${t().tree.delete}">×</button>
     </div>
   `;
 }
@@ -62,14 +50,13 @@ function renderGlobalsTab() {
     ? `
       <div class="variables-table-head" aria-hidden="true">
         <span>${labels.colEnabled}</span>
-        <span class="variables-col-secret" title="${labels.colSecret}">${labels.colSecret}</span>
         <span>${labels.colName}</span>
-        <span>${labels.tokenPreview}</span>
         <span>${labels.colValue}</span>
         <span></span>
       </div>
       <div class="variables-list">
         ${variables.map((variable) => renderGlobalVariableItem(variable)).join("")}
+        <div class="variables-search-empty is-hidden">${t().variables.noResults ?? "No matching variables found."}</div>
       </div>
     `
     : `
@@ -82,32 +69,16 @@ function renderGlobalsTab() {
     `;
 
   return `
-    <div class="variables-workspace-tab-panel" data-variables-tab-panel="globals">
-      <div class="variables-intro">
-        <article class="variables-usage-card">
-          <div class="variables-usage-badge" aria-hidden="true">{ }</div>
-          <div>
-            <h2>${labels.usageTitle}</h2>
-            <p>${labels.usageBody}</p>
-            <div class="variables-syntax-row">
-              <code class="variables-syntax">${escapeHtml(labels.usageSyntax)}</code>
-              <span class="variables-syntax-example">${escapeHtml(labels.usageExample)}</span>
-            </div>
-          </div>
-        </article>
-        <article class="variables-stats-card">
-          <span class="variables-stats-value">${total}</span>
-          <span class="variables-stats-label">${formatVariablesStats(total, active)}</span>
-        </article>
-      </div>
-      <article class="variables-panel">
-        <div class="variables-panel-head">
-          ${total ? `<span class="variables-panel-meta">${formatVariablesStats(total, active)}</span>` : ""}
-          ${total ? `<button class="variables-add-btn" id="add-variable" type="button"><span class="variables-add-icon" aria-hidden="true">+</span>${labels.add}</button>` : ""}
+    <article class="variables-panel">
+      <div class="variables-panel-head">
+        <div class="variables-search-wrap">
+          <input type="search" class="variables-search-input" placeholder="${labels.searchPlaceholder ?? 'Search variables...'}" spellcheck="false" autocomplete="off" />
         </div>
-        ${listMarkup}
-      </article>
-    </div>
+        ${total ? `<span class="variables-panel-meta">${formatVariablesStats(total, active)}</span>` : ""}
+        ${total ? `<button class="variables-add-btn" id="add-variable" type="button"><span class="variables-add-icon" aria-hidden="true">+</span>${labels.add}</button>` : ""}
+      </div>
+      ${listMarkup}
+    </article>
   `;
 }
 
@@ -116,73 +87,63 @@ function renderEnvironmentsTab() {
   const selectedId = state.envManageSelectedId;
   const selected = selectedId ? state.environments.find((env) => env.id === selectedId) : null;
 
+  const selectOptions = state.environments.length
+    ? state.environments
+        .map(
+          (env) => `
+      <option value="${env.id}" ${env.id === selectedId ? "selected" : ""}>
+        ${escapeHtml(env.name)} (${env.variables.filter((v) => v.enabled && v.name.trim()).length})
+      </option>
+    `
+        )
+        .join("")
+    : `<option value="">${labels.emptyEnvironments}</option>`;
+
+  const selectMarkup = `
+    <div class="env-selector-wrap">
+      <select class="env-selector-dropdown" aria-label="${labels.activeEnvironment}">
+        ${selectOptions}
+      </select>
+    </div>
+  `;
+
   return `
-    <div class="variables-workspace-tab-panel" data-variables-tab-panel="environments">
-      <div class="env-manage env-manage-panel" data-env-manage>
-        <header class="env-manage-toolbar">
-          <p class="env-manage-hint">${labels.manageHint}</p>
-          <button class="variables-add-btn" type="button" data-env-add>${labels.newEnvironment}</button>
-        </header>
-        <div class="env-manage-split">
-          <aside class="env-manage-list" role="listbox" aria-label="${labels.environmentsSection}">
-            ${
-              state.environments.length
-                ? state.environments
-                    .map(
-                      (env) => `
-                <button class="env-manage-item${env.id === selectedId ? " active" : ""}" type="button" data-env-select="${env.id}" role="option" aria-selected="${env.id === selectedId}">
-                  <span class="env-manage-item-name">${escapeHtml(env.name)}</span>
-                  <span class="env-manage-item-meta">${env.variables.filter((v) => v.enabled && v.name.trim()).length}</span>
-                </button>
-              `
-                    )
-                    .join("")
-                : `<p class="env-manage-empty">${labels.emptyEnvironments}</p>`
-            }
-          </aside>
-          <div class="env-manage-editor" data-env-editor>
-            ${selected ? renderEnvironmentEditor(selected) : `<p class="env-manage-empty">${labels.selectEnvironment}</p>`}
-          </div>
-        </div>
+    <div class="env-manage env-manage-panel" data-env-manage>
+      <header class="env-manage-toolbar">
+        ${selectMarkup}
+        <button class="variables-add-btn" type="button" data-env-add><span class="variables-add-icon" aria-hidden="true">+</span>${labels.newEnvironment}</button>
+      </header>
+      <div class="env-manage-editor" data-env-editor>
+        ${selected ? renderEnvironmentEditor(selected) : `<p class="env-manage-empty">${labels.selectEnvironment}</p>`}
       </div>
     </div>
   `;
 }
 
 export function renderVariablesWorkspace() {
-  const labels = t().environments;
-  const tab = state.variablesWorkspaceTab;
+  const envLabels = t().environments;
   return `
     <section class="variables-view variables-workspace">
-      <div class="segmented variables-workspace-tabs" role="tablist">
-        <button class="${tab === "globals" ? "active" : ""}" type="button" data-variables-tab="globals" role="tab" aria-selected="${tab === "globals"}">${labels.tabGlobals}</button>
-        <button class="${tab === "environments" ? "active" : ""}" type="button" data-variables-tab="environments" role="tab" aria-selected="${tab === "environments"}">${labels.tabEnvironments}</button>
-      </div>
-      <div class="variables-workspace-body">
-        ${tab === "globals" ? renderGlobalsTab() : renderEnvironmentsTab()}
+      <div class="variables-workspace-columns">
+        <div class="variables-workspace-col variables-workspace-globals">
+          <div class="variables-column-title-row">
+            <h2 class="variables-column-title">${envLabels.tabGlobals}</h2>
+          </div>
+          ${renderGlobalsTab()}
+        </div>
+        <div class="variables-workspace-col variables-workspace-environments">
+          <div class="variables-column-title-row">
+            <h2 class="variables-column-title">${envLabels.tabEnvironments}</h2>
+          </div>
+          ${renderEnvironmentsTab()}
+        </div>
       </div>
     </section>
   `;
 }
 
 export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandler) {
-  document.querySelectorAll<HTMLButtonElement>("[data-variables-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const next = button.dataset.variablesTab as "globals" | "environments";
-      if (next === state.variablesWorkspaceTab) return;
-      state.variablesWorkspaceTab = next;
-      if (next === "environments" && !state.envManageSelectedId && state.environments.length) {
-        state.envManageSelectedId = state.activeEnvironmentId ?? state.environments[0]?.id ?? null;
-      }
-      rerenderVariablesWorkspace(onVariablesChanged);
-    });
-  });
-
-  if (state.variablesWorkspaceTab === "globals") {
-    bindGlobalsTab(onVariablesChanged);
-    return;
-  }
-
+  bindGlobalsTab(onVariablesChanged);
   const root = document.querySelector<HTMLElement>("[data-env-manage]");
   if (root) bindEnvironmentsPanel(root, onVariablesChanged);
 }
@@ -210,20 +171,55 @@ function bindGlobalsTab(onVariablesChanged?: VariableChangeHandler) {
   document.querySelector("#add-variable")?.addEventListener("click", add);
   document.querySelector("#add-variable-empty")?.addEventListener("click", add);
 
+  const searchInput = document.querySelector<HTMLInputElement>(".variables-search-input");
+  if (searchInput) {
+    const performFilter = () => {
+      const query = searchInput.value.trim().toLowerCase();
+      const rows = document.querySelectorAll<HTMLElement>(".variables-list .variable-item");
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const name = row.querySelector<HTMLInputElement>(".variable-name")?.value.toLowerCase() ?? "";
+        const val = row.querySelector<HTMLInputElement>(".variable-value")?.value.toLowerCase() ?? "";
+        const matches = name.includes(query) || val.includes(query);
+        row.classList.toggle("is-hidden", !matches);
+        if (matches) visibleCount++;
+      });
+      const emptyMsg = document.querySelector<HTMLElement>(".variables-search-empty");
+      if (emptyMsg) {
+        emptyMsg.classList.toggle("is-hidden", visibleCount > 0 || rows.length === 0);
+      }
+    };
+    searchInput.addEventListener("input", performFilter);
+  }
+
   document.querySelectorAll<HTMLElement>(".variable-item[data-variable-id]").forEach((row) => {
     const variable = state.variables.find((item) => item.id === row.dataset.variableId);
     if (!variable) return;
 
-    const syncToken = () => {
-      const tokenHost = row.querySelector(".variable-field-token");
-      if (!tokenHost) return;
-      const labels = t().variables;
-      const trimmed = variable.name.trim();
-      const tokenMarkup = trimmed
-        ? `<code class="variable-token">${escapeHtml(`\${${trimmed}}`)}</code>`
-        : `<span class="variable-token variable-token-empty">—</span>`;
-      tokenHost.innerHTML = `<span class="variable-field-label">${labels.tokenPreview}</span>${tokenMarkup}`;
-    };
+    row.querySelectorAll<HTMLInputElement>("input:not([type='checkbox'])").forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === "Escape") {
+          input.blur();
+        } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+          const isUp = event.key === "ArrowUp";
+          const list = row.parentElement;
+          if (!list) return;
+          const rows = Array.from(list.children) as HTMLElement[];
+          const rowIndex = rows.indexOf(row);
+          if (rowIndex < 0) return;
+          const targetRow = rows[rowIndex + (isUp ? -1 : 1)];
+          if (targetRow) {
+            const rowInputs = Array.from(row.querySelectorAll("input:not([type='checkbox'])"));
+            const colIndex = rowInputs.indexOf(input);
+            const targetInput = targetRow.querySelectorAll("input:not([type='checkbox'])")[colIndex] as HTMLInputElement;
+            if (targetInput) {
+              event.preventDefault();
+              targetInput.focus();
+            }
+          }
+        }
+      });
+    });
 
     row.querySelector<HTMLInputElement>(".variable-enabled")?.addEventListener("change", (event) => {
       variable.enabled = (event.target as HTMLInputElement).checked;
@@ -234,7 +230,6 @@ function bindGlobalsTab(onVariablesChanged?: VariableChangeHandler) {
 
     row.querySelector<HTMLInputElement>(".variable-name")?.addEventListener("input", (event) => {
       variable.name = (event.target as HTMLInputElement).value;
-      syncToken();
       scheduleSave();
       onVariablesChanged?.();
     });
@@ -262,11 +257,15 @@ function bindGlobalsTab(onVariablesChanged?: VariableChangeHandler) {
 
 function renderEnvironmentEditor(environment: Environment): string {
   const labels = t().environments;
+  const varLabels = t().variables;
   return `
     <div class="env-editor" data-env-id="${environment.id}">
       <div class="env-editor-head">
         <input class="env-editor-name" value="${escapeAttribute(environment.name)}" spellcheck="false" aria-label="${labels.environmentName}" />
         <div class="env-editor-actions">
+          <div class="variables-search-wrap">
+            <input type="search" class="env-search-input" placeholder="${varLabels.searchPlaceholder ?? 'Search variables...'}" spellcheck="false" autocomplete="off" />
+          </div>
           <button class="quiet-button compact" type="button" data-env-rename>${labels.rename}</button>
           <button class="quiet-button compact danger-text" type="button" data-env-delete>${labels.deleteEnvironment}</button>
           <button class="mini-btn" type="button" data-env-var-add>${labels.addVariable}</button>
@@ -286,14 +285,13 @@ function renderManageVariableList(variables: Variable[]): string {
     <div class="env-manage-var-table">
       <div class="env-manage-var-head" aria-hidden="true">
         <span>${labels.colEnabled}</span>
-        <span class="variables-col-secret" title="${labels.colSecret}">${labels.colSecret}</span>
         <span>${labels.colName}</span>
-        <span>${labels.tokenPreview}</span>
         <span>${labels.colValue}</span>
         <span></span>
       </div>
       <div class="env-manage-var-list">
         ${variables.map((variable) => renderManageVariableRow(variable)).join("")}
+        <div class="variables-search-empty is-hidden">${t().variables.noResults ?? "No matching variables found."}</div>
       </div>
     </div>
   `;
@@ -303,10 +301,6 @@ function renderManageVariableRow(variable: Variable): string {
   const labels = t().variables;
   const disabledClass = variable.enabled ? "" : " is-disabled";
   const secretClass = variable.secret ? " is-secret" : "";
-  const trimmed = variable.name.trim();
-  const tokenMarkup = trimmed
-    ? `<code class="variable-token">${escapeHtml(`\${${trimmed}}`)}</code>`
-    : `<span class="variable-token variable-token-empty">—</span>`;
 
   return `
     <div class="variable-item env-manage-var-row${disabledClass}${secretClass}" data-variable-id="${variable.id}">
@@ -314,17 +308,14 @@ function renderManageVariableRow(variable: Variable): string {
         <input class="variable-enabled" type="checkbox" ${variable.enabled ? "checked" : ""} />
         <span class="variable-toggle-ui" aria-hidden="true"></span>
       </label>
-      ${renderVariableSecretButton(variable)}
       <div class="variable-field variable-field-name">
         <input class="variable-name" value="${escapeAttribute(variable.name)}" placeholder="${labels.namePlaceholder}" spellcheck="false" autocomplete="off" />
       </div>
-      <div class="variable-field variable-field-token">
-        ${tokenMarkup}
-      </div>
       <div class="variable-field variable-field-value">
         ${renderVariableValueInput(variable, labels.valuePlaceholder)}
+        ${renderVariableSecretButton(variable)}
       </div>
-      <button class="mini-btn variable-remove" type="button" aria-label="${t().tree.delete}">${iconRemove}</button>
+      <button class="mini-btn field-remove-btn variable-remove" type="button" aria-label="${t().tree.delete}">×</button>
     </div>
   `;
 }
@@ -342,27 +333,32 @@ function bindEnvironmentsPanel(root: HTMLElement, onVariablesChanged?: VariableC
     if (selected) bindEnvironmentEditor(root, selected, refreshEditor, onVariablesChanged);
   };
 
-  const refreshList = () => {
-    const list = root.querySelector(".env-manage-list");
-    if (!list) return;
+  const refreshDropdown = () => {
+    const dropdown = root.querySelector<HTMLSelectElement>(".env-selector-dropdown");
+    if (!dropdown) return;
     const selectedId = state.envManageSelectedId;
     if (!state.environments.length) {
-      list.innerHTML = `<p class="env-manage-empty">${t().environments.emptyEnvironments}</p>`;
+      dropdown.innerHTML = `<option value="">${t().environments.emptyEnvironments}</option>`;
       refreshEditor();
       return;
     }
-    list.innerHTML = state.environments
+    dropdown.innerHTML = state.environments
       .map(
         (env) => `
-      <button class="env-manage-item${env.id === selectedId ? " active" : ""}" type="button" data-env-select="${env.id}" role="option" aria-selected="${env.id === selectedId}">
-        <span class="env-manage-item-name">${escapeHtml(env.name)}</span>
-        <span class="env-manage-item-meta">${env.variables.filter((v) => v.enabled && v.name.trim()).length}</span>
-      </button>
+      <option value="${env.id}" ${env.id === selectedId ? "selected" : ""}>
+        ${escapeHtml(env.name)} (${env.variables.filter((v) => v.enabled && v.name.trim()).length})
+      </option>
     `
       )
       .join("");
-    bindListSelection(list, refreshEditor, onVariablesChanged);
   };
+
+  root.querySelector(".env-selector-dropdown")?.addEventListener("change", (event) => {
+    state.envManageSelectedId = (event.target as HTMLSelectElement).value || null;
+    scheduleSave();
+    onVariablesChanged?.();
+    refreshEditor();
+  });
 
   root.querySelector("[data-env-add]")?.addEventListener("click", () => {
     const env: Environment = {
@@ -373,35 +369,13 @@ function bindEnvironmentsPanel(root: HTMLElement, onVariablesChanged?: VariableC
     state.environments.push(env);
     state.envManageSelectedId = env.id;
     scheduleSave();
-    refreshList();
-    refreshEditor();
+    rerenderVariablesWorkspace(onVariablesChanged);
   });
-
-  const list = root.querySelector(".env-manage-list");
-  if (list) bindListSelection(list, refreshEditor, onVariablesChanged);
 
   const selected = state.envManageSelectedId
     ? state.environments.find((env) => env.id === state.envManageSelectedId)
     : null;
   if (selected) bindEnvironmentEditor(root, selected, refreshEditor, onVariablesChanged);
-}
-
-function bindListSelection(
-  list: ParentNode,
-  refreshEditor: () => void,
-  onVariablesChanged?: VariableChangeHandler
-) {
-  list.querySelectorAll<HTMLButtonElement>("[data-env-select]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.envManageSelectedId = button.dataset.envSelect ?? null;
-      refreshEditor();
-      list.querySelectorAll(".env-manage-item").forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-      button.setAttribute("aria-selected", "true");
-      scheduleSave();
-      onVariablesChanged?.();
-    });
-  });
 }
 
 function bindEnvironmentEditor(
@@ -413,10 +387,37 @@ function bindEnvironmentEditor(
   const editor = root.querySelector<HTMLElement>(`[data-env-id="${environment.id}"]`);
   if (!editor) return;
 
+  const searchInput = editor.querySelector<HTMLInputElement>(".env-search-input");
+  if (searchInput) {
+    const performFilter = () => {
+      const query = searchInput.value.trim().toLowerCase();
+      const rows = editor.querySelectorAll<HTMLElement>(".env-manage-var-list .variable-item");
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const name = row.querySelector<HTMLInputElement>(".variable-name")?.value.toLowerCase() ?? "";
+        const val = row.querySelector<HTMLInputElement>(".variable-value")?.value.toLowerCase() ?? "";
+        const matches = name.includes(query) || val.includes(query);
+        row.classList.toggle("is-hidden", !matches);
+        if (matches) visibleCount++;
+      });
+      const emptyMsg = editor.querySelector<HTMLElement>(".variables-search-empty");
+      if (emptyMsg) {
+        emptyMsg.classList.toggle("is-hidden", visibleCount > 0 || rows.length === 0);
+      }
+    };
+    searchInput.addEventListener("input", performFilter);
+  }
+
   editor.querySelector<HTMLInputElement>(".env-editor-name")?.addEventListener("input", (event) => {
     environment.name = (event.target as HTMLInputElement).value.trim() || t().environments.newEnvironment;
     scheduleSave();
-    refreshListMeta(root);
+    const dropdown = root.querySelector<HTMLSelectElement>(".env-selector-dropdown");
+    if (dropdown) {
+      const option = dropdown.querySelector(`option[value="${environment.id}"]`);
+      if (option) {
+        option.textContent = `${environment.name} (${environment.variables.filter((v) => v.enabled && v.name.trim()).length})`;
+      }
+    }
     onVariablesChanged?.();
   });
 
@@ -425,9 +426,7 @@ function bindEnvironmentEditor(
     if (next === "cancel" || !next.trim()) return;
     environment.name = next.trim();
     scheduleSave();
-    refreshListMeta(root);
-    const nameInput = editor.querySelector<HTMLInputElement>(".env-editor-name");
-    if (nameInput) nameInput.value = environment.name;
+    rerenderVariablesWorkspace(onVariablesChanged);
     onVariablesChanged?.();
   });
 
@@ -443,7 +442,7 @@ function bindEnvironmentEditor(
     if (state.activeEnvironmentId === environment.id) state.activeEnvironmentId = null;
     state.envManageSelectedId = state.environments[0]?.id ?? null;
     scheduleSave();
-    refreshListFromRoot(root, onVariablesChanged);
+    rerenderVariablesWorkspace(onVariablesChanged);
     onVariablesChanged?.();
   });
 
@@ -463,49 +462,6 @@ function bindEnvironmentEditor(
   bindManageVariableList(editor, environment.variables, onVariablesChanged);
 }
 
-function refreshListMeta(root: HTMLElement) {
-  const selectedId = state.envManageSelectedId;
-  root.querySelectorAll<HTMLElement>(".env-manage-item").forEach((item) => {
-    const envId = item.dataset.envSelect;
-    const env = state.environments.find((entry) => entry.id === envId);
-    if (!env) return;
-    const name = item.querySelector(".env-manage-item-name");
-    const meta = item.querySelector(".env-manage-item-meta");
-    if (name) name.textContent = env.name;
-    if (meta) meta.textContent = String(env.variables.filter((v) => v.enabled && v.name.trim()).length);
-    item.classList.toggle("active", env.id === selectedId);
-  });
-}
-
-function refreshListFromRoot(root: HTMLElement, onVariablesChanged?: VariableChangeHandler) {
-  const list = root.querySelector(".env-manage-list");
-  if (!list) return;
-  const selectedId = state.envManageSelectedId;
-  if (!state.environments.length) {
-    list.innerHTML = `<p class="env-manage-empty">${t().environments.emptyEnvironments}</p>`;
-  } else {
-    list.innerHTML = state.environments
-      .map(
-        (env) => `
-      <button class="env-manage-item${env.id === selectedId ? " active" : ""}" type="button" data-env-select="${env.id}">
-        <span class="env-manage-item-name">${escapeHtml(env.name)}</span>
-        <span class="env-manage-item-meta">${env.variables.filter((v) => v.enabled && v.name.trim()).length}</span>
-      </button>
-    `
-      )
-      .join("");
-    bindListSelection(list, () => refreshListFromRoot(root, onVariablesChanged), onVariablesChanged);
-  }
-  const editor = root.querySelector("[data-env-editor]");
-  const selected = selectedId ? state.environments.find((env) => env.id === selectedId) : null;
-  if (editor) {
-    editor.innerHTML = selected
-      ? renderEnvironmentEditor(selected)
-      : `<p class="env-manage-empty">${t().environments.selectEnvironment}</p>`;
-    if (selected) bindEnvironmentEditor(root, selected, () => refreshListFromRoot(root, onVariablesChanged), onVariablesChanged);
-  }
-}
-
 function bindManageVariableList(root: ParentNode, variables: Variable[], onVariablesChanged?: VariableChangeHandler) {
   root.querySelectorAll<HTMLElement>(".env-manage-var-row[data-variable-id]").forEach((row) => {
     const variable = variables.find((item) => item.id === row.dataset.variableId);
@@ -513,14 +469,30 @@ function bindManageVariableList(root: ParentNode, variables: Variable[], onVaria
     if ((row as HTMLElement & { dataset: { bound?: string } }).dataset.bound === "true") return;
     (row as HTMLElement & { dataset: { bound?: string } }).dataset.bound = "true";
 
-    const syncToken = () => {
-      const tokenHost = row.querySelector(".variable-field-token");
-      if (!tokenHost) return;
-      const trimmed = variable.name.trim();
-      tokenHost.innerHTML = trimmed
-        ? `<code class="variable-token">${escapeHtml(`\${${trimmed}}`)}</code>`
-        : `<span class="variable-token variable-token-empty">—</span>`;
-    };
+    row.querySelectorAll<HTMLInputElement>("input:not([type='checkbox'])").forEach((input) => {
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === "Escape") {
+          input.blur();
+        } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+          const isUp = event.key === "ArrowUp";
+          const list = row.parentElement;
+          if (!list) return;
+          const rows = Array.from(list.children) as HTMLElement[];
+          const rowIndex = rows.indexOf(row);
+          if (rowIndex < 0) return;
+          const targetRow = rows[rowIndex + (isUp ? -1 : 1)];
+          if (targetRow) {
+            const rowInputs = Array.from(row.querySelectorAll("input:not([type='checkbox'])"));
+            const colIndex = rowInputs.indexOf(input);
+            const targetInput = targetRow.querySelectorAll("input:not([type='checkbox'])")[colIndex] as HTMLInputElement;
+            if (targetInput) {
+              event.preventDefault();
+              targetInput.focus();
+            }
+          }
+        }
+      });
+    });
 
     row.querySelector<HTMLInputElement>(".variable-enabled")?.addEventListener("change", (event) => {
       variable.enabled = (event.target as HTMLInputElement).checked;
@@ -531,7 +503,6 @@ function bindManageVariableList(root: ParentNode, variables: Variable[], onVaria
 
     row.querySelector<HTMLInputElement>(".variable-name")?.addEventListener("input", (event) => {
       variable.name = (event.target as HTMLInputElement).value;
-      syncToken();
       scheduleSave();
       onVariablesChanged?.();
     });

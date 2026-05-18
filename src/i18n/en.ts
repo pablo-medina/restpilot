@@ -261,7 +261,9 @@ export const en = {
     tokenPreview: "Token",
     stats: "{total} variables · {active} active",
     emptyTitle: "No variables yet",
-    emptyBody: "Create names like base_url or api_key, then use them as ${name} in your requests."
+    emptyBody: "Create names like base_url or api_key, then use them as ${name} in your requests.",
+    searchPlaceholder: "Search variables...",
+    noResults: "No matching variables found."
   },
   settings: {
     title: "Settings",
