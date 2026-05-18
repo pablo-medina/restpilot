@@ -45,6 +45,16 @@ export function hasEnabledFormFields(request: SavedRequest) {
 }
 
 export function withContentType(request: SavedRequest, headers: Record<string, string>) {
+  if (request.bodyMode === "multipart") {
+    const next = { ...headers };
+    for (const key of Object.keys(next)) {
+      if (key.toLowerCase() === "content-type") {
+        delete next[key];
+      }
+    }
+    return next;
+  }
+
   if (Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) {
     return headers;
   }

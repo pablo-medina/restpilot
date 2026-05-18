@@ -809,7 +809,12 @@ async fn execute_request(
     let mut builder = client.request(method.clone(), request.url.clone());
     let mut headers = HeaderMap::new();
 
+    let is_multipart = normalize_body_mode(&request.body_mode) == "multipart";
+
     for (key, value) in &request.headers {
+        if is_multipart && key.to_ascii_lowercase() == "content-type" {
+            continue;
+        }
         let name = key
             .parse::<reqwest::header::HeaderName>()
             .map_err(|_| format!("Invalid header name: {}", key))?;

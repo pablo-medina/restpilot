@@ -314,12 +314,18 @@ pub fn execute_request_curl_sync(
     }
 
     let mut header_list = List::new();
+    let is_multipart = normalize_body_mode(&request.body_mode) == "multipart";
+    let mut has_headers = false;
     for (key, value) in &request.headers {
+        if is_multipart && key.to_ascii_lowercase() == "content-type" {
+            continue;
+        }
         header_list
             .append(&format!("{key}: {value}"))
             .map_err(|error| error.to_string())?;
+        has_headers = true;
     }
-    if !request.headers.is_empty() {
+    if has_headers {
         easy.http_headers(header_list)
             .map_err(|error| error.to_string())?;
     }
