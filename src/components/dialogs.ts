@@ -8,7 +8,8 @@ export type DialogMode =
   | "curl-preview"
   | "proxy-test-log"
   | "collection-export"
-  | "collection-import";
+  | "collection-import"
+  | "function-result";
 export type DialogOutcome = { action: string; data?: Record<string, unknown> };
 
 export type DialogState = {
@@ -517,7 +518,8 @@ function renderDialog(dialog: DialogState): string {
       role="dialog"
       aria-modal="true"
       aria-labelledby="dialog-title-${dialog.id}"
-      data-dialog-id="${dialog.id}">
+      data-dialog-id="${dialog.id}"
+      data-dialog-mode="${mode}">
       ${resizeHandles}
       <div class="dialog-title" data-dialog-drag="${dialog.id}">
         <strong id="dialog-title-${dialog.id}">${escapeHtml(dialog.title)}</strong>

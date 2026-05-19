@@ -782,7 +782,7 @@ function buildContextMenuMarkup() {
         ${contextMenuButton("new-function", t().nav.newFunction)}
         ${
           func
-            ? `<hr>${contextMenuButton("rename", labels.rename, { shortcut: menuShortcuts.rename() })}${contextMenuButton("describe", labels.describe)}`
+            ? `<hr>${contextMenuButton("run-function", labels.run)}${contextMenuButton("rename", labels.rename, { shortcut: menuShortcuts.rename() })}${contextMenuButton("describe", labels.describe)}`
             : ""
         }
         ${
@@ -1262,6 +1262,7 @@ function bindEvents() {
   void syncMaximizeControl();
   bindAppTree();
   bindDialogs();
+  bindFunctionResultDialogs();
   bindActivityBar();
   bindTabBar({
     closeTab: (id) => closeTab(id),
@@ -1590,6 +1591,17 @@ function ensureContextMenuHandlers() {
     if (menu.kind === "functions-tree") {
       const funcId = menu.functionId;
       if (action === "new-function") createNewFunction();
+      if (action === "run-function" && funcId) {
+        const playBtn = document.querySelector<HTMLButtonElement>(
+          `.tree-row[data-function-id="${funcId}"] [data-func-action="play"]`
+        );
+        if (playBtn) {
+          void runSidebarFunction(funcId, playBtn);
+        } else {
+          const dummy = document.createElement("button");
+          void runSidebarFunction(funcId, dummy);
+        }
+      }
       if (action === "rename" && funcId) startFuncRename(funcId);
       if (action === "describe" && funcId) {
         const row = document.querySelector<HTMLElement>(`[data-function-id="${funcId}"]`);
@@ -2839,7 +2851,7 @@ function renderFunctionWorkspace(func: AppFunction) {
 
                <!-- Divider & Standalone Outcome Title -->
                <div class="flex-shrink-0" style="margin-bottom: 8px; border-top: 1px solid var(--rp-border); padding-top: 16px; display: flex; align-items: center;">
-                 <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Result / Output</span>
+                 <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">${escapeHtml(t().functions.testResult)}</span>
                </div>
 
                <!-- Extracted Outcome Content (Response) -->
@@ -4299,13 +4311,17 @@ async function runSidebarFunction(funcId: string, anchorButton: HTMLButtonElemen
       await renderWorkspace();
     }
 
-    // Now, show popover
-    const popoverHtml = renderSidebarFunctionResultPopover(func, true, extractedResult);
-    const popover = mountPopover(popoverHtml, anchorButton);
-    bindPopoverClose(popover, () => {
-      removePopovers();
+    const dialogBodyHtml = renderSidebarFunctionResultDialog(func, true, extractedResult);
+    await applicationDialog({
+      title: t().functions.dialogResultTitle.replace("{name}", func.name),
+      body: "",
+      mode: "function-result",
+      previewHtml: dialogBodyHtml,
+      width: 500,
+      height: 480,
+      resizable: true,
+      actions: [{ id: "close", label: t().dialog.close ?? "Close", role: "primary" }]
     });
-    bindSidebarFunctionResultPopover(popover, func, true, extractedResult);
 
   } catch (error: any) {
     const errorMsg = error.message || String(error);
@@ -4318,13 +4334,17 @@ async function runSidebarFunction(funcId: string, anchorButton: HTMLButtonElemen
       await renderWorkspace();
     }
 
-    // Show failure popover
-    const popoverHtml = renderSidebarFunctionResultPopover(func, false, null, errorMsg);
-    const popover = mountPopover(popoverHtml, anchorButton);
-    bindPopoverClose(popover, () => {
-      removePopovers();
+    const dialogBodyHtml = renderSidebarFunctionResultDialog(func, false, null, errorMsg);
+    await applicationDialog({
+      title: t().functions.dialogErrorTitle.replace("{name}", func.name),
+      body: "",
+      mode: "function-result",
+      previewHtml: dialogBodyHtml,
+      width: 500,
+      height: 240,
+      resizable: false,
+      actions: [{ id: "close", label: t().dialog.close ?? "Close", role: "primary" }]
     });
-    bindSidebarFunctionResultPopover(popover, func, false, null);
 
   } finally {
     state.activeSidebarFunctionPlayLoading = null;
@@ -4337,7 +4357,7 @@ async function runSidebarFunction(funcId: string, anchorButton: HTMLButtonElemen
   }
 }
 
-function renderSidebarFunctionResultPopover(func: AppFunction, success: boolean, value: any, error?: string): string {
+function renderSidebarFunctionResultDialog(func: AppFunction, success: boolean, value: any, error?: string): string {
   const activeEnv = getActiveEnvironment();
   
   let outcomeHtml = "";
@@ -4349,189 +4369,252 @@ function renderSidebarFunctionResultPopover(func: AppFunction, success: boolean,
       formattedVal = String(value);
     }
     outcomeHtml = `
-      <div style="margin-bottom: 12px; font-family: monospace; font-size: 13px; text-align: left;">
-        <div style="font-weight: 600; color: #4b8b3b; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #4b8b3b;"></span>
-          Extracted Value
+      <div style="margin-bottom: 16px; font-family: monospace; font-size: 13px; text-align: left;">
+        <div style="font-weight: 600; color: #2ecc71; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; box-shadow: 0 0 8px #2ecc71;"></span>
+          ${escapeHtml(t().functions.dialogSuccessHeader)}
         </div>
-        <pre style="margin: 0; padding: 8px; background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 4px; max-height: 80px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--rp-text);">${escapeHtml(formattedVal)}</pre>
+        <pre style="margin: 0; padding: 10px; background: var(--rp-surface-muted); border: 1px solid var(--rp-border); border-radius: 6px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--rp-text); font-family: inherit;">${escapeHtml(formattedVal)}</pre>
       </div>
     `;
   } else {
     outcomeHtml = `
-      <div style="margin-bottom: 12px; font-family: monospace; font-size: 13px; text-align: left;">
-        <div style="font-weight: 600; color: #b54a3a; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #b54a3a;"></span>
-          Execution Failure
+      <div style="margin-bottom: 16px; font-family: monospace; font-size: 13px; text-align: left;">
+        <div style="font-weight: 600; color: #b54a3a; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b54a3a; box-shadow: 0 0 8px #b54a3a;"></span>
+          ${escapeHtml(t().functions.dialogFailureHeader)}
         </div>
-        <pre style="margin: 0; padding: 8px; background: #b54a3a0a; border: 1px solid #b54a3a33; border-radius: 4px; max-height: 80px; overflow-y: auto; white-space: pre-wrap; color: #b54a3a;">${escapeHtml(error || "Unknown error")}</pre>
+        <pre style="margin: 0; padding: 10px; background: rgba(181, 74, 58, 0.05); border: 1px solid rgba(181, 74, 58, 0.2); border-radius: 6px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; color: #b54a3a; font-family: inherit;">${escapeHtml(error || "Unknown error")}</pre>
       </div>
     `;
   }
 
-  let bodyHtml = outcomeHtml;
+  let bodyHtml = `<div class="function-result-dialog-content" data-func-id="${func.id}" style="display: flex; flex-direction: column; height: 100%;">`;
+  bodyHtml += outcomeHtml;
 
   if (success) {
     bodyHtml += `
-      <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;">
-        <div style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em; margin-top: 4px;">Inject into Variable</div>
+      <div style="display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0;">
+        <div style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">${escapeHtml(t().functions.dialogInjectHeader)}</div>
         
         <!-- Mini-Search input -->
         <div style="position: relative; display: flex; align-items: center; width: 100%;">
           <input
-            id="var-popover-search"
-            placeholder="Search variables..."
+            id="var-dialog-search"
+            placeholder="${escapeAttribute(t().functions.dialogSearchPlaceholder)}"
             spellcheck="false"
-            style="width: 100%; padding: 6px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);"
+            style="width: 100%; padding: 8px 12px; font-size: 12px; border-radius: 6px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); outline: none; transition: border-color 0.15s;"
+            onfocus="this.style.borderColor='var(--rp-accent)'"
+            onblur="this.style.borderColor='var(--rp-border)'"
           />
         </div>
 
         <!-- Scrollable Variables List -->
-        <div id="var-popover-list" style="flex: 1; min-height: 100px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rp-border); border-radius: 4px; padding: 6px; background: var(--rp-surface-low);">
+        <div id="var-dialog-list" style="flex: 1; min-height: 120px; max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rp-border); border-radius: 6px; padding: 8px; background: var(--rp-surface-muted);">
           <!-- Dynamic -->
         </div>
 
         <!-- Create New Variable Inline Form -->
-        <div style="border-top: 1px solid var(--rp-border); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
-          <div style="font-weight: 700; font-size: 10px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Or Create New Variable</div>
-          <div style="display: flex; gap: 6px; width: 100%;">
+        <div style="border-top: 1px solid var(--rp-border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+          <div style="font-weight: 700; font-size: 10px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">${escapeHtml(t().functions.dialogCreateHeader)}</div>
+          <div style="display: flex; gap: 8px; width: 100%;">
             <input
-              id="var-popover-new-name"
-              placeholder="Variable name..."
+              id="var-dialog-new-name"
+              placeholder="${escapeAttribute(t().functions.dialogNewNamePlaceholder)}"
               spellcheck="false"
-              style="flex: 1; min-width: 0; padding: 4px 8px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);"
+              style="flex: 1; min-width: 0; padding: 6px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text);"
             />
             ${activeEnv ? `
-              <select id="var-popover-new-scope" style="font-size: 11px; padding: 4px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface);">
+              <select id="var-dialog-new-scope" style="font-size: 12px; padding: 6px; border-radius: 6px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer;">
                 <option value="global">Global</option>
-                <option value="env">${activeEnv.name}</option>
+                <option value="env">Env: ${escapeHtml(activeEnv.name)}</option>
               </select>
             ` : ""}
-            <button id="var-popover-new-submit" class="segmented-btn" type="button" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); cursor: pointer; white-space: nowrap;">
-              Create
+            <button id="var-dialog-new-submit" class="segmented-btn" type="button" style="padding: 6px 12px; font-size: 12px; border-radius: 6px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; white-space: nowrap; font-weight: 600;">
+              ${escapeHtml(t().functions.dialogCreateButton)}
             </button>
           </div>
         </div>
       </div>
     `;
   }
+  bodyHtml += `</div>`;
 
-  return renderPopoverShell({
-    title: `${func.name} - Result`,
-    bodyHtml,
-    resizable: success
-  });
+  return bodyHtml;
 }
 
-function bindSidebarFunctionResultPopover(popover: HTMLElement, func: AppFunction, success: boolean, value: any) {
-  if (!success) return;
+function bindFunctionResultDialogs() {
+  document.querySelectorAll<HTMLElement>(".function-result-dialog-content").forEach((dialogContent) => {
+    const funcId = dialogContent.dataset.funcId;
+    if (!funcId) return;
 
-  const searchInput = popover.querySelector<HTMLInputElement>("#var-popover-search");
-  const listContainer = popover.querySelector<HTMLElement>("#var-popover-list");
-  const newNameInput = popover.querySelector<HTMLInputElement>("#var-popover-new-name");
-  const newScopeSelect = popover.querySelector<HTMLSelectElement>("#var-popover-new-scope");
-  const newSubmitBtn = popover.querySelector<HTMLButtonElement>("#var-popover-new-submit");
+    const func = state.functions.find((f) => f.id === funcId);
+    if (!func || !func.lastTestResult || !func.lastTestResult.success) return;
 
-  if (!listContainer) return;
+    const value = func.lastTestResult.extractedValue;
 
-  const activeEnv = getActiveEnvironment();
-  
-  // Combine all variables for search
-  const allVars = [
-    ...state.variables.map((v: Variable) => ({ ...v, scope: "global", envName: undefined as string | undefined })),
-    ...activeEnvironmentVariables().map((v: Variable) => ({ ...v, scope: "env", envName: activeEnv?.name as string | undefined }))
-  ];
+    const searchInput = dialogContent.querySelector<HTMLInputElement>("#var-dialog-search");
+    const listContainer = dialogContent.querySelector<HTMLElement>("#var-dialog-list");
+    const newNameInput = dialogContent.querySelector<HTMLInputElement>("#var-dialog-new-name");
+    const newScopeSelect = dialogContent.querySelector<HTMLSelectElement>("#var-dialog-new-scope");
+    const newSubmitBtn = dialogContent.querySelector<HTMLButtonElement>("#var-dialog-new-submit");
 
-  function renderList(query: string) {
-    const filtered = allVars.filter(v => 
-      v.name.toLowerCase().includes(query.toLowerCase())
-    );
+    if (!listContainer) return;
 
-    const itemsHtml = filtered.map(v => {
-      const scopeBadge = v.scope === "env" 
-        ? `<span style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Env: ${escapeHtml(v.envName ?? "")}</span>` 
-        : `<span style="background: rgba(52, 152, 219, 0.15); color: #3498db; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Global</span>`;
-      
-      let displayValue = v.value;
-      if (v.secret) {
-        displayValue = "••••••••";
-      }
+    const activeEnv = getActiveEnvironment();
+    
+    // Combine all variables for search
+    const allVars = [
+      ...state.variables.map((v: Variable) => ({ ...v, scope: "global", envName: undefined as string | undefined })),
+      ...activeEnvironmentVariables().map((v: Variable) => ({ ...v, scope: "env", envName: activeEnv?.name as string | undefined }))
+    ];
 
-      return `
-        <button class="var-popover-item" data-var-id="${v.id}" data-var-scope="${v.scope}" type="button" style="text-align: left; background: transparent; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--rp-text); width: 100%; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s;" onmouseover="this.style.background='rgba(0,0,0,0.05)'" onmouseout="this.style.background='transparent'">
-          <span style="font-family: monospace; font-weight: 600;">\${${escapeHtml(v.name || "unnamed")}}</span>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <span style="color: var(--rp-text-muted); font-size: 11px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(displayValue || "")}</span>
-            ${scopeBadge}
-          </div>
-        </button>
-      `;
-    }).join("");
+    function renderList(query: string) {
+      const filtered = allVars.filter(v => 
+        v.name.toLowerCase().includes(query.toLowerCase())
+      );
 
-    listContainer!.innerHTML = itemsHtml || `<div style="text-align: center; padding: 12px; font-size: 12px; color: var(--rp-text-muted); font-style: italic;">No variables found</div>`;
-
-    // Bind item click listeners
-    listContainer!.querySelectorAll<HTMLButtonElement>(".var-popover-item").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const varId = btn.dataset.varId;
-        const varScope = btn.dataset.varScope;
-
-        if (varScope === "global") {
-          const v = state.variables.find((item: Variable) => item.id === varId);
-          if (v) {
-            v.value = typeof value === "object" ? JSON.stringify(value) : String(value);
-            v.enabled = true;
-          }
-        } else if (varScope === "env" && activeEnv) {
-          const v = activeEnv.variables.find((item: Variable) => item.id === varId);
-          if (v) {
-            v.value = typeof value === "object" ? JSON.stringify(value) : String(value);
-            v.enabled = true;
-          }
+      const itemsHtml = filtered.map(v => {
+        const scopeBadge = v.scope === "env" 
+          ? `<span style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Env: ${escapeHtml(v.envName ?? "")}</span>` 
+          : `<span style="background: rgba(52, 152, 219, 0.15); color: #3498db; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Global</span>`;
+        
+        let displayValue = v.value;
+        if (v.secret) {
+          displayValue = "••••••••";
         }
 
-        scheduleSave();
-        removePopovers();
-        void messageDialog("information", "Variable Saved", `Successfully saved result into variable.`);
-        void renderWorkspace();
+        return `
+          <button class="var-dialog-item" data-var-id="${v.id}" data-var-scope="${v.scope}" type="button">
+            <span style="font-family: monospace; font-weight: 600;">${escapeHtml(v.name || "unnamed")}</span>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span style="color: var(--rp-text-muted); font-size: 11px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(displayValue || "")}</span>
+              ${scopeBadge}
+            </div>
+          </button>
+        `;
+      }).join("");
+
+      listContainer!.innerHTML = itemsHtml || `<div style="text-align: center; padding: 12px; font-size: 12px; color: var(--rp-text-muted); font-style: italic;">${escapeHtml(t().functions.dialogNoVariables)}</div>`;
+
+      // Bind item click listeners
+      listContainer!.querySelectorAll<HTMLButtonElement>(".var-dialog-item").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          listContainer!.querySelectorAll<HTMLButtonElement>(".var-dialog-item").forEach((b) => {
+            b.classList.remove("selected");
+          });
+          btn.classList.add("selected");
+        });
+
+        btn.addEventListener("dblclick", () => {
+          const varId = btn.dataset.varId;
+          const varScope = btn.dataset.varScope;
+
+          if (varScope === "global") {
+            const v = state.variables.find((item: Variable) => item.id === varId);
+            if (v) {
+              v.value = typeof value === "object" ? JSON.stringify(value) : String(value);
+              v.enabled = true;
+            }
+          } else if (varScope === "env" && activeEnv) {
+            const v = activeEnv.variables.find((item: Variable) => item.id === varId);
+            if (v) {
+              v.value = typeof value === "object" ? JSON.stringify(value) : String(value);
+              v.enabled = true;
+            }
+          }
+
+          scheduleSave();
+          
+          // Programmatically close the dialog
+          const closeBtn = dialogContent.closest("[data-dialog-id]")?.querySelector<HTMLButtonElement>('[data-dialog-action="close"]');
+          closeBtn?.click();
+
+          showToast(t().functions.dialogSavedSuccess);
+          void renderWorkspace();
+        });
+
+        btn.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          
+          document.querySelectorAll(".var-context-menu").forEach((el) => el.remove());
+          
+          const contextMenu = document.createElement("div");
+          contextMenu.className = "context-menu var-context-menu";
+          contextMenu.style.position = "fixed";
+          contextMenu.style.left = `${event.clientX}px`;
+          contextMenu.style.top = `${event.clientY}px`;
+          contextMenu.style.zIndex = "100000";
+          
+          const labels = t().tree;
+          const runLabel = labels.run || "Run";
+          
+          contextMenu.innerHTML = `
+            <button class="var-context-menu-run" type="button" style="text-align: left; background: transparent; border: none; padding: 6px 12px; cursor: pointer; font-size: 12px; color: var(--rp-text); width: 100%; display: flex; align-items: center; gap: 8px;">
+              <span class="context-menu-label">${escapeHtml(runLabel)}</span>
+            </button>
+          `;
+          
+          document.body.appendChild(contextMenu);
+          
+          contextMenu.querySelector(".var-context-menu-run")?.addEventListener("click", (clickEvent) => {
+            clickEvent.stopPropagation();
+            contextMenu.remove();
+            btn.dispatchEvent(new Event("dblclick"));
+          });
+          
+          const removeMenu = () => {
+            contextMenu.remove();
+            document.removeEventListener("pointerdown", removeMenu);
+          };
+          
+          setTimeout(() => {
+            document.addEventListener("pointerdown", removeMenu);
+          }, 0);
+        });
       });
+    }
+
+    // Initial render
+    renderList("");
+
+    // Search input event
+    searchInput?.addEventListener("input", () => {
+      renderList(searchInput.value.trim());
     });
-  }
 
-  // Initial render
-  renderList("");
+    // Submit Handler for New Variable
+    function handleCreateNew() {
+      const varName = newNameInput?.value.trim() ?? "";
+      if (!varName) return;
 
-  // Search input event
-  searchInput?.addEventListener("input", () => {
-    renderList(searchInput.value.trim());
-  });
+      const valStr = typeof value === "object" ? JSON.stringify(value) : String(value);
+      const newVar = { id: id(), name: varName, value: valStr, enabled: true };
 
-  // Submit Handler for New Variable
-  function handleCreateNew() {
-    const varName = newNameInput?.value.trim() ?? "";
-    if (!varName) return;
+      const scope = newScopeSelect?.value ?? "global";
+      if (scope === "global") {
+        state.variables.push(newVar);
+      } else if (scope === "env" && activeEnv) {
+        activeEnv.variables.push(newVar);
+      }
 
-    const valStr = typeof value === "object" ? JSON.stringify(value) : String(value);
-    const newVar = { id: id(), name: varName, value: valStr, enabled: true };
+      scheduleSave();
+      
+      // Programmatically close the dialog
+      const closeBtn = dialogContent.closest("[data-dialog-id]")?.querySelector<HTMLButtonElement>('[data-dialog-action="close"]');
+      closeBtn?.click();
 
-    const scope = newScopeSelect?.value ?? "global";
-    if (scope === "global") {
-      state.variables.push(newVar);
-    } else if (scope === "env" && activeEnv) {
-      activeEnv.variables.push(newVar);
+      showToast(t().functions.dialogCreatedSuccess.replace("{name}", varName));
+      void renderWorkspace();
     }
 
-    scheduleSave();
-    removePopovers();
-    void messageDialog("information", "Variable Created", `Variable \${${varName}} has been successfully created and saved.`);
-    void renderWorkspace();
-  }
-
-  newSubmitBtn?.addEventListener("click", handleCreateNew);
-  newNameInput?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      handleCreateNew();
-    }
+    newSubmitBtn?.addEventListener("click", handleCreateNew);
+    newNameInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        handleCreateNew();
+      }
+    });
   });
 }
 

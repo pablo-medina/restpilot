@@ -43,6 +43,7 @@ export const en = {
     closeAllTabs: "Close all tabs"
   },
   tree: {
+    run: "Run",
     newRequest: "New request",
     newFolder: "New folder",
     rename: "Rename",
@@ -135,7 +136,19 @@ export const en = {
     importEmpty: "No saved requests in the collection.",
     namingPlaceholderTitle: "Name your function",
     namingPlaceholderDesc: "Enter a name in the sidebar and press <strong>Enter</strong> to start configuring your HTTP request or AI prompt.",
-    aiDisabledWarning: "AI features are currently disabled. Please enable AI in Settings to use the AI Extractor."
+    aiDisabledWarning: "AI features are currently disabled. Please enable AI in Settings to use the AI Extractor.",
+    dialogResultTitle: "{name} - Result",
+    dialogErrorTitle: "{name} - Error",
+    dialogSuccessHeader: "Extracted Value",
+    dialogFailureHeader: "Execution Failure",
+    dialogSearchPlaceholder: "Search variables...",
+    dialogInjectHeader: "Inject into Variable",
+    dialogCreateHeader: "Or Create New Variable",
+    dialogNewNamePlaceholder: "Name...",
+    dialogCreateButton: "Create",
+    dialogNoVariables: "No variables found",
+    dialogSavedSuccess: "Variable saved successfully",
+    dialogCreatedSuccess: "Variable \${{name}} created successfully"
   },
   describe: {
     requestTitle: "Describe request",

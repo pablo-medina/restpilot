@@ -43,6 +43,7 @@ export const es = {
     closeAllTabs: "Cerrar todas las pestañas"
   },
   tree: {
+    run: "Ejecutar",
     newRequest: "Nueva solicitud",
     newFolder: "Nueva carpeta",
     rename: "Renombrar",
@@ -135,7 +136,19 @@ export const es = {
     importEmpty: "No hay solicitudes guardadas en la colección.",
     namingPlaceholderTitle: "Nombre su función",
     namingPlaceholderDesc: "Ingrese un nombre en la barra lateral y presione <strong>Enter</strong> para comenzar a configurar su solicitud HTTP o prompt de IA.",
-    aiDisabledWarning: "Las funciones de IA están actualmente deshabilitadas. Habilite la IA en Configuración para usar el Extractor de IA."
+    aiDisabledWarning: "Las funciones de IA están actualmente deshabilitadas. Habilite la IA en Configuración para usar el Extractor de IA.",
+    dialogResultTitle: "{name} - Resultado",
+    dialogErrorTitle: "{name} - Error",
+    dialogSuccessHeader: "Valor extraído",
+    dialogFailureHeader: "Error de ejecución",
+    dialogSearchPlaceholder: "Buscar variables...",
+    dialogInjectHeader: "Inyectar en variable",
+    dialogCreateHeader: "O crear nueva variable",
+    dialogNewNamePlaceholder: "Nombre...",
+    dialogCreateButton: "Crear",
+    dialogNoVariables: "No se encontraron variables",
+    dialogSavedSuccess: "Variable guardada correctamente",
+    dialogCreatedSuccess: "Variable \${{name}} creada correctamente"
   },
   describe: {
     requestTitle: "Describir solicitud",
