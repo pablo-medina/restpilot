@@ -242,7 +242,7 @@ export const en = {
     manage: "Manage environments…",
     manageTitle: "Variables & environments",
     manageHint: "Create environments for dev, staging, or production. Variables in the active environment override globals with the same name.",
-    tabGlobals: "Global variables",
+    tabGlobals: "Globals",
     tabEnvironments: "Environments",
     addVariable: "Add variable",
     emptyEnvVars: "No variables in this environment yet.",
@@ -255,7 +255,14 @@ export const en = {
     deleteEnvironmentTitle: "Delete environment",
     deleteEnvironmentBody: 'Delete "{name}" and its variables?',
     emptyEnvironments: "No environments yet. Create one to scope variables per stage.",
-    selectEnvironment: "Select an environment to edit its variables."
+    selectEnvironment: "Select an environment to edit its variables.",
+    defaultEnvironment: "Default",
+    active: "Active",
+    activate: "Set as active",
+    defaultEnvDesc: "This is the basic global scope. No environment-specific variables are active. Requests will only use the global variables defined on the left.",
+    duplicate: "Duplicate",
+    duplicateWarningTitle: "Duplicate environment name",
+    duplicateWarningBody: "An environment with the name \"{name}\" already exists. Please choose a unique name."
   },
   variables: {
     title: "Variables",

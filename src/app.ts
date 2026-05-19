@@ -389,8 +389,10 @@ function renderShellChrome(labels: ReturnType<typeof t>) {
 
 function openVariablesWorkspace(tab: "globals" | "environments" = "globals") {
   state.variablesWorkspaceTab = tab;
-  if (tab === "environments" && !state.envManageSelectedId && state.environments.length) {
-    state.envManageSelectedId = state.activeEnvironmentId ?? state.environments[0]?.id ?? null;
+  if (tab === "globals") {
+    state.envManageSelectedId = "globals";
+  } else {
+    state.envManageSelectedId = state.activeEnvironmentId ?? "default";
   }
   openPanel("variables");
 }

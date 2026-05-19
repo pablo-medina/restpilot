@@ -5,17 +5,11 @@ import {
   renderPopoverShell
 } from "./components/popover";
 import { escapeHtml } from "./content-display";
-import { iconRemove, iconVariables } from "./icons";
+import { iconVariables } from "./icons";
 import { t } from "./i18n";
-import {
-  bindVariableSecretToggle,
-  renderVariableSecretButton,
-  renderVariableValueInput,
-  syncVariableRowSecretUi
-} from "./variable-ui";
 import { environmentChipLabel, getActiveEnvironment } from "./app/environments";
 import { scheduleSave } from "./app/persistence";
-import { escapeAttribute, id, state } from "./app/state";
+import { escapeAttribute, state } from "./app/state";
 import type { Variable } from "./types";
 
 export type RequestPopoverKind = "environment" | "variables";
@@ -163,74 +157,126 @@ function ensurePopoverHandlers() {
   });
 }
 
+const zenStyles = `
+<style>
+  .zen-popover-item {
+    width: 100%; text-align: left; background: transparent; border: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; color: var(--rp-text); cursor: pointer; display: flex; align-items: center; justify-content: flex-start; gap: 8px; transition: background 0.15s ease; box-sizing: border-box; margin-bottom: 2px;
+  }
+  .zen-popover-item:hover { background: var(--rp-hover); }
+  .zen-popover-item.active { background: rgba(61, 127, 111, 0.1); font-weight: 600; color: #3d7f6f; }
+  .zen-manage-btn { width: 100%; text-align: center; font-size: 12px; padding: 8px; font-weight: 600; display: block; border: none; background: transparent; cursor: pointer; color: var(--rp-text); transition: background 0.15s ease; border-radius: 6px; }
+  .zen-manage-btn:hover { background: var(--rp-hover); }
+  .var-list-item.is-disabled { opacity: 0.5; text-decoration: line-through; }
+</style>
+`;
+
 function buildEnvironmentPopoverHtml(): string {
   const labels = t().environments;
-  const active = getActiveEnvironment();
-  const envVars = active?.variables ?? [];
 
-  const pills = [
-    `<button class="env-pill${!state.activeEnvironmentId ? " active" : ""}" type="button" data-env-pick="">${escapeHtml(labels.noEnvironment)}</button>`,
-    ...state.environments.map(
-      (env) =>
-        `<button class="env-pill${env.id === state.activeEnvironmentId ? " active" : ""}" type="button" data-env-pick="${env.id}">${escapeHtml(env.name)}</button>`
-    )
-  ].join("");
+  const items = [
+    { id: "", name: labels.noEnvironment || "Sin entorno" },
+    ...state.environments
+  ];
 
-  const varsSection = active
-    ? `
-      <div class="env-popover-vars">
-        <div class="env-popover-vars-head">
-          <strong>${escapeHtml(active.name)}</strong>
-          <button class="mini-btn" type="button" data-env-popover-add>${labels.addVariable}</button>
-        </div>
-        <div class="env-compact-list">
-          ${envVars.length ? envVars.map((v) => renderCompactVariableRow(v, "env")).join("") : `<p class="env-popover-empty">${labels.emptyEnvVars}</p>`}
-        </div>
-      </div>
-    `
-    : "";
-
-  const body = `
-    <div class="env-popover-section">
-      <span class="env-popover-label">${labels.activeEnvironment}</span>
-      <div class="env-pill-row">${pills}</div>
-    </div>
-    ${varsSection}
+  const searchInputHtml = `
+    <input type="search" class="ai-popover-search env-popover-search" placeholder="${escapeAttribute(t().environments.searchPlaceholder || "Buscar entornos...")}" spellcheck="false" autocomplete="off" style="margin-bottom: 8px;" />
   `;
 
-  const footer = `<button class="quiet-button" type="button" data-env-manage-open>${labels.manage}</button>`;
+  const listHtml = `
+    <div class="ai-popover-list" style="max-height: 200px; overflow-y: auto;">
+      ${items.map(env => {
+        const isActive = env.id === (state.activeEnvironmentId || "");
+        return `
+          <button class="zen-popover-item ${isActive ? "active" : ""}" type="button" data-env-pick="${env.id}">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(env.name)}</span>
+            ${isActive ? '<span style="color: #2e7d32; font-weight: bold; font-size: 12px; margin-left: auto;">✓</span>' : ''}
+          </button>
+        `;
+      }).join("")}
+    </div>
+  `;
+
+  const footer = `
+    <div style="padding-top: 8px; border-top: 1px solid var(--rp-border); margin-top: 8px;">
+      <button class="zen-manage-btn" type="button" data-env-manage-open>
+        ${escapeHtml(labels.manage || "Administrar entornos...")}
+      </button>
+    </div>
+  `;
 
   return renderPopoverShell({
-    className: "env-popover",
-    title: environmentChipLabel(),
+    className: "env-popover ai-presets-popover",
+    title: labels.popoverTitle,
     ariaLabel: labels.popoverTitle,
-    bodyHtml: body,
+    bodyHtml: `
+      ${zenStyles}
+      ${searchInputHtml}
+      ${listHtml}
+    `,
     footerHtml: footer
   });
 }
 
 function buildVariablesPopoverHtml(): string {
   const labels = t().variables;
+  const activeEnv = state.environments.find(e => e.id === state.activeEnvironmentId);
+  const envVars = activeEnv ? activeEnv.variables : [];
   const globals = state.variables;
-  const active = globals.filter((v) => v.enabled && v.name.trim()).length;
 
-  const list =
-    globals.length > 0
-      ? `<div class="env-compact-list">${globals.map((v) => renderCompactVariableRow(v, "global")).join("")}</div>`
-      : `<p class="env-popover-empty">${labels.emptyTitle}</p>`;
+  const items: { id: string; name: string; enabled: boolean; secret: boolean; scope: "global" | "env" }[] = [];
+  if (activeEnv) {
+    envVars.forEach((v) => {
+      items.push({ id: v.id, name: v.name, enabled: v.enabled, secret: v.secret, scope: "env" });
+    });
+  }
+  globals.forEach((v) => {
+    items.push({ id: v.id, name: v.name, enabled: v.enabled, secret: v.secret, scope: "global" });
+  });
 
-  const body = `
-    <p class="vars-popover-meta">${labels.popoverMeta.replace("{total}", String(globals.length)).replace("{active}", String(active))}</p>
-    ${list}
+  const searchInputHtml = `
+    <input type="search" class="ai-popover-search vars-popover-search" placeholder="${escapeAttribute(t().variables.searchPlaceholder || "Buscar variables...")}" spellcheck="false" autocomplete="off" style="margin-bottom: 8px;" />
   `;
 
-  const footer = `<button class="quiet-button" type="button" data-vars-manage-open>${labels.popoverManage}</button>`;
+  const listHtml = `
+    <div class="ai-popover-list" style="max-height: 240px; overflow-y: auto;">
+      ${items.length > 0
+        ? items.map((v) => {
+            const disabledClass = v.enabled ? "" : " is-disabled";
+            return `
+              <label class="zen-popover-item var-list-item ${disabledClass}" data-variable-id="${v.id}" data-var-scope="${v.scope}" tabindex="0">
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(v.name)}</span>
+                <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                  ${v.secret ? '<span style="opacity: 0.5; font-size: 11px;" title="Protegida">🔒</span>' : ''}
+                  ${v.scope === "env" 
+                    ? `<span style="font-size: 10px; opacity: 0.8; padding: 2px 6px; border-radius: 4px; background: rgba(61, 127, 111, 0.1); color: #3d7f6f; font-weight: 500; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(activeEnv.name)}">${escapeHtml(activeEnv.name)}</span>`
+                    : `<span style="font-size: 10px; opacity: 0.6; padding: 2px 6px; border-radius: 4px; background: var(--rp-hover); color: var(--rp-text-muted);">Global</span>`
+                  }
+                  <input class="variable-enabled" type="checkbox" ${v.enabled ? "checked" : ""} style="margin: 0; cursor: pointer;" />
+                </div>
+              </label>
+            `;
+          }).join("")
+        : `<p class="ai-popover-empty" style="padding: 16px; text-align: center; color: var(--rp-text-muted); font-size: 12px; font-style: italic; margin: 0;">${labels.emptyTitle}</p>`}
+    </div>
+  `;
+
+  const footer = `
+    <div style="padding-top: 8px; border-top: 1px solid var(--rp-border); margin-top: 8px;">
+      <button class="zen-manage-btn" type="button" data-vars-manage-open>
+        ${escapeHtml(labels.popoverManage || "Administrar variables...")}
+      </button>
+    </div>
+  `;
 
   return renderPopoverShell({
-    className: "vars-popover",
+    className: "vars-popover ai-presets-popover",
     title: labels.title,
     ariaLabel: labels.popoverTitle,
-    bodyHtml: body,
+    bodyHtml: `
+      ${zenStyles}
+      ${searchInputHtml}
+      ${listHtml}
+    `,
     footerHtml: footer
   });
 }
@@ -241,7 +287,26 @@ function bindEnvironmentPopover(popover: HTMLElement, onVariablesChanged?: Varia
       state.activeEnvironmentId = button.dataset.envPick || null;
       scheduleSave();
       onVariablesChanged?.();
-      syncRequestPopover();
+      closeRequestPopovers();
+    });
+
+    button.addEventListener("keydown", (event) => {
+      const visibleItems = Array.from(popover.querySelectorAll<HTMLButtonElement>("[data-env-pick]"))
+        .filter(el => el.style.display !== "none");
+      const index = visibleItems.indexOf(button);
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        const next = visibleItems[index + 1] ?? visibleItems[0];
+        next?.focus();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        const prev = visibleItems[index - 1] ?? visibleItems[visibleItems.length - 1];
+        prev?.focus();
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        button.click();
+      }
     });
   });
 
@@ -250,20 +315,23 @@ function bindEnvironmentPopover(popover: HTMLElement, onVariablesChanged?: Varia
     openVariablesPanelHook?.("environments");
   });
 
-  const env = getActiveEnvironment();
-  if (!env) return;
-
-  popover.querySelector("[data-env-popover-add]")?.addEventListener("click", () => {
-    env.variables.push({ id: id(), name: "", value: "", enabled: true });
-    scheduleSave();
-    onVariablesChanged?.();
-    syncRequestPopover();
+  const searchInput = popover.querySelector<HTMLInputElement>(".env-popover-search");
+  searchInput?.addEventListener("input", () => {
+    const query = searchInput.value.trim().toLowerCase();
+    popover.querySelectorAll<HTMLButtonElement>("[data-env-pick]").forEach((item) => {
+      const text = item.textContent?.toLowerCase() ?? "";
+      item.style.display = text.includes(query) ? "flex" : "none";
+    });
   });
 
-  bindCompactVariableList(popover, env.variables, () => {
-    scheduleSave();
-    onVariablesChanged?.();
-  }, "env");
+  searchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const firstVisible = Array.from(popover.querySelectorAll<HTMLButtonElement>("[data-env-pick]"))
+        .find(el => el.style.display !== "none");
+      firstVisible?.focus();
+    }
+  });
 }
 
 function bindVariablesPopover(popover: HTMLElement, onVariablesChanged?: VariableChangeHandler) {
@@ -272,68 +340,66 @@ function bindVariablesPopover(popover: HTMLElement, onVariablesChanged?: Variabl
     openVariablesPanelHook?.("globals");
   });
 
-  bindCompactVariableList(popover, state.variables, () => {
-    scheduleSave();
-    onVariablesChanged?.();
-  }, "global");
-}
+  const searchInput = popover.querySelector<HTMLInputElement>(".vars-popover-search");
+  searchInput?.addEventListener("input", () => {
+    const query = searchInput.value.trim().toLowerCase();
+    popover.querySelectorAll<HTMLElement>(".var-list-item").forEach((item) => {
+      const name = item.textContent?.toLowerCase() ?? "";
+      item.style.setProperty("display", name.includes(query) ? "flex" : "none", "important");
+    });
+  });
 
-function renderCompactVariableRow(variable: Variable, scope: string): string {
-  const labels = t().variables;
-  const disabledClass = variable.enabled ? "" : " is-disabled";
-  const secretClass = variable.secret ? " is-secret" : "";
-  return `
-    <div class="env-compact-row${disabledClass}${secretClass}" data-variable-id="${variable.id}" data-var-scope="${scope}">
-      <label class="variable-toggle" title="${labels.colEnabled}">
-        <input class="variable-enabled" type="checkbox" ${variable.enabled ? "checked" : ""} />
-        <span class="variable-toggle-ui" aria-hidden="true"></span>
-      </label>
-      ${renderVariableSecretButton(variable)}
-      <input class="variable-name" value="${escapeAttribute(variable.name)}" placeholder="${labels.namePlaceholder}" spellcheck="false" autocomplete="off" />
-      ${renderVariableValueInput(variable, labels.valuePlaceholder)}
-      <button class="mini-btn variable-remove" type="button" aria-label="${t().tree.delete}">${iconRemove}</button>
-    </div>
-  `;
-}
+  searchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const firstVisible = Array.from(popover.querySelectorAll<HTMLElement>(".var-list-item"))
+        .find(el => el.style.getPropertyValue("display") !== "none");
+      firstVisible?.focus();
+    }
+  });
 
-function bindCompactVariableList(
-  root: ParentNode,
-  variables: Variable[],
-  onChange: VariableChangeHandler,
-  scope: string
-) {
-  root.querySelectorAll<HTMLElement>(`.env-compact-row[data-var-scope="${scope}"]`).forEach((row) => {
-    const variable = variables.find((item) => item.id === row.dataset.variableId);
+  popover.querySelectorAll<HTMLElement>(".var-list-item").forEach((row) => {
+    const isGlobal = row.dataset.varScope === "global";
+    const varId = row.dataset.variableId;
+    let variable: Variable | undefined;
+
+    if (isGlobal) {
+      variable = state.variables.find((item) => item.id === varId);
+    } else {
+      const activeEnv = state.environments.find(e => e.id === state.activeEnvironmentId);
+      variable = activeEnv?.variables.find((item) => item.id === varId);
+    }
+
     if (!variable) return;
 
     row.querySelector<HTMLInputElement>(".variable-enabled")?.addEventListener("change", (event) => {
       variable.enabled = (event.target as HTMLInputElement).checked;
       row.classList.toggle("is-disabled", !variable.enabled);
-      onChange();
+      scheduleSave();
+      onVariablesChanged?.();
     });
 
-    row.querySelector<HTMLInputElement>(".variable-name")?.addEventListener("input", (event) => {
-      variable.name = (event.target as HTMLInputElement).value;
-      onChange();
-    });
+    row.addEventListener("keydown", (event) => {
+      const visibleItems = Array.from(popover.querySelectorAll<HTMLElement>(".var-list-item"))
+        .filter(el => el.style.getPropertyValue("display") !== "none");
+      const index = visibleItems.indexOf(row);
 
-    row.querySelector<HTMLInputElement>(".variable-value")?.addEventListener("input", (event) => {
-      variable.value = (event.target as HTMLInputElement).value;
-      onChange();
-    });
-
-    bindVariableSecretToggle(row, variable, onChange);
-    syncVariableRowSecretUi(row, variable);
-
-    row.querySelector(".variable-remove")?.addEventListener("click", () => {
-      const index = variables.findIndex((item) => item.id === variable.id);
-      if (index >= 0) variables.splice(index, 1);
-      row.remove();
-      if (!variables.length) {
-        const list = root.querySelector(".env-compact-list");
-        if (list) list.innerHTML = `<p class="env-popover-empty">${t().variables.emptyTitle}</p>`;
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        const next = visibleItems[index + 1] ?? visibleItems[0];
+        next?.focus();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        const prev = visibleItems[index - 1] ?? visibleItems[visibleItems.length - 1];
+        prev?.focus();
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        const chk = row.querySelector<HTMLInputElement>(".variable-enabled");
+        if (chk) {
+          chk.checked = !chk.checked;
+          chk.dispatchEvent(new Event("change"));
+        }
       }
-      onChange();
     });
   });
 }

@@ -1344,6 +1344,18 @@ html[data-window-platform="macos"] .activity-bar {
   color: #2f5f54;
 }
 
+.mini-btn.app-popover-close {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .app-popover-body {
   flex: 1;
   min-height: 0;
@@ -3006,10 +3018,15 @@ select,
 
 .dialog-title .mini-btn,
 .dialog-window-btn {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
-  min-height: 26px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #777067;
 }
 
@@ -5629,6 +5646,7 @@ html[data-modal-open] .title-bar * {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  gap: 0;
 }
 
 .variables-workspace .variables-panel-head {
@@ -5758,10 +5776,8 @@ html[data-modal-open] .title-bar * {
   font-size: 13px;
 }
 
-/* Excel-Style Environment Variables Grid */
 .variables-workspace .env-manage-var-table {
-  border: 1px solid var(--rp-border);
-  border-radius: 6px;
+  border: none;
   background: var(--rp-surface);
   overflow: hidden;
   display: flex;
@@ -5923,11 +5939,10 @@ html[data-modal-open] .title-bar * {
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  border: 1px solid var(--rp-border);
-  border-bottom: none;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border: none;
+  border-bottom: 1px solid var(--rp-border);
   background: var(--rp-chrome);
+  margin-bottom: 0 !important;
 }
 
 .variables-workspace .env-manage-editor {
@@ -6084,3 +6099,96 @@ html[data-modal-open] .title-bar * {
   background: rgba(46, 204, 113, 0.14) !important;
   border-color: rgba(46, 204, 113, 0.35) !important;
 }
+
+/* Unified Variables & Environments Layout */
+.variables-workspace-columns {
+  display: flex;
+  flex-direction: row !important;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.variables-workspace-sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--rp-chrome);
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  padding: 12px;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.variables-workspace-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.variables-sidebar-section {
+  margin-bottom: 0;
+}
+
+.variables-sidebar-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.variables-sidebar-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--rp-text-muted);
+  letter-spacing: 0.05em;
+  margin: 0;
+  padding-left: 4px;
+}
+
+.variables-sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--rp-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 2px;
+}
+
+.variables-sidebar-item:hover {
+  background: rgba(61, 127, 111, 0.06);
+}
+
+.variables-sidebar-item.is-selected {
+  background: rgba(61, 127, 111, 0.12);
+  border-color: rgba(61, 127, 111, 0.2);
+  color: var(--rp-accent-strong, #2f5f54);
+  font-weight: 600;
+}
+
+.variables-sidebar-active-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2e7d32;
+  box-shadow: 0 0 6px #2e7d32;
+  margin-left: 8px;
+}
+

@@ -27,6 +27,7 @@ export function defaultRuntimeState(): Pick<
   | "activeFunctionPopover"
   | "activeSidebarFunctionPlayLoading"
   | "aiChat"
+  | "editingEnvId"
 > {
 
   return {
@@ -57,7 +58,8 @@ export function defaultRuntimeState(): Pick<
       streaming: false,
       streamRunId: null,
       pendingToolCalls: null
-    }
+    },
+    editingEnvId: null
   };
 }
 

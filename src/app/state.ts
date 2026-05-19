@@ -43,6 +43,7 @@ export type AppState = AppConfig & {
   activeFunctionPopover: "params" | "headers" | "body" | "auth" | null;
   activeSidebarFunctionPlayLoading: string | null;
   aiChat: AiChatRuntimeState;
+  editingEnvId: string | null;
 };
 
 
@@ -75,7 +76,8 @@ export const state: AppState = {
     streaming: false,
     streamRunId: null,
     pendingToolCalls: null
-  }
+  },
+  editingEnvId: null
 };
 
 

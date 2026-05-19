@@ -242,7 +242,7 @@ export const es = {
     manage: "Administrar entornos…",
     manageTitle: "Variables y entornos",
     manageHint: "Cree entornos para desarrollo, pruebas o producción. Las variables del entorno activo reemplazan a las globales con el mismo nombre.",
-    tabGlobals: "Variables globales",
+    tabGlobals: "Globales",
     tabEnvironments: "Entornos",
     addVariable: "Agregar variable",
     emptyEnvVars: "Este entorno aún no tiene variables.",
@@ -255,7 +255,14 @@ export const es = {
     deleteEnvironmentTitle: "Eliminar entorno",
     deleteEnvironmentBody: '¿Eliminar "{name}" y sus variables?',
     emptyEnvironments: "Aún no hay entornos. Cree uno para agrupar variables por etapa.",
-    selectEnvironment: "Seleccione un entorno para editar sus variables."
+    selectEnvironment: "Seleccione un entorno para editar sus variables.",
+    defaultEnvironment: "Por defecto",
+    active: "Activo",
+    activate: "Establecer como activo",
+    defaultEnvDesc: "Este es el ámbito global básico. No hay variables específicas de entorno activas. Las solicitudes usarán únicamente las variables globales definidas a la izquierda.",
+    duplicate: "Duplicar",
+    duplicateWarningTitle: "Nombre de entorno duplicado",
+    duplicateWarningBody: "Un entorno con el nombre \"{name}\" ya existe. Por favor elija un nombre único."
   },
   variables: {
     title: "Variables",
