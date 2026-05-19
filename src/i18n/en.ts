@@ -188,6 +188,11 @@ export const en = {
     copyBody: "Copy body",
     copyHeaders: "Copy headers",
     copyStatus: "Copy status",
+    saveResponse: "Save response",
+    saveResponsePrompt: "Enter a name for this response (e.g. 'Success with Filters'):",
+    saveResponseSuccess: "Response saved successfully",
+    responseActiveVersion: "Active response (last execution)",
+    deleteSavedResponse: "Delete saved response",
     multipartFilesHint:
       "File attachments are kept in memory only until you save the collection. After restart, choose each file again before sending.",
     multipartFilesMissingTitle: "File attachments required",

@@ -171,8 +171,25 @@ export function bindDialogs() {
       syncConflictVisibility();
     }
 
+    const inputEl = element.querySelector<HTMLInputElement>(".dialog-input");
+    if (inputEl) {
+      inputEl.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          event.stopPropagation();
+          captureDialogForm(dialog, element);
+          closeDialog(dialogId, "save");
+        }
+      });
+    }
+
     if (dialogs[dialogs.length - 1]?.id === dialogId) {
-      element.focus();
+      if (inputEl) {
+        inputEl.focus();
+        inputEl.select();
+      } else {
+        element.focus();
+      }
       if (!dialog.maximized && dialog.height === 0) {
         requestAnimationFrame(() => {
           const current = dialogs.find((item) => item.id === dialogId);
@@ -182,6 +199,12 @@ export function bindDialogs() {
           if (measured <= 0) return;
           centerDialog(current, measured);
           applyDialogBounds(node, current);
+          
+          const inputInNode = node.querySelector<HTMLInputElement>(".dialog-input");
+          if (inputInNode) {
+            inputInNode.focus();
+            inputInNode.select();
+          }
         });
       }
     }
@@ -307,7 +330,7 @@ export function applicationDialog(options: {
 }
 
 export async function inputDialog(title: string, body: string, value: string): Promise<string> {
-  const result = await applicationDialog({ title, body, mode: "input", value, resizable: false, width: 460, height: 220 });
+  const result = await applicationDialog({ title, body, mode: "input", value, resizable: false, width: 460, height: 0 });
   return typeof result === "string" ? result : result.action;
 }
 
@@ -483,7 +506,8 @@ function renderDialog(dialog: DialogState): string {
     ? `<button class="mini-btn dialog-window-btn" data-dialog-action="maximize" type="button" title="${dialog.maximized ? labels.restore : labels.maximize}" aria-label="${dialog.maximized ? labels.restore : labels.maximize}">${dialog.maximized ? "❐" : "□"}</button>`
     : "";
 
-  const sizeStyle = dialog.resizable
+  const hasHeight = dialog.resizable || dialog.height > 0;
+  const sizeStyle = hasHeight
     ? `width:${dialog.width}px;height:${dialog.height}px`
     : `width:${dialog.width}px`;
 

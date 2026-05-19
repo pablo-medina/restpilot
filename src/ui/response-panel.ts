@@ -11,14 +11,16 @@ import {
 import {
   state,
   formatBytes,
-  getActiveRequest
+  getActiveRequest,
+  getRequest
 } from "../app/state";
+import { scheduleSave } from "../app/persistence";
 import { hasResponseBodySelection } from "../app/context-menu";
 import { getEditorRuntime } from "../app/editor-runtime";
 import { mountHeadersTable } from "../headers-table";
-import { messageDialog } from "../components/dialogs";
+import { messageDialog, inputDialog } from "../components/dialogs";
 import { render } from "../app/render";
-import type { TabState, SavedRequest, RawType, ResponseTab } from "../types";
+import type { TabState, SavedRequest, RawType, ResponseTab, SavedResponseHistoryItem, ApiResponse } from "../types";
 
 export interface ResponsePanelCallbacks {
   closeContextMenu: () => void;
@@ -30,6 +32,14 @@ let callbacks: ResponsePanelCallbacks | undefined;
 
 export function initResponsePanel(cb: ResponsePanelCallbacks): void {
   callbacks = cb;
+}
+
+export function getActiveResponse(request: SavedRequest, tab: TabState): ApiResponse | null {
+  if (tab.selectedSavedResponseId && tab.selectedSavedResponseId !== "current") {
+    const saved = request.savedResponses?.find((r) => r.id === tab.selectedSavedResponseId);
+    if (saved) return saved;
+  }
+  return tab.response;
 }
 
 let responseRenderFrame: number | undefined;
@@ -53,11 +63,12 @@ export async function mountResponseBodyViewer(request: SavedRequest, tab: TabSta
   tab.responseBodyUnmount = undefined;
 
   const host = document.querySelector<HTMLElement>("[data-response-body-viewer]");
-  if (!host || !tab.response || tab.selectedResponseTab !== "body") return;
+  const response = getActiveResponse(request, tab);
+  if (!host || !response || tab.selectedResponseTab !== "body") return;
 
   const editors = await getEditorRuntime();
-  const body = tab.response.body;
-  const headers = tab.response.headers;
+  const body = response.body;
+  const headers = response.headers;
   const displayBody = getResponseBodyForDisplay(tab, body, headers);
   tab.responseBodyUnmount = editors.mountReadonlyViewer(
     host,
@@ -67,15 +78,16 @@ export async function mountResponseBodyViewer(request: SavedRequest, tab: TabSta
   );
 }
 
-export function mountHeadersPanel(tab: TabState): void {
+export function mountHeadersPanel(request: SavedRequest, tab: TabState): void {
   tab.headersTableUnmount?.();
   tab.headersTableUnmount = undefined;
 
   const host = document.querySelector<HTMLElement>("[data-headers-table]");
-  if (!host || !tab.response || tab.selectedResponseTab !== "headers") return;
+  const response = getActiveResponse(request, tab);
+  if (!host || !response || tab.selectedResponseTab !== "headers") return;
 
   const labels = t().request;
-  const rows = Object.entries(tab.response.headers).map(([key, value]) => ({ key, value }));
+  const rows = Object.entries(response.headers).map(([key, value]) => ({ key, value }));
   tab.headersTableUnmount = mountHeadersTable(host, rows, {
     search: labels.headersSearch,
     key: labels.headersKey,
@@ -91,7 +103,7 @@ export async function mountResponseDisplays(request: SavedRequest, tab: TabState
   tab.headersTableUnmount = undefined;
 
   await mountResponseBodyViewer(request, tab);
-  mountHeadersPanel(tab);
+  mountHeadersPanel(request, tab);
 }
 
 export function unmountResponseDisplays(tab: TabState): void {
@@ -103,14 +115,60 @@ export function unmountResponseDisplays(tab: TabState): void {
 
 export function renderResponseHead(tab: TabState): string {
   const labels = t().request;
-  const response = tab.response!;
+  const request = getRequest(tab.requestId);
+  const response = request ? getActiveResponse(request, tab) : tab.response;
+  if (!response) return "";
+  
   const statusClass = response.status >= 200 && response.status < 300 ? "ok" : response.status >= 400 ? "bad" : "soft";
   const streamingBadge = tab.streaming ? `<span class="stream-badge">${labels.streaming}</span>` : "";
+
+  let selectorHtml = "";
+  if (request && request.savedResponses && request.savedResponses.length > 0) {
+    selectorHtml = `
+      <div class="saved-responses-dropdown-shell" style="display: flex; align-items: center; margin-left: 12px;">
+        <select class="minimal-select" data-select-response-version aria-label="Historial de respuestas">
+          <option value="current" ${!tab.selectedSavedResponseId || tab.selectedSavedResponseId === "current" ? "selected" : ""}>
+            ${labels.responseActiveVersion ?? "Respuesta activa"}
+          </option>
+          ${request.savedResponses.map(res => {
+            const isSelected = tab.selectedSavedResponseId === res.id;
+            const statusIcon = res.status >= 200 && res.status < 300 ? "✓" : "✗";
+            const formattedDate = new Date(res.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return `<option value="${res.id}" ${isSelected ? "selected" : ""}>
+              ${statusIcon} ${escapeHtml(res.title)} (${formattedDate})
+            </option>`;
+          }).join("")}
+        </select>
+        ${tab.selectedSavedResponseId && tab.selectedSavedResponseId !== "current" ? `
+          <button class="mini-btn field-remove-btn" data-delete-saved-response aria-label="${labels.deleteSavedResponse ?? "Eliminar respuesta guardada"}" style="margin-left: 6px; padding: 0; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;">×</button>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  const isViewingCurrent = !tab.selectedSavedResponseId || tab.selectedSavedResponseId === "current";
+  const saveButtonHtml = isViewingCurrent ? `
+    <button
+      class="icon-btn"
+      data-action-save-response
+      type="button"
+      aria-label="${labels.saveResponse ?? "Guardar respuesta"}"
+      title="${labels.saveResponse ?? "Guardar respuesta"}"
+      style="margin-right: 6px; color: var(--rp-text-muted);"
+    >
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; display: block;">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  ` : "";
+
   return `
     <div class="response-head">
       <div class="status ${statusClass}">${response.status} ${escapeHtml(response.status_text)}</div>${streamingBadge}
+      ${selectorHtml}
       <div class="response-head-actions">
         <div class="metrics"><span>${response.duration_ms} ms</span><span>${formatBytes(response.body.length)}</span></div>
+        ${saveButtonHtml}
         <button
           class="icon-btn"
           data-copy-menu-trigger
@@ -126,10 +184,11 @@ export function renderResponseHead(tab: TabState): string {
 }
 
 export async function refreshResponseBodyDisplay(request: SavedRequest, tab: TabState): Promise<void> {
-  if (!tab.response) return;
+  const response = getActiveResponse(request, tab);
+  if (!response) return;
 
-  const body = tab.response.body;
-  const headers = tab.response.headers;
+  const body = response.body;
+  const headers = response.headers;
   const displayBody = getResponseBodyForDisplay(tab, body, headers);
 
   const head = document.querySelector(".response-head");
@@ -167,14 +226,16 @@ export function renderResponseHeadersMarkup(): string {
 }
 
 export function renderResponse(tab: TabState): string {
+  const request = getRequest(tab.requestId);
   const labels = t().request;
   if (tab.loading && !tab.response) {
     return `<div class="response-empty"><div class="loader"></div><h2>${labels.waitingTitle}</h2><p>${labels.waitingBody}</p></div>`;
   }
   if (tab.error && !tab.response) return `<div class="response-empty error"><h2>${labels.failedTitle}</h2><p>${escapeHtml(tab.error)}</p></div>`;
-  if (!tab.response) return `<div class="response-empty"><h2>${labels.emptyTitle}</h2><p>${labels.emptyBody}</p></div>`;
 
-  const response = tab.response;
+  const response = request ? getActiveResponse(request, tab) : tab.response;
+  if (!response) return `<div class="response-empty"><h2>${labels.emptyTitle}</h2><p>${labels.emptyBody}</p></div>`;
+
   return `
     ${renderResponseHead(tab)}
     <div class="tabs">
@@ -206,6 +267,75 @@ export function bindResponseCopyMenu(tab: TabState): void {
       canCopySelection: hasResponseBodySelection()
     };
     callbacks?.syncContextMenu();
+  });
+
+  bindResponseHeadActions(tab);
+}
+
+export function bindResponseHeadActions(tab: TabState): void {
+  const select = document.querySelector<HTMLSelectElement>("[data-select-response-version]");
+  select?.addEventListener("change", () => {
+    tab.selectedSavedResponseId = select.value;
+    render();
+  });
+
+  const saveBtn = document.querySelector<HTMLButtonElement>("[data-action-save-response]");
+  saveBtn?.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    const request = getRequest(tab.requestId);
+    if (!request || !tab.response) return;
+
+    const titleLabel = t().request.saveResponse ?? "Guardar respuesta";
+    const promptLabel = t().request.saveResponsePrompt ?? "Ingrese un nombre para esta respuesta:";
+    const name = await inputDialog(titleLabel, promptLabel, "");
+    if (!name || name === "cancel") return;
+
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    const savedItem: SavedResponseHistoryItem = {
+      id: crypto.randomUUID(),
+      title: trimmedName,
+      timestamp: Date.now(),
+      status: tab.response.status,
+      status_text: tab.response.status_text,
+      duration_ms: tab.response.duration_ms,
+      headers: { ...tab.response.headers },
+      body: tab.response.body
+    };
+
+    if (!request.savedResponses) {
+      request.savedResponses = [];
+    }
+
+    if (request.savedResponses.length >= 5) {
+      request.savedResponses.shift();
+    }
+
+    request.savedResponses.push(savedItem);
+    tab.selectedSavedResponseId = savedItem.id;
+
+    scheduleSave();
+    if (callbacks?.showToast) {
+      callbacks.showToast(t().request.saveResponseSuccess ?? "Respuesta guardada correctamente");
+    }
+    render();
+  });
+
+  const deleteBtn = document.querySelector<HTMLButtonElement>("[data-delete-saved-response]");
+  deleteBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const request = getRequest(tab.requestId);
+    if (!request || !tab.selectedSavedResponseId) return;
+
+    const index = request.savedResponses?.findIndex(r => r.id === tab.selectedSavedResponseId);
+    if (index !== undefined && index >= 0) {
+      request.savedResponses?.splice(index, 1);
+    }
+
+    tab.selectedSavedResponseId = "current";
+    scheduleSave();
+    render();
   });
 }
 

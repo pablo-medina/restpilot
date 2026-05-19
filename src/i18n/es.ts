@@ -188,6 +188,11 @@ export const es = {
     copyBody: "Copiar cuerpo",
     copyHeaders: "Copiar encabezados",
     copyStatus: "Copiar estado",
+    saveResponse: "Guardar respuesta",
+    saveResponsePrompt: "Ingrese un nombre para esta respuesta (ej. 'Éxito con Filtros'):",
+    saveResponseSuccess: "Respuesta guardada correctamente",
+    responseActiveVersion: "Respuesta activa (última ejecución)",
+    deleteSavedResponse: "Eliminar respuesta guardada",
     multipartFilesHint:
       "Los archivos adjuntos permanecen solo en memoria hasta guardar la colección. Tras reiniciar, vuelva a elegir cada archivo antes de enviar.",
     multipartFilesMissingTitle: "Faltan archivos adjuntos",

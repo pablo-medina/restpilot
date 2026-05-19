@@ -6005,3 +6005,54 @@ html[data-modal-open] .title-bar * {
   margin: 0;
   padding: 0;
 }
+
+/* Saved Responses dropdown & control styles */
+.saved-responses-dropdown-shell {
+  display: flex;
+  align-items: center;
+  height: 22px;
+}
+
+.minimal-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border: 1px solid var(--rp-border);
+  border-radius: 4px;
+  background-color: var(--rp-surface-muted);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236f6b65' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px;
+  padding: 2px 24px 2px 8px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--rp-text-secondary);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.minimal-select:hover {
+  background-color: var(--rp-surface);
+  border-color: var(--rp-accent);
+}
+
+.minimal-select:focus {
+  border-color: var(--rp-accent-strong);
+  box-shadow: 0 0 0 2px var(--rp-accent-soft);
+}
+
+.saved-responses-dropdown-shell .field-remove-btn {
+  color: var(--field-remove-color);
+  font-size: var(--field-remove-font-size);
+  font-weight: 800;
+  border-radius: 4px;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.saved-responses-dropdown-shell .field-remove-btn:hover {
+  color: var(--field-remove-color-hover);
+  background: rgba(181, 74, 58, 0.12);
+}

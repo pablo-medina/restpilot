@@ -160,7 +160,17 @@ function normalizeTreeItem(item: TreeItem): TreeItem {
     form,
     streamResponse: request.streamResponse ?? false,
     lastResponse: request.lastResponse ?? null,
-    lastError: request.lastError ?? null
+    lastError: request.lastError ?? null,
+    savedResponses: (request.savedResponses ?? []).map((res: any) => ({
+      id: String(res.id || crypto.randomUUID()),
+      title: String(res.title ?? "Saved Response"),
+      timestamp: Number(res.timestamp ?? Date.now()),
+      status: Number(res.status ?? 200),
+      status_text: String(res.status_text ?? "OK"),
+      duration_ms: Number(res.duration_ms ?? 0),
+      headers: res.headers ?? {},
+      body: String(res.body ?? "")
+    }))
   };
   return hydrateRequestAuth(migrateRequestQuery(normalized));
 }

@@ -2008,6 +2008,7 @@ async function sendRequest() {
   let unlisten: UnlistenFn | undefined;
   let finishStream: (() => void) | undefined;
 
+  tab.selectedSavedResponseId = "current";
   tab.loading = true;
   tab.streaming = false;
   tab.requestRunId = runId;
@@ -2366,7 +2367,8 @@ function ensureTab(requestId: string) {
       streaming: false,
       requestRunId: null,
       selectedResponseTab: "body",
-      selectedRequestTab: "body"
+      selectedRequestTab: "body",
+      selectedSavedResponseId: "current"
     };
   }
   const tab = state.tabs[requestId];

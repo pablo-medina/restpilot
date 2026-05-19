@@ -163,6 +163,17 @@ export type UserSettings = {
 
 export type DuplicateNamingMode = "copyOf" | "numbered";
 
+export type SavedResponseHistoryItem = {
+  id: string;
+  title: string;
+  timestamp: number;
+  status: number;
+  status_text: string;
+  duration_ms: number;
+  headers: Record<string, string>;
+  body: string;
+};
+
 export type SavedRequest = {
   id: string;
   kind: "request";
@@ -185,6 +196,7 @@ export type SavedRequest = {
   auth: RequestAuth;
   lastResponse: ApiResponse | null;
   lastError: string | null;
+  savedResponses?: SavedResponseHistoryItem[];
 };
 
 export type Folder = {
@@ -231,6 +243,7 @@ export type TabState = {
   bodyLineScanLength?: number;
   responseDisplayKey?: string;
   responseDisplayBody?: string;
+  selectedSavedResponseId?: string | null;
 };
 
 export type CollectionSnapshot = {
