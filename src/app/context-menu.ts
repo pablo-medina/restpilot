@@ -167,14 +167,14 @@ export function resolveTextContextMenu(target: HTMLElement): TextContextFlags | 
 
   if (
     target.closest(
-      ".response-body:not(.response-body-viewer), .response-body-stream, .url-preview, .headers-table-key, .headers-table-value"
+      ".response-body:not(.response-body-viewer), .response-body-stream, .headers-table-key, .headers-table-value"
     )
   ) {
     const selection = window.getSelection();
     const selected = Boolean(selection && !selection.isCollapsed && selection.toString().length > 0);
     return {
       canCut: false,
-      canCopy: selected || Boolean(target.closest(".url-preview")),
+      canCopy: selected,
       canCopySelection: selected,
       canPaste: false,
       canSelectAll: true
@@ -228,7 +228,7 @@ export async function runTextMenuAction(action: string): Promise<void> {
 
   if (action === "text-copy" || action === "text-copy-selection" || action === "text-select-all") {
     const block = document.querySelector<HTMLElement>(
-      ".response-body:not(.response-body-viewer), .response-body-stream, .url-preview, .headers-table-key:focus-within, .headers-table-value:focus-within"
+      ".response-body:not(.response-body-viewer), .response-body-stream, .headers-table-key:focus-within, .headers-table-value:focus-within"
     );
     const selection = window.getSelection();
     if (

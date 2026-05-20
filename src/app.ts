@@ -83,10 +83,14 @@ import {
   applyVariables,
   displayRequestUrl,
   requestUsesSecretVariables,
-  resolvedRequestUrl,
-  shouldShowUrlPreview,
   variablesForCurl
 } from "./variables";
+import {
+  bindVariableAutocomplete,
+  closeAutocomplete,
+  attachAutocompleteGlobalClose,
+  isAutocompleteOpen,
+} from "./variable-autocomplete";
 import "./styles.css";
 import {
   clampTabSize,
@@ -237,6 +241,7 @@ export async function startApp(
     },
     focusUrl: () => focusRequestUrl()
   });
+  attachAutocompleteGlobalClose();
   document.addEventListener("keydown", (event) => {
     if (state.activePanel !== "functions" || !state.activeFunctionId) return;
     const isF9 = event.key === "F9";
@@ -416,6 +421,7 @@ function renderWorkspaceMarkup() {
 }
 
 function renderWorkspace(): any {
+  closeAutocomplete();
   const panel = document.querySelector<HTMLElement>(".workspace-body");
   if (!panel) {
     render();
@@ -884,9 +890,6 @@ export function syncContextMenu() {
 function renderRequest(request: SavedRequest, tab: TabState) {
   const labels = t().request;
   const displayUrl = displayRequestUrl(request);
-  const effectiveVariables = getEffectiveVariables();
-  const previewVisible = shouldShowUrlPreview(request, effectiveVariables);
-  const resolvedUrl = resolvedRequestUrl(request, effectiveVariables);
   return `
     <div class="request-editor">
     <section class="request-line">
@@ -900,10 +903,6 @@ function renderRequest(request: SavedRequest, tab: TabState) {
         }
       </div>
     </section>
-    <div class="url-preview-wrap${previewVisible ? "" : " is-hidden"}" id="url-preview-wrap" aria-live="polite">
-      <span class="url-preview-label">${labels.resolvedUrl}</span>
-      <code class="url-preview" id="url-preview">${escapeHtml(resolvedUrl)}</code>
-    </div>
     <section class="editor-grid">
       <article class="request-card">
         <div class="tabs">
@@ -1107,7 +1106,6 @@ function bindWorkspace() {
     ingestUrlIntoRequest(request, (event.target as HTMLInputElement).value, id);
     if (state.autoTitleFromUrlId === request.id) applyAutoTitleFromUrl(request);
     syncUrlInputFromRequest(request);
-    updateUrlPreview(request);
     scheduleSave();
   });
   urlInput?.addEventListener("blur", () => {
@@ -1115,7 +1113,7 @@ function bindWorkspace() {
   });
   urlInput?.addEventListener("paste", handleCurlPaste);
   urlInput?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing || isAutocompleteOpen()) return;
     event.preventDefault();
     void trySendRequest();
   });
@@ -1161,7 +1159,6 @@ function bindWorkspace() {
   if (tab.selectedRequestTab === "auth") {
     bindAuthPanel(request, () => {
       scheduleSave();
-      updateUrlPreview(request);
     });
   }
 
@@ -1173,6 +1170,31 @@ function bindWorkspace() {
   bindResponseTabs(request.id);
   void mountWorkspaceDisplays(request, tab);
   if (state.openRequestPopover) syncRequestPopover();
+
+  bindVariableAutocompleteAll(request);
+}
+
+function bindVariableAutocompleteAll(request: SavedRequest) {
+  if (state.activePanel !== "request") return;
+
+  const urlInput = document.querySelector<HTMLInputElement>("#url");
+  if (urlInput) bindVariableAutocomplete(urlInput);
+
+  document.querySelectorAll<HTMLInputElement>(".query-key, .query-value").forEach(bindVariableAutocomplete);
+  document.querySelectorAll<HTMLInputElement>(".header-key, .header-value").forEach(bindVariableAutocomplete);
+  document.querySelectorAll<HTMLInputElement>(".form-key, .form-value").forEach(bindVariableAutocomplete);
+
+  const authSelectors = [
+    "#auth-bearer-token",
+    "#auth-basic-username",
+    "#auth-basic-password",
+    "#auth-api-key-name",
+    "#auth-api-key-value"
+  ];
+  authSelectors.forEach((sel) => {
+    const el = document.querySelector<HTMLInputElement>(sel);
+    if (el) bindVariableAutocomplete(el);
+  });
 }
 
 function syncMethodSelectAppearance(select: HTMLSelectElement) {
@@ -1866,7 +1888,6 @@ function bindPairs(list: Pair[], scope: "header" | "form" | "query", request?: S
     const onQueryChange = () => {
       if (!request) return;
       syncUrlInputFromRequest(request);
-      updateUrlPreview(request);
     };
     row.querySelector<HTMLInputElement>(`.${scope}-enabled`)?.addEventListener("change", (event) => {
       pair.enabled = (event.target as HTMLInputElement).checked;
@@ -1900,22 +1921,10 @@ function syncUrlInputFromRequest(request: SavedRequest) {
 }
 
 function onEffectiveVariablesChanged() {
-  const request = getActiveRequest();
-  if (request) updateUrlPreview(request);
   const chipLabel = document.querySelector(".env-chip-label");
   if (chipLabel) chipLabel.textContent = environmentChipLabel();
   document.querySelector("#request-env-btn")?.setAttribute("title", environmentChipLabel());
   if (state.openRequestPopover === "environment") syncRequestPopover();
-}
-
-function updateUrlPreview(request: SavedRequest) {
-  const wrap = document.querySelector("#url-preview-wrap");
-  const preview = document.querySelector("#url-preview");
-  if (!wrap || !preview) return;
-  const effectiveVariables = getEffectiveVariables();
-  const visible = shouldShowUrlPreview(request, effectiveVariables);
-  wrap.classList.toggle("is-hidden", !visible);
-  preview.textContent = resolvedRequestUrl(request, effectiveVariables);
 }
 
 // (bindResponseCopyMenu and copy response actions extracted to src/ui/response-panel.ts)
