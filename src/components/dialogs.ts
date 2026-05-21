@@ -9,6 +9,8 @@ export type DialogMode =
   | "proxy-test-log"
   | "collection-export"
   | "collection-import"
+  | "import-source"
+  | "import-preview"
   | "function-result";
 export type DialogOutcome = { action: string; data?: Record<string, unknown> };
 
@@ -170,6 +172,19 @@ export function bindDialogs() {
         radio.addEventListener("change", syncConflictVisibility);
       });
       syncConflictVisibility();
+    }
+
+    if (dialog.data?.mode === "import-source") {
+      const syncCurlArea = () => {
+        const isCurl =
+          element.querySelector<HTMLInputElement>('input[name="import-source"][value="curl"]')?.checked ?? false;
+        const area = element.querySelector<HTMLElement>("#import-curl-area");
+        if (area) area.classList.toggle("hidden", !isCurl);
+      };
+      element.querySelectorAll<HTMLInputElement>('input[name="import-source"]').forEach((radio) => {
+        radio.addEventListener("change", syncCurlArea);
+      });
+      syncCurlArea();
     }
 
     const inputEl = element.querySelector<HTMLInputElement>(".dialog-input");
@@ -365,6 +380,22 @@ function captureDialogForm(dialog: DialogState, root: HTMLElement) {
         root.querySelector<HTMLInputElement>('input[name="collection-import-conflict"]:checked')?.value ?? "rename"
     };
   }
+  if (mode === "import-source") {
+    dialog.data = {
+      ...dialog.data,
+      source: root.querySelector<HTMLInputElement>('input[name="import-source"]:checked')?.value ?? "restpilot",
+      curlText: root.querySelector<HTMLTextAreaElement>('[data-import-curl-text]')?.value ?? ""
+    };
+  }
+  if (mode === "import-preview") {
+    const checked: string[] = [];
+    root.querySelectorAll<HTMLInputElement>('[data-import-item-id]:checked').forEach((el) => checked.push(el.value));
+    dialog.data = {
+      ...dialog.data,
+      selectedIds: checked,
+      targetFolderId: root.querySelector<HTMLSelectElement>('[data-import-target-folder]')?.value ?? "/"
+    };
+  }
 }
 
 function closeDialog(dialogId: string, action: string) {
@@ -382,7 +413,9 @@ function closeDialog(dialogId: string, action: string) {
     dialog?.variant === "application" &&
     (dialog.data?.mode === "collection-export" ||
       dialog.data?.mode === "collection-import" ||
-      dialog.data?.mode === "proxy-test-log")
+      dialog.data?.mode === "proxy-test-log" ||
+      dialog.data?.mode === "import-source" ||
+      dialog.data?.mode === "import-preview")
   ) {
     result = { action, data: { ...dialog.data } };
   } else {
@@ -528,7 +561,7 @@ function renderDialog(dialog: DialogState): string {
           <button class="mini-btn dialog-window-btn" data-dialog-action="close" type="button" title="${labels.close}" aria-label="${labels.close}">×</button>
         </div>
       </div>
-      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}${mode === "proxy-test-log" ? " dialog-body-proxy-test" : ""}${previewHtml ? " dialog-body-rich" : ""}">
+      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}${mode === "proxy-test-log" ? " dialog-body-proxy-test" : ""}${mode === "import-source" ? " dialog-body-import-source" : ""}${mode === "import-preview" ? " dialog-body-import-preview" : ""}${previewHtml ? " dialog-body-rich" : ""}">
         ${dialog.body ? `<p>${escapeHtml(dialog.body)}</p>` : ""}
         ${isInput ? `<input class="dialog-input" value="${escapeAttribute(String(dialog.data?.value ?? ""))}" spellcheck="false" />` : ""}
         ${previewHtml}

@@ -42,6 +42,7 @@ import {
 } from "./icons";
 
 import { exportCollection, importCollection } from "./app/collection-io";
+import { startImport } from "./import/index";
 import { getLocale, setLocale, t } from "./i18n";
 import {
   bindSettings,
@@ -1298,7 +1299,7 @@ function bindEvents() {
   bindFunctions();
 
   document.querySelector("#export-collection")?.addEventListener("click", () => void exportCollection());
-  document.querySelector("#import-collection")?.addEventListener("click", () => void importCollection());
+  document.querySelector("#import-collection")?.addEventListener("click", () => void startImport());
   document.querySelector("#new-folder")?.addEventListener("click", () => createFolder());
   document.querySelector("#new-request")?.addEventListener("click", () => createRequest());
   document.querySelector("#new-function")?.addEventListener("click", () => createNewFunction());
