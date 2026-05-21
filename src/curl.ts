@@ -380,6 +380,8 @@ export function bodyModeCurlLabel(bodyMode: BodyMode) {
   if (bodyMode === "form") return "x-form";
   if (bodyMode === "multipart") return "multipart";
   if (bodyMode === "none") return "none";
+  if (bodyMode === "binary") return "binary";
+  if (bodyMode === "graphql") return "graphql";
   return "raw";
 }
 

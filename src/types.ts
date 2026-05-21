@@ -6,7 +6,7 @@ export type Pair = {
   partType?: FormPartType;
   fileName?: string;
 };
-export type BodyMode = "raw" | "form" | "none" | "multipart";
+export type BodyMode = "raw" | "form" | "none" | "multipart" | "binary" | "graphql";
 export type FormPartType = "text" | "file";
 export type RawType = "json" | "text" | "xml";
 export type ResponseTab = "body" | "headers";
@@ -109,6 +109,8 @@ export type AppFunction = {
   rawType: RawType;
   body: string;
   form: Pair[];
+  binaryFilePath?: string;
+  graphqlVariables?: string;
   auth: RequestAuth;
   extractorType?: "javascript" | "ai";
   extractorCode: string;
@@ -192,6 +194,8 @@ export type SavedRequest = {
   rawType: RawType;
   body: string;
   form: Pair[];
+  binaryFilePath?: string;
+  graphqlVariables?: string;
   streamResponse: boolean;
   auth: RequestAuth;
   lastResponse: ApiResponse | null;
@@ -236,6 +240,8 @@ export type TabState = {
   selectedRequestTab: RequestTab;
   displayUnmount?: () => void;
   bodyEditorUnmount?: () => void;
+  gqlQueryUnmount?: () => void;
+  gqlVarsUnmount?: () => void;
   responseBodyUnmount?: () => void;
   headersTableUnmount?: () => void;
   bodyLinesKey?: string;

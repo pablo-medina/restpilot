@@ -235,7 +235,7 @@ function getRequest(requestId: string): string {
 
 function normalizeBodyMode(value: unknown): BodyMode {
   const mode = String(value ?? "").toLowerCase();
-  if (mode === "none" || mode === "form") return mode;
+  if (mode === "none" || mode === "form" || mode === "binary" || mode === "graphql") return mode;
   return "raw";
 }
 

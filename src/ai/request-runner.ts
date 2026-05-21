@@ -51,6 +51,8 @@ function savedRequestFromFunction(func: AppFunction): SavedRequest {
     rawType: func.rawType,
     body: func.body,
     form: func.form,
+    binaryFilePath: func.binaryFilePath,
+    graphqlVariables: func.graphqlVariables,
     streamResponse: false,
     auth: func.auth,
     lastResponse: null,
@@ -62,6 +64,33 @@ async function dispatchRequest(request: SavedRequest): Promise<string> {
   const runId = id();
   const effectiveVariables = getEffectiveVariables();
   const headers = withContentType(request, buildRequestHeaders(request));
+
+  let body = "";
+  if (request.bodyMode === "raw") {
+    body = applyVariables(request.body, effectiveVariables);
+  } else if (request.bodyMode === "graphql") {
+    const query = applyVariables(request.body, effectiveVariables);
+    let variables: Record<string, unknown> = {};
+    if (request.graphqlVariables) {
+      try {
+        variables = JSON.parse(applyVariables(request.graphqlVariables, effectiveVariables));
+      } catch { /* send as-is */ }
+    }
+    body = JSON.stringify({ query, variables });
+  } else if (request.bodyMode === "binary" && request.binaryFilePath) {
+    try {
+      const { readFile } = await import("@tauri-apps/plugin-fs");
+      const fileBytes = await readFile(request.binaryFilePath);
+      let binaryStr = "";
+      for (let i = 0; i < fileBytes.length; i++) {
+        binaryStr += String.fromCharCode(fileBytes[i]);
+      }
+      body = btoa(binaryStr);
+    } catch {
+      return JSON.stringify({ error: "Failed to read binary file: " + request.binaryFilePath }, null, 2);
+    }
+  }
+
   const payload = {
     request: {
       id: runId,
@@ -69,8 +98,8 @@ async function dispatchRequest(request: SavedRequest): Promise<string> {
       url: resolvedOutboundUrl(request, effectiveVariables).trim(),
       headers,
       body_mode: request.bodyMode,
-      raw_type: request.rawType,
-      body: request.bodyMode === "raw" ? applyVariables(request.body, effectiveVariables) : "",
+      raw_type: request.bodyMode === "graphql" ? "json" : request.rawType,
+      body,
       form: buildFormPayload(request),
       stream: false
     },

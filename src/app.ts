@@ -643,6 +643,10 @@ function invalidateLineCache(tab: TabState) {
 async function mountWorkspaceDisplays(request: SavedRequest, tab: TabState) {
   tab.bodyEditorUnmount?.();
   tab.bodyEditorUnmount = undefined;
+  tab.gqlQueryUnmount?.();
+  tab.gqlQueryUnmount = undefined;
+  tab.gqlVarsUnmount?.();
+  tab.gqlVarsUnmount = undefined;
 
   const editors = await getEditorRuntime();
   const editorHost = document.querySelector<HTMLElement>("[data-body-editor-host]");
@@ -659,11 +663,45 @@ async function mountWorkspaceDisplays(request: SavedRequest, tab: TabState) {
     });
   }
 
+  // Mount GraphQL editors (query + variables)
+  if (tab.selectedRequestTab === "body") {
+    const gqlQueryHost = document.querySelector<HTMLElement>("[data-gql-query-host]");
+    if (gqlQueryHost && request.bodyMode === "graphql") {
+      tab.gqlQueryUnmount = editors.mountBodyEditor(gqlQueryHost, request.body, {
+        tabSize: state.settings.tabSize,
+        rawType: "text",
+        onChange: (value) => {
+          request.body = value;
+          scheduleSave();
+        },
+        onSend: () => void trySendRequest()
+      });
+    }
+
+    const gqlVarsHost = document.querySelector<HTMLElement>("[data-gql-vars-host]");
+    if (gqlVarsHost && request.bodyMode === "graphql") {
+      const initialVars = request.graphqlVariables ?? "";
+      tab.gqlVarsUnmount = editors.mountBodyEditor(gqlVarsHost, initialVars, {
+        tabSize: state.settings.tabSize,
+        rawType: "json",
+        onChange: (value) => {
+          request.graphqlVariables = value;
+          scheduleSave();
+        },
+        onSend: () => void trySendRequest()
+      });
+    }
+  }
+
   await mountResponseDisplays(request, tab);
 
   tab.displayUnmount = () => {
     tab.bodyEditorUnmount?.();
     tab.bodyEditorUnmount = undefined;
+    tab.gqlQueryUnmount?.();
+    tab.gqlQueryUnmount = undefined;
+    tab.gqlVarsUnmount?.();
+    tab.gqlVarsUnmount = undefined;
     unmountResponseDisplays(tab);
   };
 }
@@ -955,6 +993,8 @@ function renderRequestTabPanel(
           <button class="${request.bodyMode === "raw" ? "active" : ""}" data-body-mode="raw" type="button">${labels.raw}</button>
           <button class="${request.bodyMode === "form" ? "active" : ""}" data-body-mode="form" type="button">${labels.form}</button>
           <button class="${request.bodyMode === "multipart" ? "active" : ""}" data-body-mode="multipart" type="button">${labels.multipart}</button>
+          <button class="${request.bodyMode === "binary" ? "active" : ""}" data-body-mode="binary" type="button">${labels.binary}</button>
+          <button class="${request.bodyMode === "graphql" ? "active" : ""}" data-body-mode="graphql" type="button">${labels.graphql}</button>
           <button class="${request.bodyMode === "none" ? "active" : ""}" data-body-mode="none" type="button">${labels.none}</button>
         </div>
         ${renderBodyToolbarTrailing(request, labels)}
@@ -981,8 +1021,9 @@ function renderBodyToolbarTrailing(request: SavedRequest, labels: ReturnType<typ
 }
 
 function ensureFormRow(request: SavedRequest) {
-  if (request.bodyMode !== "form" || request.form.length > 0) return;
-  request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
+  if (request.bodyMode === "form" && request.form.length === 0) {
+    request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
+  }
 }
 
 function renderBodyEditor(request: SavedRequest, labels: ReturnType<typeof t>["request"]) {
@@ -990,6 +1031,35 @@ function renderBodyEditor(request: SavedRequest, labels: ReturnType<typeof t>["r
     const modeClass =
       request.rawType === "json" ? "json-mode" : request.rawType === "xml" ? "xml-mode" : "text-mode";
     return `<div class="code-editor ${modeClass}" data-body-editor-host></div>`;
+  }
+  if (request.bodyMode === "binary") {
+    const hasFile = !!request.binaryFilePath;
+    const fileName = request.binaryFilePath ? (request.binaryFilePath.split(/[\\/]/).pop() ?? "") : "";
+    return `
+      <div class="binary-body-panel" style="display: flex; flex-direction: column; gap: 8px; padding: 8px 0;">
+        <div style="border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); padding: 24px; text-align: center; background: var(--rp-surface-alt, transparent);">
+          ${hasFile
+            ? `<div style="margin-bottom: 12px;"><span style="font-weight: 600; font-size: 14px;">${escapeHtml(fileName)}</span></div>
+               <button class="quiet-button" id="binary-file-picker" type="button">${labels.changeBinaryFile}</button>`
+            : `<button class="quiet-button" id="binary-file-picker" type="button">${labels.selectBinaryFile}</button>`
+          }
+        </div>
+        <p class="hint">${labels.binaryFileHint}</p>
+      </div>`;
+  }
+  if (request.bodyMode === "graphql") {
+    return `
+      <div class="graphql-body-panel" style="display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;">
+        <div style="display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--rp-text-secondary);">${labels.gqlQuery}</label>
+          <div class="code-editor text-mode" data-gql-query-host style="flex: 1; min-height: 100px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden;"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; flex: 0 0 auto; min-height: 80px; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--rp-text-secondary);">${labels.gqlVariables}</label>
+          <div class="code-editor json-mode" data-gql-vars-host style="flex: 1; min-height: 80px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden;"></div>
+          <p class="hint">${labels.gqlVariablesHint}</p>
+        </div>
+      </div>`;
   }
   if (request.bodyMode === "none") {
     return "";
@@ -1147,6 +1217,20 @@ function bindWorkspace() {
     renderWorkspace();
   });
   document.querySelector<HTMLElement>("[data-body-editor-host]")?.addEventListener("paste", handleCurlPaste);
+
+  // Binary file picker
+  document.querySelector<HTMLButtonElement>("#binary-file-picker")?.addEventListener("click", async () => {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      multiple: false,
+      title: t().request.selectBinaryFile
+    });
+    if (selected) {
+      request.binaryFilePath = selected;
+      scheduleSave();
+      renderWorkspace();
+    }
+  });
   document.querySelector("#add-form")?.addEventListener("click", () => {
     request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
     scheduleSave();
@@ -2056,6 +2140,35 @@ async function sendRequest() {
       });
     }
 
+    let body = "";
+    if (request.bodyMode === "raw") {
+      body = applyVariables(request.body, effectiveVariables);
+    } else if (request.bodyMode === "graphql") {
+      const query = applyVariables(request.body, effectiveVariables);
+      let variables: Record<string, unknown> = {};
+      if (request.graphqlVariables) {
+        try {
+          variables = JSON.parse(applyVariables(request.graphqlVariables, effectiveVariables));
+        } catch { /* send as-is */ }
+      }
+      body = JSON.stringify({ query, variables });
+    } else if (request.bodyMode === "binary" && request.binaryFilePath) {
+      try {
+        const { readFile } = await import("@tauri-apps/plugin-fs");
+        const fileBytes = await readFile(request.binaryFilePath);
+        let binaryStr = "";
+        for (let i = 0; i < fileBytes.length; i++) {
+          binaryStr += String.fromCharCode(fileBytes[i]);
+        }
+        body = btoa(binaryStr);
+      } catch {
+        tab.error = "Failed to read binary file: " + request.binaryFilePath;
+        tab.loading = false;
+        render();
+        return;
+      }
+    }
+
     const payload = {
       request: {
         id: runId,
@@ -2063,8 +2176,8 @@ async function sendRequest() {
         url: resolvedOutboundUrl(request, effectiveVariables).trim(),
         headers,
         body_mode: request.bodyMode,
-        raw_type: request.rawType,
-        body: request.bodyMode === "raw" ? applyVariables(request.body, effectiveVariables) : "",
+        raw_type: request.bodyMode === "graphql" ? "json" : request.rawType,
+        body,
         form: buildFormPayload(request),
         stream: request.streamResponse
       },
@@ -2419,11 +2532,14 @@ function syncRequestTitle(requestId: string) {
 let functionEditorUnmount: (() => void) | undefined;
 
 let functionBodyEditorUnmount: (() => void) | undefined;
+let functionGqlVarsEditorUnmount: (() => void) | undefined;
 let functionExtractorEditorUnmount: (() => void) | undefined;
 
 function unmountFunctionEditors() {
   functionBodyEditorUnmount?.();
   functionBodyEditorUnmount = undefined;
+  functionGqlVarsEditorUnmount?.();
+  functionGqlVarsEditorUnmount = undefined;
   functionExtractorEditorUnmount?.();
   functionExtractorEditorUnmount = undefined;
 }
@@ -2433,14 +2549,44 @@ async function mountFunctionEditor(func: AppFunction) {
 
   const editors = await getEditorRuntime();
 
-  // 1. Mount Body Editor (if bodyMode === "raw")
+  // 1. Mount Body Editor
   const bodyHost = document.getElementById("function-body-editor");
-  if (bodyHost && func.bodyMode === "raw") {
-    functionBodyEditorUnmount = editors.mountBodyEditor(bodyHost, func.body, {
+  if (bodyHost) {
+    if (func.bodyMode === "raw") {
+      functionBodyEditorUnmount = editors.mountBodyEditor(bodyHost, func.body, {
+        tabSize: state.settings.tabSize,
+        rawType: func.rawType,
+        onChange: (value) => {
+          func.body = value;
+          scheduleSave();
+        },
+        onSend: () => {
+          void sendFunctionRequest(func);
+        }
+      });
+    } else if (func.bodyMode === "graphql") {
+      functionBodyEditorUnmount = editors.mountBodyEditor(bodyHost, func.body, {
+        tabSize: state.settings.tabSize,
+        rawType: "text",
+        onChange: (value) => {
+          func.body = value;
+          scheduleSave();
+        },
+        onSend: () => {
+          void sendFunctionRequest(func);
+        }
+      });
+    }
+  }
+
+  // 1b. Mount GQL Variables Editor (if graphql mode)
+  const gqlVarsHost = document.getElementById("function-gql-vars-editor");
+  if (gqlVarsHost && func.bodyMode === "graphql") {
+    functionGqlVarsEditorUnmount = editors.mountBodyEditor(gqlVarsHost, func.graphqlVariables ?? "", {
       tabSize: state.settings.tabSize,
-      rawType: func.rawType,
+      rawType: "json",
       onChange: (value) => {
-        func.body = value;
+        func.graphqlVariables = value;
         scheduleSave();
       },
       onSend: () => {
@@ -2539,6 +2685,33 @@ function renderFuncBodyEditor(func: AppFunction, labels: ReturnType<typeof t>["r
     const modeClass =
       func.rawType === "json" ? "json-mode" : func.rawType === "xml" ? "xml-mode" : "text-mode";
     return `<div class="code-editor ${modeClass}" id="function-body-editor" data-body-editor-host="true" style="flex: 1; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden; min-height: 120px;"></div>`;
+  }
+  if (func.bodyMode === "binary") {
+    const hasFile = !!func.binaryFilePath;
+    const fileName = func.binaryFilePath ? (func.binaryFilePath.split(/[\\/]/).pop() ?? "") : "";
+    return `
+      <div class="flex-1 min-h-0" style="border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); padding: 24px; text-align: center; background: var(--rp-surface-alt, transparent);">
+        ${hasFile
+          ? `<div style="margin-bottom: 12px;"><span style="font-weight: 600; font-size: 14px;">${escapeHtml(fileName)}</span></div>
+             <button class="quiet-button" id="func-binary-file-picker" type="button" style="padding: 4px 8px; font-size: 12px;">${labels.changeBinaryFile}</button>`
+          : `<button class="quiet-button" id="func-binary-file-picker" type="button" style="padding: 4px 8px; font-size: 12px;">${labels.selectBinaryFile}</button>`
+        }
+        <p class="hint" style="margin-top: 8px;">${labels.binaryFileHint}</p>
+      </div>`;
+  }
+  if (func.bodyMode === "graphql") {
+    return `
+      <div class="flex-1 min-h-0 flex flex-col" style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--rp-text-secondary);">${labels.gqlQuery}</label>
+          <div class="code-editor text-mode" id="function-body-editor" data-body-editor-host="true" style="flex: 1; min-height: 100px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden;"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; flex: 0 0 auto; min-height: 80px; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 600; color: var(--rp-text-secondary);">${labels.gqlVariables}</label>
+          <div class="code-editor json-mode" id="function-gql-vars-editor" data-func-gql-vars-host="true" style="flex: 1; min-height: 80px; border: 1px solid var(--rp-border); border-radius: var(--rp-radius); overflow: hidden;"></div>
+          <p class="hint">${labels.gqlVariablesHint}</p>
+        </div>
+      </div>`;
   }
   if (func.bodyMode === "none") {
     return `
@@ -2912,7 +3085,7 @@ function renderFunctionWorkspace(func: AppFunction) {
                      ${labels.headers} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.headers.length}</span>
                    </button>
                    <button type="button" class="segmented-btn" id="func-popover-body-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
-                     ${labels.body} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.bodyMode === "none" ? "none" : func.rawType}</span>
+                     ${labels.body} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.bodyMode === "none" ? "none" : func.bodyMode === "binary" ? "BIN" : func.bodyMode === "graphql" ? "GQL" : func.rawType.toUpperCase()}</span>
                    </button>
                    <button type="button" class="segmented-btn" id="func-popover-auth-btn" style="padding: 4px 10px; font-size: 12px; border-radius: 4px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); cursor: pointer; display: inline-flex; align-items: center; flex-direction: row; gap: 4px;">
                      ${labels.authTab} <span class="badge" style="background: var(--rp-border); padding: 1px 5px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-left: 6px;">${func.auth.type}</span>
@@ -2960,7 +3133,7 @@ function renderFunctionWorkspace(func: AppFunction) {
                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                      <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
                        <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Body Mode</span>
-                       <span id="func-summary-body-mode" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.bodyMode === "none" ? "None" : func.rawType.toUpperCase()}</span>
+                        <span id="func-summary-body-mode" style="font-size: 13px; font-weight: 600; color: var(--rp-text-primary);">${func.bodyMode === "none" ? "None" : func.bodyMode === "binary" ? "BINARY" : func.bodyMode === "graphql" ? "GRAPHQL" : func.rawType.toUpperCase()}</span>
                      </div>
                      <div style="background: var(--rp-surface-low); border: 1px solid var(--rp-border); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 4px;">
                        <span style="font-weight: 700; font-size: 11px; text-transform: uppercase; color: var(--rp-text-muted); letter-spacing: 0.05em;">Auth Type</span>
@@ -3237,7 +3410,7 @@ function updateFunctionSummaryDashboard(func: AppFunction) {
   const bodyBtn = document.getElementById("func-popover-body-btn");
   if (bodyBtn) {
     const badge = bodyBtn.querySelector(".badge");
-    if (badge) badge.textContent = func.bodyMode === "none" ? "none" : func.rawType;
+    if (badge) badge.textContent = func.bodyMode === "none" ? "none" : func.bodyMode === "binary" ? "BIN" : func.bodyMode === "graphql" ? "GQL" : func.rawType;
   }
 
   // Update auth badge
@@ -3278,7 +3451,7 @@ function updateFunctionSummaryDashboard(func: AppFunction) {
   // Update Body Mode Summary text
   const bodySummary = document.getElementById("func-summary-body-mode");
   if (bodySummary) {
-    bodySummary.textContent = func.bodyMode === "none" ? "None" : func.rawType.toUpperCase();
+    bodySummary.textContent = func.bodyMode === "none" ? "None" : func.bodyMode === "binary" ? "BINARY" : func.bodyMode === "graphql" ? "GRAPHQL" : func.rawType.toUpperCase();
   }
 
   // Update Auth Type Summary text
@@ -3346,6 +3519,8 @@ function syncFunctionPopover() {
             <button class="${func.bodyMode === "raw" ? "active" : ""}" data-func-body-mode="raw" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.raw}</button>
             <button class="${func.bodyMode === "form" ? "active" : ""}" data-func-body-mode="form" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.form}</button>
             <button class="${func.bodyMode === "multipart" ? "active" : ""}" data-func-body-mode="multipart" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.multipart}</button>
+            <button class="${func.bodyMode === "binary" ? "active" : ""}" data-func-body-mode="binary" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.binary}</button>
+            <button class="${func.bodyMode === "graphql" ? "active" : ""}" data-func-body-mode="graphql" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.graphql}</button>
             <button class="${func.bodyMode === "none" ? "active" : ""}" data-func-body-mode="none" type="button" style="padding: 3px 8px; font-size: 11px;">${labels.none}</button>
           </div>
           ${renderFuncBodyToolbarTrailing(func, labels)}
@@ -3544,6 +3719,20 @@ function bindFuncPopoverEvents(popover: HTMLElement, func: AppFunction, kind: "p
         syncFunctionPopover();
       });
     }
+
+    // Binary file picker for function body
+    popover.querySelector<HTMLButtonElement>("#func-binary-file-picker")?.addEventListener("click", async () => {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        multiple: false,
+        title: t().request.selectBinaryFile
+      });
+      if (selected) {
+        func.binaryFilePath = selected;
+        onChange();
+        syncFunctionPopover();
+      }
+    });
 
     popover.querySelectorAll<HTMLInputElement>(".func-form-enabled").forEach((checkbox) => {
       const row = checkbox.closest<HTMLElement>("[data-func-form-id]");

@@ -63,6 +63,14 @@ export function withContentType(request: SavedRequest, headers: Record<string, s
     return { ...headers, "Content-Type": "application/x-www-form-urlencoded" };
   }
 
+  if (request.bodyMode === "binary" && request.binaryFilePath) {
+    return { ...headers, "Content-Type": "application/octet-stream" };
+  }
+
+  if (request.bodyMode === "graphql" && request.body.trim()) {
+    return { ...headers, "Content-Type": "application/json" };
+  }
+
   if (request.bodyMode === "raw" && request.body.trim()) {
     const type =
       request.rawType === "json"

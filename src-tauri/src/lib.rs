@@ -738,6 +738,16 @@ fn apply_body(
             Ok(builder.multipart(multipart_form))
         }
         "none" => Ok(builder),
+        "binary" => {
+            if request.body.is_empty() {
+                Ok(builder)
+            } else {
+                let bytes = BASE64
+                    .decode(request.body.trim())
+                    .map_err(|error| error.to_string())?;
+                Ok(builder.body(bytes))
+            }
+        }
         _ => {
             if request.body.is_empty() {
                 Ok(builder)

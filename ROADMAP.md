@@ -134,8 +134,8 @@ Goal: advanced HTTP features for corporate and integration scenarios.
 | # | Item | Scope | Status |
 |---|------|--------|--------|
 | 5.1 | **SOCKS proxy** — SOCKS5 support for proxy modes | Rust: curl socks5 + reqwest socks feature | planned |
-| 5.2 | **Binary/blob raw body** — `application/octet-stream` with file picker | `BodyMode` extend + Rust send | planned |
-| 5.3 | **GraphQL body type** — auto `application/json` with `{"query":...,"variables":...}` wrapper | UI convenience, no dedicated GQL IDE | planned |
+| 5.2 | **Binary/blob raw body** — `application/octet-stream` with file picker | `BodyMode` extend + Rust send | done |
+| 5.3 | **GraphQL body type** — auto `application/json` with `{"query":...,"variables":...}` wrapper | UI convenience, no dedicated GQL IDE | done |
 | 5.4 | **AWS Signature V4 auth** — sign requests for AWS API Gateway / S3 / Lambda | `RequestAuthType` extend + Rust signing | planned |
 | 5.5 | **Per-request TLS options** — trust cert, insecure mode override per request | Extend `SavedRequest.network` | planned |
 | 5.6 | **AI chat history persistence** — optional save/load of chat sessions to file | Chat export/import + auto-restore toggle | planned |

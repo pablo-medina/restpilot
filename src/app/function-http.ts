@@ -22,6 +22,8 @@ export function functionAsSavedRequest(func: AppFunction): SavedRequest {
     rawType: func.rawType,
     body: func.body,
     form: func.form,
+    binaryFilePath: func.binaryFilePath,
+    graphqlVariables: func.graphqlVariables,
     auth: func.auth,
     streamResponse: false,
     lastResponse: null,
@@ -35,6 +37,32 @@ export async function invokeFunctionHttp(func: AppFunction): Promise<ApiResponse
   const headers = withContentType(fakeRequest, buildRequestHeaders(fakeRequest));
   const resolvedUrl = resolvedOutboundUrl(fakeRequest, effectiveVariables).trim();
 
+  let body = "";
+  if (func.bodyMode === "raw") {
+    body = applyVariables(func.body, effectiveVariables);
+  } else if (func.bodyMode === "graphql") {
+    const query = applyVariables(func.body, effectiveVariables);
+    let variables: Record<string, unknown> = {};
+    if (func.graphqlVariables) {
+      try {
+        variables = JSON.parse(applyVariables(func.graphqlVariables, effectiveVariables));
+      } catch { /* send as-is */ }
+    }
+    body = JSON.stringify({ query, variables });
+  } else if (func.bodyMode === "binary" && func.binaryFilePath) {
+    try {
+      const { readFile } = await import("@tauri-apps/plugin-fs");
+      const fileBytes = await readFile(func.binaryFilePath);
+      let binaryStr = "";
+      for (let i = 0; i < fileBytes.length; i++) {
+        binaryStr += String.fromCharCode(fileBytes[i]);
+      }
+      body = btoa(binaryStr);
+    } catch {
+      throw new Error("Failed to read binary file: " + func.binaryFilePath);
+    }
+  }
+
   const payload = {
     request: {
       id: func.id,
@@ -42,8 +70,8 @@ export async function invokeFunctionHttp(func: AppFunction): Promise<ApiResponse
       url: resolvedUrl,
       headers,
       body_mode: func.bodyMode,
-      raw_type: func.rawType,
-      body: func.bodyMode === "raw" ? applyVariables(func.body, effectiveVariables) : "",
+      raw_type: func.bodyMode === "graphql" ? "json" : func.rawType,
+      body,
       form: buildFormPayload(fakeRequest),
       stream: false
     },

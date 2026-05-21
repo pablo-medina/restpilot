@@ -23,6 +23,8 @@ export function applyRequestToFunction(func: AppFunction, request: SavedRequest)
   func.rawType = request.rawType;
   func.body = request.body;
   func.form = clonePairs(request.form);
+  func.binaryFilePath = request.binaryFilePath;
+  func.graphqlVariables = request.graphqlVariables;
   func.auth = normalizeRequestAuth(request.auth);
   func.lastHttpResponse = null;
   func.lastTestResult = null;

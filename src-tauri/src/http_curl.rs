@@ -226,6 +226,15 @@ fn apply_body(easy: &mut Easy, method: &Method, request: &RestRequest) -> Result
             easy.httppost(form).map_err(|error| error.to_string())?;
         }
         "none" => {}
+        "binary" => {
+            if !request.body.is_empty() {
+                let bytes = BASE64
+                    .decode(request.body.trim())
+                    .map_err(|error| error.to_string())?;
+                easy.post_fields_copy(&bytes)
+                    .map_err(|error| error.to_string())?;
+            }
+        }
         _ => {
             if !request.body.is_empty() {
                 easy.post_fields_copy(request.body.as_bytes())

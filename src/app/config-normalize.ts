@@ -128,7 +128,7 @@ function migrateBodyMode(mode: string, form: Pair[]): BodyMode {
   if (mode === "node") {
     return form.some((field) => field.enabled && field.key.trim()) ? "multipart" : "none";
   }
-  if (mode === "none" || mode === "multipart" || mode === "form" || mode === "raw") return mode;
+  if (mode === "none" || mode === "multipart" || mode === "form" || mode === "raw" || mode === "binary" || mode === "graphql") return mode;
   return "raw";
 }
 
