@@ -4,7 +4,6 @@ import type { TextContextFlags } from "./context-menu";
 import { defaultConfig } from "../types";
 import type {
   ActivePanel,
-  AiChatRuntimeState,
   AppConfig,
   SavedRequest,
   TabState,
@@ -42,7 +41,6 @@ export type AppState = AppConfig & {
   activeFunctionExtractorLoading: boolean;
   activeFunctionPopover: "params" | "headers" | "body" | "auth" | null;
   activeSidebarFunctionPlayLoading: string | null;
-  aiChat: AiChatRuntimeState;
   editingEnvId: string | null;
 };
 
@@ -71,12 +69,6 @@ export const state: AppState = {
   activeFunctionExtractorLoading: false,
   activeFunctionPopover: null,
   activeSidebarFunctionPlayLoading: null,
-  aiChat: {
-    messages: [],
-    streaming: false,
-    streamRunId: null,
-    pendingToolCalls: null
-  },
   editingEnvId: null
 };
 

@@ -26,7 +26,6 @@ export function defaultRuntimeState(): Pick<
   | "activeFunctionExtractorLoading"
   | "activeFunctionPopover"
   | "activeSidebarFunctionPlayLoading"
-  | "aiChat"
   | "editingEnvId"
 > {
 
@@ -53,12 +52,6 @@ export function defaultRuntimeState(): Pick<
     activeFunctionExtractorLoading: false,
     activeFunctionPopover: null,
     activeSidebarFunctionPlayLoading: null,
-    aiChat: {
-      messages: [],
-      streaming: false,
-      streamRunId: null,
-      pendingToolCalls: null
-    },
     editingEnvId: null
   };
 }
@@ -86,4 +79,3 @@ export function resetAppStateToDefaults(target: AppState): void {
 
   Object.assign(target, runtime);
 }
-

@@ -16,8 +16,6 @@ export const iconStream = `<svg viewBox="0 0 16 16" width="16" height="16" aria-
 
 export const iconVariables = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" d="M6.1 3.4c-1.35 0-2.1.75-2.1 2.1v1c0 .66-.32 1.1-.95 1.32.63.22.95.66.95 1.32v1c0 1.35.75 2.1 2.1 2.1M9.9 3.4c1.35 0 2.1.75 2.1 2.1v1c0 .66.32 1.1.95 1.32-.63.22-.95.66-.95 1.32v1c0 1.35-.75 2.1-2.1 2.1"/><circle cx="8" cy="8" r="1.05" fill="currentColor"/></svg>`;
 
-export const iconAi = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M8 2.5v2M8 11.5v2M2.5 8h2M11.5 8h2"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M4.6 4.6l1.4 1.4M10 10l1.4 1.4M11.4 4.6 10 6M6 10l-1.4 1.4"/><circle cx="8" cy="8" r="2.25" fill="none" stroke="currentColor" stroke-width="1.35"/></svg>`;
-
 export const iconLayers = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" d="M2.5 5.5 8 2.5l5.5 3-5.5 3z"/><path fill="none" stroke="currentColor" stroke-width="1.25" d="M2.5 8.5 8 11.5l5.5-3"/><path fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.55" d="M2.5 11.5 8 14.5l5.5-3"/></svg>`;
 
 export const iconSettings = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" d="M8 2.25 10.18 4.23 13.02 5.13 12.35 8 13.02 10.87 10.18 11.77 8 13.75 5.83 11.77 2.98 10.87 3.65 8 2.98 5.13 5.83 4.23z"/><circle cx="8" cy="8" r="2.25" fill="none" stroke="currentColor" stroke-width="1.35"/></svg>`;
@@ -45,4 +43,3 @@ export const iconEyeOff = `<svg viewBox="0 0 16 16" width="16" height="16" aria-
 export const iconFunction = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M6 2l-2.2 12M12.2 2L10 14M2.5 5.5h11M1.5 10.5h11"/></svg>`;
 
 export const iconFunctionAdd = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M5.5 2.5l-1.5 11M10.5 2.5l-1.5 11M2.5 5.5h10M1.5 9.5h10"/><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M13 10v4M11 12h4"/></svg>`;
-

@@ -29,78 +29,15 @@ export type Locale = "en" | "es";
 export type ProxyMode = "none" | "system" | "manual";
 /** Proxy authentication negotiated by libcurl (manual) or forced scheme. */
 export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
-export type ActivePanel = "request" | "variables" | "ai" | "settings" | "functions";
-
-export type AiToolPolicy = "confirm_all" | "read_only_auto" | "auto_all";
-
-export type AiSettings = {
-  enabled: boolean;
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  toolPolicy: AiToolPolicy;
-  /** Appended to the AI system prompt when non-empty. */
-  instructions: string;
-};
-
-export type AiChatRole = "user" | "assistant" | "system" | "tool";
-
-export type AiChatActionKind = "open_request" | "open_function";
-
-export type AiChatAction = {
-  id: string;
-  kind: AiChatActionKind;
-  targetId: string;
-  label: string;
-};
-
-export type AiChatMessage = {
-  id: string;
-  role: AiChatRole;
-  content: string;
-  thinking?: string;
-  thinkingExpanded?: boolean;
-  toolName?: string;
-  toolCallId?: string;
-  pending?: boolean;
-  actions?: AiChatAction[];
-};
-
-export type AiChatRuntimeState = {
-  messages: AiChatMessage[];
-  streaming: boolean;
-  streamRunId: string | null;
-  pendingToolCalls: AiPendingToolCall[] | null;
-};
-
-export type AiPendingToolCall = {
-  id: string;
-  name: string;
-  argumentsJson: string;
-};
-
-export type AiStreamPayload = {
-  chat_id: string;
-  delta?: string | null;
-  thinking?: string | null;
-  done: boolean;
-  error?: string | null;
-  tool_calls?: AiStreamToolCall[] | null;
-};
-
-export type AiStreamToolCall = {
-  id: string;
-  name: string;
-  arguments: string;
-};
+export type ActivePanel = "request" | "variables" | "settings" | "functions";
 
 export type AppFunction = {
   id: string;
   name: string;
-  /** Human-oriented summary for the user and AI; shown in the function editor only. */
+  /** Human-oriented summary shown in the function editor only. */
   description?: string;
   code: string;
-  functionType: "http" | "ai" | "javascript";
+  functionType: "http" | "javascript";
   method: string;
   url: string;
   queryParams: Pair[];
@@ -112,10 +49,7 @@ export type AppFunction = {
   binaryFilePath?: string;
   graphqlVariables?: string;
   auth: RequestAuth;
-  extractorType?: "javascript" | "ai";
   extractorCode: string;
-  extractorPrompt?: string;
-  aiRequestPrompt?: string;
   /** Last HTTP response from Send in the function workspace (not updated by extractor run). */
   lastHttpResponse?: ApiResponse | null;
   /** Last extractor script outcome (not updated by Send alone). */
@@ -160,7 +94,6 @@ export type UserSettings = {
   duplicateNaming: DuplicateNamingMode;
   /** Last URL used in Settings → network proxy test. */
   proxyTestUrl: string;
-  ai: AiSettings;
 };
 
 export type DuplicateNamingMode = "copyOf" | "numbered";
@@ -290,15 +223,7 @@ export function defaultSettings(): UserSettings {
     followRedirects: true,
     clickToSelect: true,
     duplicateNaming: "copyOf",
-    proxyTestUrl: DEFAULT_PROXY_TEST_URL,
-    ai: {
-      enabled: false,
-      baseUrl: "http://127.0.0.1:1234/v1",
-      apiKey: "",
-      model: "",
-      toolPolicy: "confirm_all",
-      instructions: ""
-    }
+    proxyTestUrl: DEFAULT_PROXY_TEST_URL
   };
 }
 
@@ -327,4 +252,3 @@ export function defaultConfig(): AppConfig {
     activeFunctionId: null
   };
 }
-

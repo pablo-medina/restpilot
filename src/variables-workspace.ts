@@ -329,7 +329,7 @@ export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandle
 
   // Bind Sidebar Add Environment
   root.querySelector("[data-scope-add-env]")?.addEventListener("click", () => {
-    let dupName = t().environments.newEnvironment;
+    let dupName: string = t().environments.newEnvironment;
     let counter = 1;
     while (state.environments.some(item => item.name.trim().toLowerCase() === dupName.trim().toLowerCase())) {
       dupName = `${t().environments.newEnvironment} (${counter++})`;

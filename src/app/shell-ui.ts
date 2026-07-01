@@ -1,5 +1,4 @@
 import {
-  iconAi,
   iconChevronLeft,
   iconExport,
   iconFolderAdd,
@@ -20,8 +19,7 @@ import type { ActivePanel, ThemeMode } from "../types";
 export function renderActivityBarMarkup(
   labels: TranslationTree,
   activePanel: ActivePanel,
-  theme: ThemeMode,
-  aiEnabled: boolean
+  theme: ThemeMode
 ) {
   const themeIcon = theme === "dark" ? iconSun : iconMoon;
   const themeLabel = theme === "dark" ? labels.nav.switchToLight : labels.nav.switchToDark;
@@ -55,15 +53,6 @@ export function renderActivityBarMarkup(
         aria-current="${activePanel === "variables" ? "page" : "false"}">
         ${iconVariables}
       </button>
-      ${aiEnabled ? `<button
-        class="activity-item${activePanel === "ai" ? " is-active" : ""}"
-        type="button"
-        data-activity="ai"
-        title="${labels.nav.ai}"
-        aria-label="${labels.nav.ai}"
-        aria-current="${activePanel === "ai" ? "page" : "false"}">
-        ${iconAi}
-      </button>` : ""}
       <div class="activity-bar-spacer" aria-hidden="true"></div>
       <button
         class="activity-item activity-item--theme"
@@ -221,4 +210,3 @@ export function renderFunctionsSidebarShell(
     </aside>
   `;
 }
-

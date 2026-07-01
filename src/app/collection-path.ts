@@ -2,7 +2,7 @@ import { getItem, state } from "./state";
 import { COLLECTION_ROOT_PARENT_ID, isCollectionRoot, normalizeParentId } from "./collection-parent";
 import type { Folder, SavedRequest, TreeItem } from "../types";
 
-/** Normalize user/AI path: leading slash, no trailing slash (except root). */
+/** Normalize a collection path: leading slash, no trailing slash (except root). */
 export function normalizeCollectionPath(path: string): string {
   let normalized = path.trim().replace(/\\/g, "/");
   if (!normalized.startsWith("/")) normalized = `/${normalized}`;

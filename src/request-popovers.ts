@@ -179,11 +179,11 @@ function buildEnvironmentPopoverHtml(): string {
   ];
 
   const searchInputHtml = `
-    <input type="search" class="ai-popover-search env-popover-search" placeholder="${escapeAttribute(t().environments.searchPlaceholder || "Buscar entornos...")}" spellcheck="false" autocomplete="off" style="margin-bottom: 8px;" />
+    <input type="search" class="popover-search env-popover-search" placeholder="${escapeAttribute(t().environments.searchPlaceholder || "Buscar entornos...")}" spellcheck="false" autocomplete="off" style="margin-bottom: 8px;" />
   `;
 
   const listHtml = `
-    <div class="ai-popover-list" style="max-height: 200px; overflow-y: auto;">
+    <div class="popover-list" style="max-height: 200px; overflow-y: auto;">
       ${items.map(env => {
         const isActive = env.id === (state.activeEnvironmentId || "");
         return `
@@ -205,7 +205,7 @@ function buildEnvironmentPopoverHtml(): string {
   `;
 
   return renderPopoverShell({
-    className: "env-popover ai-presets-popover",
+    className: "env-popover selection-popover",
     title: labels.popoverTitle,
     ariaLabel: labels.popoverTitle,
     bodyHtml: `
@@ -220,25 +220,26 @@ function buildEnvironmentPopoverHtml(): string {
 function buildVariablesPopoverHtml(): string {
   const labels = t().variables;
   const activeEnv = state.environments.find(e => e.id === state.activeEnvironmentId);
+  const activeEnvName = activeEnv?.name ?? "";
   const envVars = activeEnv ? activeEnv.variables : [];
   const globals = state.variables;
 
   const items: { id: string; name: string; enabled: boolean; secret: boolean; scope: "global" | "env" }[] = [];
   if (activeEnv) {
     envVars.forEach((v) => {
-      items.push({ id: v.id, name: v.name, enabled: v.enabled, secret: v.secret, scope: "env" });
+      items.push({ id: v.id, name: v.name, enabled: v.enabled, secret: Boolean(v.secret), scope: "env" });
     });
   }
   globals.forEach((v) => {
-    items.push({ id: v.id, name: v.name, enabled: v.enabled, secret: v.secret, scope: "global" });
+    items.push({ id: v.id, name: v.name, enabled: v.enabled, secret: Boolean(v.secret), scope: "global" });
   });
 
   const searchInputHtml = `
-    <input type="search" class="ai-popover-search vars-popover-search" placeholder="${escapeAttribute(t().variables.searchPlaceholder || "Buscar variables...")}" spellcheck="false" autocomplete="off" style="margin-bottom: 8px;" />
+    <input type="search" class="popover-search vars-popover-search" placeholder="${escapeAttribute(t().variables.searchPlaceholder || "Buscar variables...")}" spellcheck="false" autocomplete="off" style="margin-bottom: 8px;" />
   `;
 
   const listHtml = `
-    <div class="ai-popover-list" style="max-height: 240px; overflow-y: auto;">
+    <div class="popover-list" style="max-height: 240px; overflow-y: auto;">
       ${items.length > 0
         ? items.map((v) => {
             const disabledClass = v.enabled ? "" : " is-disabled";
@@ -248,7 +249,7 @@ function buildVariablesPopoverHtml(): string {
                 <div style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
                   ${v.secret ? '<span style="opacity: 0.5; font-size: 11px;" title="Protegida">🔒</span>' : ''}
                   ${v.scope === "env" 
-                    ? `<span style="font-size: 10px; opacity: 0.8; padding: 2px 6px; border-radius: 4px; background: rgba(61, 127, 111, 0.1); color: #3d7f6f; font-weight: 500; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(activeEnv.name)}">${escapeHtml(activeEnv.name)}</span>`
+                    ? `<span style="font-size: 10px; opacity: 0.8; padding: 2px 6px; border-radius: 4px; background: rgba(61, 127, 111, 0.1); color: #3d7f6f; font-weight: 500; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(activeEnvName)}">${escapeHtml(activeEnvName)}</span>`
                     : `<span style="font-size: 10px; opacity: 0.6; padding: 2px 6px; border-radius: 4px; background: var(--rp-hover); color: var(--rp-text-muted);">Global</span>`
                   }
                   <input class="variable-enabled" type="checkbox" ${v.enabled ? "checked" : ""} style="margin: 0; cursor: pointer;" />
@@ -256,7 +257,7 @@ function buildVariablesPopoverHtml(): string {
               </label>
             `;
           }).join("")
-        : `<p class="ai-popover-empty" style="padding: 16px; text-align: center; color: var(--rp-text-muted); font-size: 12px; font-style: italic; margin: 0;">${labels.emptyTitle}</p>`}
+        : `<p class="popover-empty" style="padding: 16px; text-align: center; color: var(--rp-text-muted); font-size: 12px; font-style: italic; margin: 0;">${labels.emptyTitle}</p>`}
     </div>
   `;
 
@@ -269,7 +270,7 @@ function buildVariablesPopoverHtml(): string {
   `;
 
   return renderPopoverShell({
-    className: "vars-popover ai-presets-popover",
+    className: "vars-popover selection-popover",
     title: labels.title,
     ariaLabel: labels.popoverTitle,
     bodyHtml: `

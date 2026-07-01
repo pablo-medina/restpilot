@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager};
 use tokio::time::{sleep, timeout, Duration};
 
-mod ai_openai;
 mod http_curl;
 mod http_errors;
 mod proxy_env;
@@ -1018,9 +1017,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            ai_openai::ai_chat_stream,
-            ai_openai::list_ai_models,
-            ai_openai::test_ai_connection,
             cancel_request,
             load_startup_settings,
             load_app_config,

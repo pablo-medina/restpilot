@@ -138,12 +138,9 @@ Goal: advanced HTTP features for corporate and integration scenarios.
 | 5.3 | **GraphQL body type** — auto `application/json` with `{"query":...,"variables":...}` wrapper | UI convenience, no dedicated GQL IDE | done |
 | 5.4 | **AWS Signature V4 auth** — sign requests for AWS API Gateway / S3 / Lambda | `RequestAuthType` extend + Rust signing | planned |
 | 5.5 | **Per-request TLS options** — trust cert, insecure mode override per request | Extend `SavedRequest.network` | planned |
-| 5.6 | **AI chat history persistence** — optional save/load of chat sessions to file | Chat export/import + auto-restore toggle | planned |
-| 5.7 | **AI: vision/image support** — send images to multimodal models (gpt-4o, etc.) | Extend `AiChatMessage` with image parts | planned |
-| 5.8 | **AI: non-streaming fallback** — detect when SSE fails, retry with regular POST | `src/ai/chat-controller.ts` — error recovery | planned |
 | 5.9 | **Update checker** — Tauri built-in updater for new versions | `tauri-plugin-updater` + release workflow | planned |
 
-**Exit criteria:** Corporate proxy (SOCKS), cloud API signing (AWS), and AI multimodal support operational.
+**Exit criteria:** Corporate proxy (SOCKS), cloud API signing (AWS), TLS controls, and update delivery operational.
 
 ---
 
@@ -166,7 +163,6 @@ These conflict with "lightweight / local-first" unless requirements change:
 | T2 | **Full re-render pattern** — `innerHTML +=` on every change | Fragile; one bad template breaks entire panel; loses DOM state (scroll, focus) | Selective re-render: only update changed sections |
 | T3 | **No CI pipeline** — no automated checks on push | Broken code can land without detection | Add `.github/workflows/test.yml` with `npm test` + `tsc` |
 | T4 | **Sanitize on save loses file parts** — `sanitizeItemsForSave()` clears multipart file values | Users lose file uploads after restart | Store file path instead of base64 content; read on send (see 2.13) |
-| T5 | **AI streaming-only** — `ai_chat_stream` fails on models without SSE | Chat completely broken for non-streaming models | Add non-streaming fallback (see 5.8) |
 | T6 | **No E2E tests** — only unit tests | Full-flow regressions undetected | Add Playwright/Tauri E2E (see 0.8) |
 
 ---
@@ -180,7 +176,7 @@ These conflict with "lightweight / local-first" unless requirements change:
 | **v0.4 — Team-ready local** | 2.5–2.7 + 3.1–3.3 | "Search, auth, history, batch run" |
 | **v0.5 — Code & history** | 1.8–1.11 + 2.8–2.10 | "Code generation, imports, request history" |
 | **v0.6 — UX depth** | 4.1–4.12 | "Polish, search everywhere, better tabs" |
-| **v0.7+ — Enterprise edge** | 3.4–3.6 + 5.1–5.9 | "TLS, certs, scripting, AI improvements" |
+| **v0.7+ — Enterprise edge** | 3.4–3.6 + 5.1–5.9 | "TLS, certificates, scripting, and integrations" |
 
 Versions are indicative; ship when exit criteria for the theme are met.
 
@@ -194,7 +190,6 @@ Versions are indicative; ship when exit criteria for the theme are met.
 - **HTTP:** Rust `send_request` in `src-tauri/src/lib.rs`; pass `proxy` from settings.
 - **Proxy (corporate NTLM):** documented in `AGENTS.md` → "Proxy (user settings)" / "Proxy (runtime behavior)". Manual + auth **Auto** uses libcurl NTLM on CONNECT; requires vendored libcurl with `CURL_ENABLE_NTLM` (see `.cargo/config.toml`). **Do not change the HTTP/proxy stack without user confirmation.**
 - **Variables today:** global list + `applyVariables()` at send time — environments layer on top without breaking `${name}` syntax.
-- **AI tools:** Definitions in `src/ai/tools.ts`, execution in `executeAiTool()`, system prompt in `src/ai/context.ts`.
 - **Autocomplete:** Variable autocomplete in `src/variable-autocomplete.ts`, bound to URL + all pair inputs + auth fields.
 
 ---

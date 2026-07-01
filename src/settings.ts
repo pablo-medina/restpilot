@@ -5,7 +5,6 @@ import { applicationDialog } from "./components/dialogs";
 import { iconEye, iconEyeOff } from "./icons";
 import { t } from "./i18n";
 import { hiddenClass, setVisible } from "./ui/visibility";
-import { bindAiSettings, renderAiSettingsCard, resetAiSettingsSessionState } from "./settings-ai";
 import { clampRequestTimeoutSecs, DEFAULT_PROXY_TEST_URL, type UserSettings } from "./types";
 
 /** How much of the app to re-render after a settings mutation. */
@@ -13,13 +12,12 @@ export type SettingsChangeScope = "full" | "activity-bar" | "persist";
 
 export type SettingsChangeHandler = (scope?: SettingsChangeScope) => void;
 
-export type SettingsTabId = "general" | "editor" | "network" | "ai" | "about";
+export type SettingsTabId = "general" | "editor" | "network" | "about";
 
 const proxyUrlRevealed = { http: false, https: false };
 let lastProxyTestResult: ProxyTestResult | null = null;
 let settingsActiveTab: SettingsTabId = "general";
 
-/** Opens the AI tab when navigating to Settings from the AI panel. */
 export function setSettingsActiveTab(tab: SettingsTabId) {
   settingsActiveTab = tab;
 }
@@ -30,7 +28,6 @@ export function resetSettingsSessionState() {
   proxyUrlRevealed.https = false;
   lastProxyTestResult = null;
   settingsActiveTab = "general";
-  resetAiSettingsSessionState();
 }
 
 function renderSettingsTabs(active: SettingsTabId): string {
@@ -39,7 +36,6 @@ function renderSettingsTabs(active: SettingsTabId): string {
     { id: "general", label: labels.tabGeneral },
     { id: "editor", label: labels.tabEditor },
     { id: "network", label: labels.tabNetwork },
-    { id: "ai", label: labels.tabAi },
     { id: "about", label: labels.tabAbout }
   ];
   return `
@@ -232,7 +228,6 @@ export function renderSettings(settings: UserSettings): string {
           </div>
         </section>
         ` : ""}
-        ${settingsActiveTab === "ai" ? renderAiSettingsCard(settings) : ""}
         ${settingsActiveTab === "about" ? `
         <section class="settings-card settings-card-wide">
           <h2>${labels.shortcutsSection}</h2>
@@ -507,7 +502,6 @@ export function bindSettings(
   });
 
   syncProxyPanels(settings);
-  bindAiSettings(settings, onChange);
 }
 
 type ProxyTestResult = {

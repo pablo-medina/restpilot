@@ -58,12 +58,7 @@ function mockPopulatedState(): AppState {
     activeFunctionExtractorLoading: false,
     activeFunctionPopover: null,
     activeSidebarFunctionPlayLoading: null,
-    aiChat: {
-      messages: [{ id: "m1", role: "user", content: "hi", pending: false }],
-      streaming: true,
-      streamRunId: "run-1",
-      pendingToolCalls: null
-    }
+    editingEnvId: "e1"
   };
 }
 

@@ -54,14 +54,14 @@ export function openFunctionImportPopover(func: AppFunction, anchor: HTMLElement
       `
         )
         .join("")
-    : `<p class="ai-popover-empty">${escapeHtml(labels.importEmpty)}</p>`;
+    : `<p class="popover-empty">${escapeHtml(labels.importEmpty)}</p>`;
 
   const html = renderPopoverShell({
     className: "function-import-popover",
     title: labels.importTitle,
     bodyHtml: `
-      <input class="ai-popover-search" id="function-import-search" type="search" placeholder="${escapeAttribute(labels.importSearch)}" spellcheck="false" autocomplete="off" />
-      <div class="ai-popover-list" id="function-import-list">${items}</div>
+      <input class="popover-search" id="function-import-search" type="search" placeholder="${escapeAttribute(labels.importSearch)}" spellcheck="false" autocomplete="off" />
+      <div class="popover-list" id="function-import-list">${items}</div>
     `
   });
 

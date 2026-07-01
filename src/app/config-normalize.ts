@@ -1,5 +1,4 @@
 import { clampTabSize } from "../types";
-import { normalizeAiSettings } from "./ai-settings";
 import { normalizeProxySettings } from "./proxy-settings";
 import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth, normalizeRequestAuth } from "./request-auth";
@@ -50,7 +49,7 @@ function normalizeFunction(func: any): AppFunction {
     name: String(func.name ?? "Function").trim() || "Function",
     description: typeof func.description === "string" ? func.description.trim() || undefined : undefined,
     code: String(func.code ?? ""),
-    functionType: (func.functionType === "ai" ? "ai" : func.functionType === "javascript" ? "javascript" : "http") as "http" | "ai" | "javascript",
+    functionType: (func.functionType === "javascript" ? "javascript" : "http") as "http" | "javascript",
     method: String(func.method ?? "GET"),
     url: String(func.url ?? "https://jsonplaceholder.typicode.com/todos/1"),
     queryParams,
@@ -60,10 +59,7 @@ function normalizeFunction(func: any): AppFunction {
     body: String(func.body ?? ""),
     form,
     auth: normalizeRequestAuth(func.auth),
-    extractorType: (func.extractorType === "ai" ? "ai" : "javascript") as "javascript" | "ai",
     extractorCode: String(func.extractorCode ?? `// Extract data from the response\nif (response.status === 200) {\n  return response.body;\n}\nreturn undefined;\n`),
-    extractorPrompt: func.extractorPrompt ? String(func.extractorPrompt) : "",
-    aiRequestPrompt: func.aiRequestPrompt ? String(func.aiRequestPrompt) : "",
     lastHttpResponse: normalizeFunctionLastHttp(func),
     lastTestResult: normalizeFunctionLastTestResult(func)
   };
@@ -209,8 +205,7 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       proxyTestUrl:
         typeof config.settings?.proxyTestUrl === "string" && config.settings.proxyTestUrl.trim()
           ? config.settings.proxyTestUrl.trim()
-          : DEFAULT_PROXY_TEST_URL,
-      ai: normalizeAiSettings(config.settings?.ai)
+          : DEFAULT_PROXY_TEST_URL
     }
   };
 }

@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { setLocale } from "../i18n";
 import { defaultConfig, type AppConfig, type TreeItem, type UserSettings } from "../types";
-import { trimAiSettingsForSave } from "./ai-settings";
 import { isSeedConfig, normalizeConfig } from "./config-normalize";
 import { networkPayload } from "./request-utils";
 import { state } from "./state";
@@ -31,7 +30,7 @@ export function proxyPayload(proxy: UserSettings["proxy"]) {
   };
 }
 
-/** Shared proxy + network options for all native HTTP (requests, AI, tools). */
+/** Shared proxy and network options for native HTTP requests. */
 export function httpTransportPayload(settings: UserSettings, stream = false) {
   return {
     proxy: proxyPayload(settings.proxy),
@@ -73,8 +72,7 @@ export async function persistConfig() {
     activeFunctionId: state.activeFunctionId,
     settings: {
       ...state.settings,
-      proxy: proxySettingsForSave(state.settings.proxy),
-      ai: trimAiSettingsForSave(state.settings.ai)
+      proxy: proxySettingsForSave(state.settings.proxy)
     }
   };
   await invoke("save_app_config", { config });
