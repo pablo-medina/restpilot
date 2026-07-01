@@ -33,6 +33,7 @@ import {
   iconFunction,
   iconFunctionAdd,
   iconImport,
+  iconPlay,
   iconRemove,
   iconRename,
   iconRequestAdd,
@@ -2780,11 +2781,8 @@ function renderFunctionNamingPlaceholder(func: AppFunction) {
   const labels = t().functions;
   return `
     <div class="empty-editor" style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 16px; padding: 32px; background: rgba(255, 252, 246, 0.48); backdrop-filter: blur(10px); border: 1px dashed var(--rp-border); border-radius: var(--rp-radius); margin: 24px; height: calc(100% - 48px);">
-      <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, rgba(46, 204, 113, 0.1), rgba(52, 152, 219, 0.1)); display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--rp-border);">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--rp-accent, #3d7f6f)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--rp-accent);">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-          <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"></path>
-        </svg>
+      <div class="function-naming-icon" style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, rgba(46, 204, 113, 0.1), rgba(52, 152, 219, 0.1)); display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--rp-border); color: var(--rp-accent);">
+        ${iconRename}
       </div>
       <div style="display: flex; flex-direction: column; gap: 6px; max-width: 320px;">
         <h3 style="font-size: 16px; font-weight: 700; color: var(--rp-text); margin: 0; background: linear-gradient(120deg, var(--rp-text), var(--rp-accent, #3d7f6f)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
@@ -2910,9 +2908,7 @@ function renderFunctionWorkspace(func: AppFunction) {
                    <span class="function-extractor-actions" style="display: flex; align-items: center; gap: 4px;">
                       <button class="quiet-button ${state.activeFunctionExtractorLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
                         <span class="send-icon-spin" style="display: ${state.activeFunctionExtractorLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
-                        <svg style="display: ${state.activeFunctionExtractorLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M8 5v14l11-7z"/>
-                        </svg>
+                        <span class="function-play-icon" style="display: ${state.activeFunctionExtractorLoading ? "none" : "grid"};">${iconPlay}</span>
                       </button>
                     </span>
                  </div>
@@ -3053,9 +3049,7 @@ function renderFunctionWorkspace(func: AppFunction) {
                    <span class="function-extractor-actions" style="display: flex; align-items: center; gap: 4px;">
                      <button class="quiet-button ${state.activeFunctionExtractorLoading ? "is-loading" : ""}" id="test-function-btn" type="button" title="${funcLabels.testFunction}" style="display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: #2ecc71; padding: 4px; border-radius: 4px; transition: background 0.2s; min-width: unset; height: 28px; width: 28px;" onmouseover="this.style.background='rgba(46, 204, 113, 0.1)'" onmouseout="this.style.background='transparent'">
                        <span class="send-icon-spin" style="display: ${state.activeFunctionExtractorLoading ? "inline-block" : "none"}; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
-                       <svg style="display: ${state.activeFunctionExtractorLoading ? "none" : "block"}; width: 18px; height: 18px;" viewBox="0 0 24 24" fill="currentColor">
-                         <path d="M8 5v14l11-7z"/>
-                       </svg>
+                       <span class="function-play-icon" style="display: ${state.activeFunctionExtractorLoading ? "none" : "grid"};">${iconPlay}</span>
                      </button>
                    </span>
                  </div>
@@ -3898,7 +3892,7 @@ function renderFunctionsList(): string {
                   <button class="mini-btn tree-action-btn" data-func-action="play" data-func-id="${func.id}" type="button" title="Run & Save Variable" aria-label="Run & Save Variable" style="color: #2ecc71; display: inline-flex; align-items: center; justify-content: center; position: relative;">
                     ${isPlayLoading
                       ? `<span class="send-icon-spin" style="width: 10px; height: 10px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;"></span>`
-                      : `<svg style="width: 12px; height: 12px;" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`
+                      : iconPlay
                     }
                   </button>
                   <button class="mini-btn tree-action-btn" data-func-action="rename" data-func-id="${func.id}" type="button" title="${labels.rename}" aria-label="${labels.rename}">${iconRename}</button>

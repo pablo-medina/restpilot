@@ -152,6 +152,17 @@ button {
   flex-shrink: 0;
 }
 
+.function-naming-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.function-play-icon {
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
 .icon-btn {
   flex-shrink: 0;
   display: inline-flex;

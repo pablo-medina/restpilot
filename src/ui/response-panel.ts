@@ -1,5 +1,5 @@
 import { t } from "../i18n";
-import { iconCopy } from "../icons";
+import { iconBookmark, iconCopy } from "../icons";
 import {
   bodySourceKey,
   escapeHtml,
@@ -156,9 +156,7 @@ export function renderResponseHead(tab: TabState): string {
       title="${labels.saveResponse ?? "Guardar respuesta"}"
       style="margin-right: 6px; color: var(--rp-text-muted);"
     >
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; display: block;">
-        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-      </svg>
+      ${iconBookmark}
     </button>
   ` : "";
 

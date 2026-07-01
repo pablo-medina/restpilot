@@ -1,45 +1,57 @@
-/** Inline SVG icons (16–18px, stroke-based, currentColor). */
+/** Compact icon family built on a consistent 16 × 16 grid. */
 
-export const iconFolderAdd = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" d="M2.5 5.5h4l1.2 1.5H13.5V12H2.5z"/><path fill="none" stroke="currentColor" stroke-width="1.35" d="M2.5 5.5V4.2h3.2l1 1.3H13.5v1"/></svg>`;
+function strokeIcon(body: string, size = 16): string {
+  return `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
 
-export const iconRequestAdd = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" d="M4 2.5h5.5L12 5v8.5H4z"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M8.5 7v4M6.5 9h4"/></svg>`;
+function solidIcon(body: string, size = 16): string {
+  return `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="currentColor" aria-hidden="true">${body}</svg>`;
+}
 
-export const iconRename = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" d="M2.5 11.5h2.2L11 5.2l-2.2-2.2L2.5 9.3v2.2zM9.2 3.8l2.2 2.2"/></svg>`;
+export const iconFolderAdd = strokeIcon('<path d="M2.25 5.25h4l1.3 1.5h6.2v6H2.25z"/><path d="M2.25 5.25v-1.5h3.5L7 5.25"/><path d="M9 9.75h3M10.5 8.25v3"/>');
 
-export const iconDuplicate = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="8" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/><path fill="none" stroke="currentColor" stroke-width="1.25" d="M3 3.5h7v7"/></svg>`;
+export const iconRequestAdd = strokeIcon('<path d="M4 2.25h5l3 3v8.5H4z"/><path d="M9 2.25v3h3M6.25 9.5h3.5M8 7.75v3.5"/>');
 
-export const iconRemove = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+export const iconRename = strokeIcon('<path d="m3 13 .65-2.65 7.4-7.4 2 2-7.4 7.4zM9.8 4.2l2 2"/>', 14);
 
-export const iconCopy = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="5.5" y="5.5" width="7.5" height="8.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.25"/><path fill="none" stroke="currentColor" stroke-width="1.25" d="M3.5 3.5h7v7"/></svg>`;
+export const iconDuplicate = strokeIcon('<rect x="5" y="4.75" width="8" height="8.25" rx="1.25"/><path d="M3 10.75V3h7.25M7.25 8.9h3.5M9 7.15v3.5"/>', 14);
 
-export const iconStream = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M2.5 5.5c2.2 0 2.2-3 4.5-3s2.2 3 4.5 3 2.2-3 4.5-3M2.5 10.5c2.2 0 2.2-3 4.5-3s2.2 3 4.5 3 2.2-3 4.5-3"/></svg>`;
+export const iconRemove = strokeIcon('<path d="M3.25 4.5h9.5M6 2.75h4M4.5 4.5l.5 8.75h6l.5-8.75M6.75 7v3.75M9.25 7v3.75"/>', 14);
 
-export const iconVariables = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" d="M6.1 3.4c-1.35 0-2.1.75-2.1 2.1v1c0 .66-.32 1.1-.95 1.32.63.22.95.66.95 1.32v1c0 1.35.75 2.1 2.1 2.1M9.9 3.4c1.35 0 2.1.75 2.1 2.1v1c0 .66.32 1.1.95 1.32-.63.22-.95.66-.95 1.32v1c0 1.35-.75 2.1-2.1 2.1"/><circle cx="8" cy="8" r="1.05" fill="currentColor"/></svg>`;
+export const iconCopy = strokeIcon('<rect x="5" y="5" width="8" height="8.25" rx="1.25"/><path d="M3 10.75V3h7.25"/>');
 
-export const iconLayers = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.25" d="M2.5 5.5 8 2.5l5.5 3-5.5 3z"/><path fill="none" stroke="currentColor" stroke-width="1.25" d="M2.5 8.5 8 11.5l5.5-3"/><path fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.55" d="M2.5 11.5 8 14.5l5.5-3"/></svg>`;
+export const iconStream = strokeIcon('<path d="M2 5.25c1.75 0 1.75-2.25 3.5-2.25S7.25 5.25 9 5.25 10.75 3 12.5 3M3.5 12.75c1.75 0 1.75-2.25 3.5-2.25s1.75 2.25 3.5 2.25 1.75-2.25 3.5-2.25"/>');
 
-export const iconSettings = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" d="M8 2.25 10.18 4.23 13.02 5.13 12.35 8 13.02 10.87 10.18 11.77 8 13.75 5.83 11.77 2.98 10.87 3.65 8 2.98 5.13 5.83 4.23z"/><circle cx="8" cy="8" r="2.25" fill="none" stroke="currentColor" stroke-width="1.35"/></svg>`;
+export const iconVariables = strokeIcon('<path d="M6 3.25H5c-.8 0-1.25.45-1.25 1.25v1.25c0 1-.45 1.75-1.5 2.25 1.05.5 1.5 1.25 1.5 2.25v1.25c0 .8.45 1.25 1.25 1.25h1M10 3.25h1c.8 0 1.25.45 1.25 1.25v1.25c0 1 .45 1.75 1.5 2.25-1.05.5-1.5 1.25-1.5 2.25v1.25c0 .8-.45 1.25-1.25 1.25h-1"/><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"/>');
 
-export const iconSun = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="2.55" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M8 1.45v1.8M8 12.75v1.8M1.45 8h1.8M12.75 8h1.8M3.37 3.37l1.3 1.3M11.33 11.33l1.3 1.3M12.63 3.37l-1.3 1.3M4.67 11.33l-1.3 1.3"/></svg>`;
+export const iconLayers = strokeIcon('<path d="m2.5 5.25 5.5-3 5.5 3-5.5 3zM2.5 8.25l5.5 3 5.5-3M2.5 11l5.5 3 5.5-3"/>');
 
-export const iconMoon = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10.85 1.2a6.8 6.8 0 1 0 3.9 11.05A5.95 5.95 0 1 1 10.85 1.2z"/></svg>`;
+export const iconSettings = strokeIcon('<path d="M2.5 4h3M9.5 4h4M2.5 8h6M12.5 8h1M2.5 12h1M7.5 12h6"/><circle cx="7.5" cy="4" r="1.5"/><circle cx="10.5" cy="8" r="1.5"/><circle cx="5.5" cy="12" r="1.5"/>');
 
-export const iconExport = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" d="M8 2.5v7M5.5 7 8 9.5 10.5 7"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M3.5 11.5h9"/></svg>`;
+export const iconSun = strokeIcon('<circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M12.6 3.4l-.9.9M4.3 11.7l-.9.9"/>');
 
-export const iconImport = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" d="M8 9.5V2.5M5.5 5 8 2.5 10.5 5"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M3.5 11.5h9"/></svg>`;
+export const iconMoon = strokeIcon('<path d="M13.5 10.25A5.75 5.75 0 0 1 5.75 2.5a5.75 5.75 0 1 0 7.75 7.75z"/>');
 
-export const iconKey = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M5.5 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.5 12 4m0 0h-2.5M12 4v2.5"/></svg>`;
+export const iconExport = strokeIcon('<path d="M8 10.5v-8M5.25 5.25 8 2.5l2.75 2.75M3 9.75v3.5h10v-3.5"/>');
 
-export const iconChevronRight = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M6 4l4 4-4 4"/></svg>`;
+export const iconImport = strokeIcon('<path d="M8 2.5v8M5.25 7.75 8 10.5l2.75-2.75M3 9.75v3.5h10v-3.5"/>');
 
-export const iconChevronLeft = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M10 4l-4 4 4 4"/></svg>`;
+export const iconKey = strokeIcon('<circle cx="5.5" cy="9.5" r="2.5"/><path d="m7.4 7.6 4.85-4.85M10.25 4.75l1 1M11.5 3.5l1 1"/>');
 
-export const iconSearch = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.35"/><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M10.2 10.2 13.5 13.5"/></svg>`;
+export const iconChevronRight = strokeIcon('<path d="m6 3.75 4.25 4.25L6 12.25"/>', 14);
 
-export const iconEye = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" d="M1.5 8s2.5-4.5 6.5-4.5 6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.35"/></svg>`;
+export const iconChevronLeft = strokeIcon('<path d="m10 3.75-4.25 4.25L10 12.25"/>', 14);
 
-export const iconEyeOff = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M2 2l12 12"/><path fill="none" stroke="currentColor" stroke-width="1.35" d="M1.5 8s2.5-4.5 6.5-4.5c1.6 0 3 .55 4.1 1.35M14.5 8s-2.5 4.5-6.5 4.5c-1.6 0-3-.55-4.1-1.35"/><path fill="none" stroke="currentColor" stroke-width="1.35" d="M6.2 6.45A2.05 2.05 0 0 0 8 6c1.15 0 2.08.93 2.08 2.08 0 .7-.35 1.32-.88 1.7"/></svg>`;
+export const iconSearch = strokeIcon('<circle cx="7" cy="7" r="4.25"/><path d="m10.2 10.2 3.3 3.3"/>');
 
-export const iconFunction = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M6 2l-2.2 12M12.2 2L10 14M2.5 5.5h11M1.5 10.5h11"/></svg>`;
+export const iconEye = strokeIcon('<path d="M1.5 8S4 3.75 8 3.75 14.5 8 14.5 8 12 12.25 8 12.25 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>');
 
-export const iconFunctionAdd = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M5.5 2.5l-1.5 11M10.5 2.5l-1.5 11M2.5 5.5h10M1.5 9.5h10"/><path fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" d="M13 10v4M11 12h4"/></svg>`;
+export const iconEyeOff = strokeIcon('<path d="M2 2l12 12M3.65 4.15A8.8 8.8 0 0 0 1.5 8S4 12.25 8 12.25c1.05 0 2-.3 2.85-.75M6.35 3.95A6.3 6.3 0 0 1 8 3.75c4 0 6.5 4.25 6.5 4.25a10.2 10.2 0 0 1-1.65 2.15M6.55 6.55A2 2 0 0 0 9.45 9.45"/>');
+
+export const iconFunction = strokeIcon('<path d="m5.5 3.5-3 4.5 3 4.5M10.5 3.5l3 4.5-3 4.5M9 2.75l-2 10.5"/>');
+
+export const iconFunctionAdd = strokeIcon('<path d="m4.75 4.25-2.5 3.75 2.5 3.75M8 4.25 6.5 11.75M11.75 9.5v4M9.75 11.5h4"/>');
+
+export const iconPlay = solidIcon('<path d="M5 3.15v9.7L12.75 8z"/>');
+
+export const iconBookmark = strokeIcon('<path d="M4 2.5h8v11l-4-2.75L4 13.5z"/>');
