@@ -31,8 +31,9 @@ describe("normalizeProxySettings", () => {
     expect(proxy.noProxy).toBe("localhost,127.0.0.1");
   });
 
-  it("presets auth to auto when switching to system or manual", () => {
+  it("presets auth to auto when switching to a proxy source", () => {
     expect(proxyAuthModeForModeChange("system", "basic")).toBe("auto");
+    expect(proxyAuthModeForModeChange("environment", "basic")).toBe("auto");
     expect(proxyAuthModeForModeChange("manual", "basic")).toBe("auto");
     expect(proxyAuthModeForModeChange("none", "basic")).toBe("basic");
   });
@@ -40,6 +41,28 @@ describe("normalizeProxySettings", () => {
   it("normalizes proxy auth mode", () => {
     expect(normalizeProxySettings({ mode: "manual", authMode: "ntlm" }).authMode).toBe("ntlm");
     expect(normalizeProxyAuthMode("bogus")).toBe("auto");
+  });
+
+  it("keeps the environment mode and rejects unknown modes", () => {
+    expect(normalizeProxySettings({ mode: "environment" }).mode).toBe("environment");
+    expect(normalizeProxySettings({ mode: "invalid" as never }).mode).toBe("none");
+  });
+
+  it("enables all environment variables by default and preserves opt-outs", () => {
+    const defaults = normalizeProxySettings({ mode: "environment" });
+    expect(defaults.useHttpProxyEnv).toBe(true);
+    expect(defaults.useHttpsProxyEnv).toBe(true);
+    expect(defaults.useNoProxyEnv).toBe(true);
+
+    const selective = normalizeProxySettings({
+      mode: "environment",
+      useHttpProxyEnv: false,
+      useHttpsProxyEnv: true,
+      useNoProxyEnv: false
+    });
+    expect(selective.useHttpProxyEnv).toBe(false);
+    expect(selective.useHttpsProxyEnv).toBe(true);
+    expect(selective.useNoProxyEnv).toBe(false);
   });
 });
 

@@ -15,7 +15,16 @@ function mockPopulatedState(): AppState {
       ...defaultSettings(),
       theme: "dark",
       language: "es",
-      proxy: { mode: "manual", httpProxy: "http://x", httpsProxy: "", noProxy: "x", authMode: "ntlm" },
+      proxy: {
+        mode: "manual",
+        httpProxy: "http://x",
+        httpsProxy: "",
+        noProxy: "x",
+        useHttpProxyEnv: true,
+        useHttpsProxyEnv: true,
+        useNoProxyEnv: true,
+        authMode: "ntlm"
+      },
       proxyTestUrl: "https://example.com"
     },
     tabs: { "1": { requestId: "1", response: null, error: null, loading: false, streaming: false, requestRunId: null, selectedResponseTab: "body", selectedRequestTab: "body" } },

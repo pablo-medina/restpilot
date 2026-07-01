@@ -44,6 +44,7 @@ pub fn should_use_curl(proxy: Option<&ProxySettings>) -> bool {
     }
     match proxy.mode.as_str() {
         "manual" => proxy_auth_mode(proxy) != "basic" && has_manual_proxy(proxy),
+        "environment" => proxy_auth_mode(proxy) != "basic" && has_environment_proxy(proxy),
         "system" => proxy_auth_mode(proxy) != "basic",
         _ => false,
     }
@@ -54,10 +55,45 @@ fn has_manual_proxy(proxy: &ProxySettings) -> bool {
     http.is_some() || https.is_some()
 }
 
+fn has_environment_proxy(proxy: &ProxySettings) -> bool {
+    let (http, https) = environment_proxy_urls(proxy);
+    http.is_some() || https.is_some()
+}
+
+fn environment_value(enabled: bool, upper: &str, lower: &str) -> Option<String> {
+    if !enabled {
+        return None;
+    }
+    std::env::var(upper)
+        .or_else(|_| std::env::var(lower))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+pub(crate) fn environment_proxy_urls(proxy: &ProxySettings) -> (Option<String>, Option<String>) {
+    (
+        environment_value(proxy.use_http_proxy_env, "HTTP_PROXY", "http_proxy"),
+        environment_value(proxy.use_https_proxy_env, "HTTPS_PROXY", "https_proxy"),
+    )
+}
+
 pub fn resolve_proxy_url_for_target(proxy: &ProxySettings, target_url: &str) -> Option<String> {
     match proxy.mode.as_str() {
         "manual" => {
             let (http, https) = crate::manual_proxy_urls(proxy);
+            let use_https = target_url
+                .trim()
+                .to_ascii_lowercase()
+                .starts_with("https://");
+            if use_https {
+                https.or(http)
+            } else {
+                http.or(https)
+            }
+        }
+        "environment" => {
+            let (http, https) = environment_proxy_urls(proxy);
             let use_https = target_url
                 .trim()
                 .to_ascii_lowercase()
@@ -151,11 +187,10 @@ fn configure_proxy(easy: &mut Easy, proxy: &ProxySettings, target_url: &str) -> 
     // Allow multi-step proxy auth (407 → NTLM) on CONNECT, same as Insomnia/libcurl.
     easy.unrestricted_auth(true)
         .map_err(|error| error.to_string())?;
-    let noproxy = proxy_env::merge_no_proxy_with_process(&proxy_env::no_proxy_list(Some(proxy)));
-    if !noproxy.is_empty() {
-        easy.noproxy(&noproxy)
-            .map_err(|error| error.to_string())?;
-    }
+    let noproxy = proxy_env::effective_no_proxy(Some(proxy));
+    // Set even when empty so an unchecked NO_PROXY cannot leak in from libcurl's process environment.
+    easy.noproxy(&noproxy)
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -441,4 +476,34 @@ pub fn execute_request_curl_sync(
         headers: headers_map,
         body: body_text,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn environment_proxy() -> ProxySettings {
+        ProxySettings {
+            mode: "environment".to_string(),
+            http_proxy: None,
+            https_proxy: None,
+            host: None,
+            port: None,
+            username: None,
+            password: None,
+            auth_mode: Some("auto".to_string()),
+            no_proxy: None,
+            use_http_proxy_env: false,
+            use_https_proxy_env: false,
+            use_no_proxy_env: false,
+        }
+    }
+
+    #[test]
+    fn disabled_environment_proxy_variables_are_ignored() {
+        let proxy = environment_proxy();
+        assert_eq!(environment_proxy_urls(&proxy), (None, None));
+        assert_eq!(resolve_proxy_url_for_target(&proxy, "https://example.com"), None);
+        assert!(!should_use_curl(Some(&proxy)));
+    }
 }

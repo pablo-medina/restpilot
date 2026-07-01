@@ -340,6 +340,7 @@ export const es = {
     proxy: "Proxy",
     proxyNone: "Sin proxy",
     proxySystem: "Proxy del sistema",
+    proxyEnvironment: "Variables de entorno",
     proxyManual: "Proxy manual",
     proxyHttp: "Proxy HTTP",
     proxyHttps: "Proxy HTTPS",

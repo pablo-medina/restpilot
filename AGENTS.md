@@ -155,10 +155,11 @@ Settings UI: `src/settings.ts`. Persisted in `AppConfig.settings.proxy` via `pro
 
 | Field | Meaning |
 |-------|---------|
-| `mode` | `none` — direct connection. `system` — OS/PAC (Windows: WinHTTP). `manual` — full proxy URLs below. |
+| `mode` | `none` — direct connection. `system` — OS/PAC (Windows: WinHTTP). `environment` — selected process environment variables. `manual` — full proxy URLs below. |
 | `httpProxy` / `httpsProxy` | Full URL, e.g. `http://user:pass@proxy.example.com:8080`. Manual mode only. For HTTPS targets, HTTPS proxy alone is enough. |
 | `noProxy` | Comma-separated hosts bypassing the proxy (e.g. `localhost,127.0.0.1`). Merged with process `NO_PROXY` when set. |
-| `authMode` | `auto` (default), `basic`, `ntlm`, `negotiate`. Preset to `auto` when switching to system or manual. |
+| `useHttpProxyEnv` / `useHttpsProxyEnv` / `useNoProxyEnv` | Select which of `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` participate in Environment variables mode. |
+| `authMode` | `auto` (default), `basic`, `ntlm`, `negotiate`. Preset to `auto` when switching to system, environment, or manual. |
 | `proxyTestUrl` | URL used by the Settings **Test** button (same stack as real requests). Test output is a step log dialog (redacted). |
 
 **Do not change proxy/HTTP connection behavior** (`src-tauri` HTTP stack, `curl` dependency, `.cargo/config.toml` NTLM flags) **without explicit user confirmation.** Documentation-only updates are fine.
@@ -172,6 +173,8 @@ Settings UI: `src/settings.ts`. Persisted in `AppConfig.settings.proxy` via `pro
 | `mode === "none"` | reqwest, no proxy |
 | `mode === "manual"` + `authMode === "basic"` | reqwest + Basic proxy auth |
 | `mode === "manual"` + `authMode` auto / ntlm / negotiate | **libcurl** (blocking thread) |
+| `mode === "environment"` + `authMode === "basic"` | reqwest + selected environment proxy |
+| `mode === "environment"` + `authMode` auto / ntlm / negotiate | **libcurl** + selected environment proxy |
 | `mode === "system"` + `authMode !== "basic"` | **libcurl** + PAC / `HTTP_PROXY` / `HTTPS_PROXY` |
 | `mode === "system"` + `authMode === "basic"` | reqwest + resolved system/PAC proxy |
 

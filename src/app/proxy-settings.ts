@@ -44,7 +44,9 @@ export function normalizeNoProxy(value: unknown): string {
 }
 
 export function normalizeProxySettings(proxy: LegacyProxy | undefined): ProxySettings {
-  const mode = proxy?.mode ?? "none";
+  const rawMode = proxy?.mode;
+  const mode: ProxySettings["mode"] =
+    rawMode === "system" || rawMode === "environment" || rawMode === "manual" ? rawMode : "none";
   const authMode = normalizeProxyAuthMode(proxy?.authMode);
   const noProxy = normalizeNoProxy(proxy?.noProxy);
   const defaults: ProxySettings = {
@@ -52,6 +54,9 @@ export function normalizeProxySettings(proxy: LegacyProxy | undefined): ProxySet
     httpProxy: "",
     httpsProxy: "",
     noProxy: "localhost,127.0.0.1",
+    useHttpProxyEnv: true,
+    useHttpsProxyEnv: true,
+    useNoProxyEnv: true,
     authMode: "auto"
   };
 
@@ -65,14 +70,26 @@ export function normalizeProxySettings(proxy: LegacyProxy | undefined): ProxySet
       httpProxy: httpFromFields,
       httpsProxy: httpsFromFields,
       authMode,
-      noProxy
+      noProxy,
+      useHttpProxyEnv: proxy.useHttpProxyEnv !== false,
+      useHttpsProxyEnv: proxy.useHttpsProxyEnv !== false,
+      useNoProxyEnv: proxy.useNoProxyEnv !== false
     };
   }
 
   // One-time migration from older host/port/user/pass fields still in config.json.
   const host = String(proxy.host ?? "").trim();
   if (!host) {
-    return { mode, httpProxy: "", httpsProxy: "", authMode, noProxy };
+    return {
+      mode,
+      httpProxy: "",
+      httpsProxy: "",
+      authMode,
+      noProxy,
+      useHttpProxyEnv: proxy.useHttpProxyEnv !== false,
+      useHttpsProxyEnv: proxy.useHttpsProxyEnv !== false,
+      useNoProxyEnv: proxy.useNoProxyEnv !== false
+    };
   }
 
   const port = typeof proxy.port === "number" && proxy.port > 0 ? proxy.port : 8080;
@@ -83,12 +100,15 @@ export function normalizeProxySettings(proxy: LegacyProxy | undefined): ProxySet
     httpProxy: "",
     httpsProxy: buildProxyUrl(host, port, username, password, "http"),
     authMode,
-    noProxy
+    noProxy,
+    useHttpProxyEnv: proxy.useHttpProxyEnv !== false,
+    useHttpsProxyEnv: proxy.useHttpsProxyEnv !== false,
+    useNoProxyEnv: proxy.useNoProxyEnv !== false
   };
 }
 
-/** When enabling system or manual proxy, default auth to automatic negotiation. */
+/** When enabling a proxy source, default auth to automatic negotiation. */
 export function proxyAuthModeForModeChange(mode: ProxySettings["mode"], current: ProxyAuthMode): ProxyAuthMode {
-  if (mode === "system" || mode === "manual") return "auto";
+  if (mode === "system" || mode === "environment" || mode === "manual") return "auto";
   return current;
 }

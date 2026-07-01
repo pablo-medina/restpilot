@@ -27,6 +27,10 @@ struct RuntimeState {
     cancellations: Mutex<HashSet<String>>,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ProxySettings {
     mode: String,
@@ -49,6 +53,12 @@ pub(crate) struct ProxySettings {
     /// Comma-separated hosts bypassing the proxy (e.g. localhost,127.0.0.1).
     #[serde(default)]
     no_proxy: Option<String>,
+    #[serde(default = "default_true")]
+    use_http_proxy_env: bool,
+    #[serde(default = "default_true")]
+    use_https_proxy_env: bool,
+    #[serde(default = "default_true")]
+    use_no_proxy_env: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -381,8 +391,8 @@ pub(crate) fn build_http_client(
     follow_redirects: bool,
     target_url: Option<&str>,
 ) -> Result<reqwest::Client, String> {
-    let no_proxy = proxy_env::no_proxy_list(proxy.as_ref());
-    proxy_env::with_merged_no_proxy(&no_proxy, || build_http_client_inner(proxy, follow_redirects, target_url))
+    let no_proxy = proxy_env::effective_no_proxy(proxy.as_ref());
+    proxy_env::with_no_proxy(&no_proxy, || build_http_client_inner(proxy, follow_redirects, target_url))
 }
 
 fn build_http_client_inner(
@@ -413,6 +423,19 @@ fn build_http_client_inner(
                 return Err("Manual proxy settings are required.".to_string());
             };
             builder = apply_manual_proxies(builder, proxy)?;
+        }
+        "environment" => {
+            let Some(proxy) = proxy.as_ref() else {
+                return Err("Environment proxy settings are required.".to_string());
+            };
+            let Some(url) = target_url else {
+                return Err("A target URL is required for environment proxy resolution.".to_string());
+            };
+            let resolved = http_curl::resolve_proxy_url_for_target(proxy, url).ok_or_else(|| {
+                "No enabled proxy environment variable contains a proxy URL.".to_string()
+            })?;
+            let for_https = url.trim().to_ascii_lowercase().starts_with("https://");
+            builder = builder.proxy(reqwest_proxy_from_url(resolved.trim(), for_https)?);
         }
         "system" => {
             if let (Some(proxy), Some(url)) = (proxy.as_ref(), target_url) {
@@ -522,9 +545,14 @@ async fn test_proxy_connection(payload: TestProxyPayload) -> TestProxyResult {
     log.push("Sending test request.".to_string());
 
     if let Some(proxy) = payload.proxy.as_ref() {
-        if proxy.mode == "manual" {
-            let (_, https) = manual_proxy_urls(proxy);
-            if let Some(proxy_url) = https {
+        if proxy.mode == "manual" || proxy.mode == "environment" {
+            let proxy_url = if proxy.mode == "manual" {
+                let (http, https) = manual_proxy_urls(proxy);
+                https.or(http)
+            } else {
+                http_curl::resolve_proxy_url_for_target(proxy, &url_trimmed)
+            };
+            if let Some(proxy_url) = proxy_url {
                 if let Some(tcp) = tcp_probe_proxy(&proxy_url).await {
                     log.push(tcp);
                 }

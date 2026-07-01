@@ -26,7 +26,7 @@ export type RequestAuth = {
 export type DialogKind = "information" | "confirmation" | "warning" | "error";
 export type ThemeMode = "light" | "dark";
 export type Locale = "en" | "es";
-export type ProxyMode = "none" | "system" | "manual";
+export type ProxyMode = "none" | "system" | "environment" | "manual";
 /** Proxy authentication negotiated by libcurl (manual) or forced scheme. */
 export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
 export type ActivePanel = "request" | "variables" | "settings" | "functions";
@@ -71,7 +71,13 @@ export type ProxySettings = {
   httpsProxy: string;
   /** Comma-separated hosts that bypass the proxy (e.g. localhost,127.0.0.1). */
   noProxy: string;
-  /** Auto negotiates Basic / NTLM / SPNEGO on 407 (libcurl for manual and system). */
+  /** Read HTTP_PROXY/http_proxy when Environment variables mode is active. */
+  useHttpProxyEnv: boolean;
+  /** Read HTTPS_PROXY/https_proxy when Environment variables mode is active. */
+  useHttpsProxyEnv: boolean;
+  /** Read NO_PROXY/no_proxy when Environment variables mode is active. */
+  useNoProxyEnv: boolean;
+  /** Auto negotiates Basic / NTLM / SPNEGO on 407 for configured proxy sources. */
   authMode: ProxyAuthMode;
 };
 
@@ -214,6 +220,9 @@ export function defaultSettings(): UserSettings {
       httpProxy: "",
       httpsProxy: "",
       noProxy: "localhost,127.0.0.1",
+      useHttpProxyEnv: true,
+      useHttpsProxyEnv: true,
+      useNoProxyEnv: true,
       authMode: "auto"
     },
     maximizeOnStartup: true,

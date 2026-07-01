@@ -50,7 +50,7 @@ pub fn log_proxy_plan(log: &mut ProxyTestLog, proxy: Option<&ProxySettings>, tes
         log.push("HTTP engine: reqwest.".to_string());
     }
 
-    let no_proxy = proxy_env::no_proxy_list(proxy);
+    let no_proxy = proxy_env::effective_no_proxy(proxy);
     if !no_proxy.is_empty() {
         log.push(format!("NO_PROXY: {no_proxy}"));
     }
@@ -64,6 +64,36 @@ pub fn log_proxy_plan(log: &mut ProxyTestLog, proxy: Option<&ProxySettings>, tes
         }
         if let Some(url) = https {
             log.push(format!("Manual HTTPS proxy: {}", redact_proxy_url(&url)));
+        }
+    }
+
+    if proxy.mode == "environment" {
+        let (http, https) = http_curl::environment_proxy_urls(proxy);
+        log.push(format!(
+            "HTTP_PROXY: {}",
+            if proxy.use_http_proxy_env { "enabled" } else { "disabled" }
+        ));
+        if let Some(url) = http {
+            log.push(format!("HTTP_PROXY value: {}", redact_proxy_url(&url)));
+        }
+        log.push(format!(
+            "HTTPS_PROXY: {}",
+            if proxy.use_https_proxy_env { "enabled" } else { "disabled" }
+        ));
+        if let Some(url) = https {
+            log.push(format!("HTTPS_PROXY value: {}", redact_proxy_url(&url)));
+        }
+        log.push(format!(
+            "NO_PROXY: {}",
+            if proxy.use_no_proxy_env { "enabled" } else { "disabled" }
+        ));
+        if let Some(resolved) = http_curl::resolve_proxy_url_for_target(proxy, test_url) {
+            log.push(format!(
+                "Resolved proxy for test URL: {}",
+                redact_proxy_url(&resolved)
+            ));
+        } else {
+            log.push("No enabled proxy environment variable is set for this URL.".to_string());
         }
     }
 
@@ -152,6 +182,9 @@ mod tests {
             password: None,
             auth_mode: Some("auto".to_string()),
             no_proxy: Some("localhost".to_string()),
+            use_http_proxy_env: true,
+            use_https_proxy_env: true,
+            use_no_proxy_env: true,
         };
         let mut log = ProxyTestLog::new();
         log_proxy_plan(&mut log, Some(&proxy), "https://example.com/");

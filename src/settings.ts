@@ -54,7 +54,9 @@ export function renderSettings(settings: UserSettings): string {
   const labels = t().settings;
   const clearFieldLabel = t().request.clear;
   const manualOpen = settings.proxy.mode === "manual";
+  const environmentOpen = settings.proxy.mode === "environment";
   const proxyAuthOpen = settings.proxy.mode !== "none";
+  const configuredNoProxyOpen = proxyAuthOpen && !environmentOpen;
   const proxyTestUrl = settings.proxyTestUrl.trim() || DEFAULT_PROXY_TEST_URL;
   return `
     <section class="settings-view">
@@ -157,6 +159,7 @@ export function renderSettings(settings: UserSettings): string {
                 <select id="setting-proxy-mode">
                   <option value="none" ${settings.proxy.mode === "none" ? "selected" : ""}>${labels.proxyNone}</option>
                   <option value="system" ${settings.proxy.mode === "system" ? "selected" : ""}>${labels.proxySystem}</option>
+                  <option value="environment" ${settings.proxy.mode === "environment" ? "selected" : ""}>${labels.proxyEnvironment}</option>
                   <option value="manual" ${settings.proxy.mode === "manual" ? "selected" : ""}>${labels.proxyManual}</option>
                 </select>
               </label>
@@ -168,6 +171,20 @@ export function renderSettings(settings: UserSettings): string {
                   <option value="ntlm" ${settings.proxy.authMode === "ntlm" ? "selected" : ""}>${labels.proxyAuthNtlm}</option>
                   <option value="negotiate" ${settings.proxy.authMode === "negotiate" ? "selected" : ""}>${labels.proxyAuthNegotiate}</option>
                 </select>
+              </label>
+            </div>
+            <div class="settings-proxy-environment ${environmentOpen ? "open" : ""}" id="proxy-environment-fields">
+              <label class="settings-toggle-row" for="setting-proxy-env-http">
+                <span>HTTP_PROXY</span>
+                <input id="setting-proxy-env-http" type="checkbox" ${settings.proxy.useHttpProxyEnv ? "checked" : ""} ${environmentOpen ? "" : "disabled"} />
+              </label>
+              <label class="settings-toggle-row" for="setting-proxy-env-https">
+                <span>HTTPS_PROXY</span>
+                <input id="setting-proxy-env-https" type="checkbox" ${settings.proxy.useHttpsProxyEnv ? "checked" : ""} ${environmentOpen ? "" : "disabled"} />
+              </label>
+              <label class="settings-toggle-row" for="setting-proxy-env-no-proxy">
+                <span>NO_PROXY</span>
+                <input id="setting-proxy-env-no-proxy" type="checkbox" ${settings.proxy.useNoProxyEnv ? "checked" : ""} ${environmentOpen ? "" : "disabled"} />
               </label>
             </div>
             <div class="settings-proxy-urls ${manualOpen ? "open" : ""}" id="proxy-url-fields">
@@ -202,7 +219,7 @@ export function renderSettings(settings: UserSettings): string {
                 )}
               </label>
             </div>
-            <div class="settings-proxy-bypass ${proxyAuthOpen ? "open" : ""}" id="proxy-bypass-field">
+            <div class="settings-proxy-bypass ${configuredNoProxyOpen ? "open" : ""}" id="proxy-bypass-field">
               <label class="settings-field">
                 <span>${labels.proxyBypass}</span>
                 ${renderProxyPlainField(
@@ -211,7 +228,7 @@ export function renderSettings(settings: UserSettings): string {
                   settings.proxy.noProxy,
                   labels.proxyBypassPlaceholder,
                   clearFieldLabel,
-                  !proxyAuthOpen
+                  !configuredNoProxyOpen
                 )}
               </label>
             </div>
@@ -335,9 +352,12 @@ function setButtonDisabled(id: string, disabled: boolean) {
 
 function syncProxyPanels(settings: UserSettings) {
   const manual = settings.proxy.mode === "manual";
+  const environment = settings.proxy.mode === "environment";
   const authOpen = settings.proxy.mode !== "none";
+  const configuredNoProxyOpen = authOpen && !environment;
   document.querySelector("#proxy-url-fields")?.classList.toggle("open", manual);
-  document.querySelector("#proxy-bypass-field")?.classList.toggle("open", authOpen);
+  document.querySelector("#proxy-environment-fields")?.classList.toggle("open", environment);
+  document.querySelector("#proxy-bypass-field")?.classList.toggle("open", configuredNoProxyOpen);
 
   const authSelect = document.querySelector<HTMLSelectElement>("#setting-proxy-auth");
   if (authSelect) authSelect.disabled = !authOpen;
@@ -348,8 +368,11 @@ function syncProxyPanels(settings: UserSettings) {
   setButtonDisabled("toggle-proxy-https", !manual);
   setButtonDisabled("clear-proxy-http", !manual);
   setButtonDisabled("clear-proxy-https", !manual);
-  setInputDisabled("setting-proxy-no-proxy", !authOpen);
-  setButtonDisabled("clear-proxy-no-proxy", !authOpen);
+  setInputDisabled("setting-proxy-env-http", !environment);
+  setInputDisabled("setting-proxy-env-https", !environment);
+  setInputDisabled("setting-proxy-env-no-proxy", !environment);
+  setInputDisabled("setting-proxy-no-proxy", !configuredNoProxyOpen);
+  setButtonDisabled("clear-proxy-no-proxy", !configuredNoProxyOpen);
 }
 
 function bindProxyFieldClear(
@@ -447,6 +470,19 @@ export function bindSettings(
   document.querySelector<HTMLSelectElement>("#setting-proxy-auth")?.addEventListener("change", (event) => {
     settings.proxy.authMode = (event.target as HTMLSelectElement).value as UserSettings["proxy"]["authMode"];
     onChange();
+  });
+
+  document.querySelector<HTMLInputElement>("#setting-proxy-env-http")?.addEventListener("change", (event) => {
+    settings.proxy.useHttpProxyEnv = (event.target as HTMLInputElement).checked;
+    onChange("persist");
+  });
+  document.querySelector<HTMLInputElement>("#setting-proxy-env-https")?.addEventListener("change", (event) => {
+    settings.proxy.useHttpsProxyEnv = (event.target as HTMLInputElement).checked;
+    onChange("persist");
+  });
+  document.querySelector<HTMLInputElement>("#setting-proxy-env-no-proxy")?.addEventListener("change", (event) => {
+    settings.proxy.useNoProxyEnv = (event.target as HTMLInputElement).checked;
+    onChange("persist");
   });
 
   document.querySelector("#proxy-test-btn")?.addEventListener("click", () => {

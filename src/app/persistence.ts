@@ -15,6 +15,9 @@ export function proxySettingsForSave(proxy: UserSettings["proxy"]): UserSettings
     httpProxy: proxy.httpProxy.trim(),
     httpsProxy: proxy.httpsProxy.trim(),
     noProxy: proxy.noProxy.trim(),
+    useHttpProxyEnv: proxy.useHttpProxyEnv,
+    useHttpsProxyEnv: proxy.useHttpsProxyEnv,
+    useNoProxyEnv: proxy.useNoProxyEnv,
     authMode: proxy.authMode
   };
 }
@@ -26,6 +29,9 @@ export function proxyPayload(proxy: UserSettings["proxy"]) {
     http_proxy: proxy.httpProxy.trim() || null,
     https_proxy: proxy.httpsProxy.trim() || null,
     no_proxy: proxy.noProxy.trim() || null,
+    use_http_proxy_env: proxy.useHttpProxyEnv,
+    use_https_proxy_env: proxy.useHttpsProxyEnv,
+    use_no_proxy_env: proxy.useNoProxyEnv,
     auth_mode: proxy.authMode
   };
 }
