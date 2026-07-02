@@ -124,9 +124,10 @@ function RequestTab({
 }) {
   const request = getRequest(requestId);
   if (!request) return null;
+  const isPreview = state.previewTabId === requestId;
   return (
     <div
-      className={`request-tab${active ? " active" : ""}`}
+      className={`request-tab${active ? " active" : ""}${isPreview ? " is-preview" : ""}`}
       data-open-tab={requestId}
       role="tab"
       aria-selected={active}

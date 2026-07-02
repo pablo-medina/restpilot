@@ -11,7 +11,7 @@ import { t } from "../../i18n";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { TreeItem } from "../../types";
 import { treeRowClassName } from "../../ui/collection-tree";
-import { openRequestTab } from "../lib/tab-actions";
+import { openRequestTab, openRequestTabAsPreview } from "../lib/tab-actions";
 import { deleteTreeItem } from "../lib/collection-tree-actions";
 
 type TreeRowProps = {
@@ -39,16 +39,23 @@ function TreeRow({ item, depth, searchVisible, refresh, onSelect }: TreeRowProps
   };
 
   const selectRow = () => {
-    if (
-      item.kind === "request" &&
-      state.settings.clickToSelect &&
-      state.openTabs.includes(item.id)
-    ) {
-      setState(prev => ({ ...prev, activeTabId: item.id, selectedTreeId: item.id }));
-      refresh();
+    if (item.kind !== "request") {
+      onSelect(item.id);
       return;
     }
-    onSelect(item.id);
+    if (!state.settings.clickToSelect) {
+      onSelect(item.id);
+      return;
+    }
+    // clickToSelect ON: if the tab is already permanent, just switch to it.
+    // Otherwise open as a preview tab (replaces any existing preview).
+    const isPermanent = state.openTabs.includes(item.id) && state.previewTabId !== item.id;
+    if (isPermanent) {
+      setState(prev => ({ ...prev, activeTabId: item.id, selectedTreeId: item.id, activePanel: "request" }));
+      refresh();
+    } else {
+      openRequestTabAsPreview(item.id, refresh);
+    }
   };
 
   const commitRename = (value: string) => {

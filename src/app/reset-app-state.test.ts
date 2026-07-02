@@ -67,7 +67,8 @@ function mockPopulatedState(): AppState {
     activeFunctionExtractorLoading: false,
     activeFunctionPopover: null,
     activeSidebarFunctionPlayLoading: null,
-    editingEnvId: "e1"
+    editingEnvId: "e1",
+    previewTabId: "1",
   };
 }
 

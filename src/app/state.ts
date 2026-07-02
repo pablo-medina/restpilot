@@ -42,6 +42,8 @@ export type AppState = AppConfig & {
   activeFunctionPopover: "params" | "headers" | "body" | "auth" | null;
   activeSidebarFunctionPlayLoading: string | null;
   editingEnvId: string | null;
+  /** ID of the tab currently in "preview" mode (shown in italic). Null if none. */
+  previewTabId: string | null;
 };
 
 
@@ -69,7 +71,8 @@ export let state: AppState = {
   activeFunctionExtractorLoading: false,
   activeFunctionPopover: null,
   activeSidebarFunctionPlayLoading: null,
-  editingEnvId: null
+  editingEnvId: null,
+  previewTabId: null,
 };
 
 // ── Store primitives ────────────────────────────────────────────────────────

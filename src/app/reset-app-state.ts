@@ -27,6 +27,7 @@ export function defaultRuntimeState(): Pick<
   | "activeFunctionPopover"
   | "activeSidebarFunctionPlayLoading"
   | "editingEnvId"
+  | "previewTabId"
 > {
 
   return {
@@ -52,7 +53,8 @@ export function defaultRuntimeState(): Pick<
     activeFunctionExtractorLoading: false,
     activeFunctionPopover: null,
     activeSidebarFunctionPlayLoading: null,
-    editingEnvId: null
+    editingEnvId: null,
+    previewTabId: null,
   };
 }
 

@@ -67,21 +67,25 @@ describe("row contextual actions", () => {
     document.body.innerHTML = '<div id="app"></div>';
   });
 
-  it("collection rename button enters edit mode", async () => {
+  it("collection row F2 shortcut enters rename mode", async () => {
     const user = userEvent.setup();
     render(<CollectionTree refresh={refresh} />);
 
-    await user.click(screen.getByRole("button", { name: /rename/i }));
+    const row = document.querySelector('[data-tree-id="req-1"]') as HTMLElement;
+    row.focus();
+    await user.keyboard("{F2}");
 
     expect(state.editingTreeId).toBe("req-1");
     expect(screen.getByRole("textbox", { name: /rename/i })).toBeTruthy();
   });
 
-  it("collection delete button removes item after confirm", async () => {
+  it("collection row Delete shortcut removes item after confirm", async () => {
     const user = userEvent.setup();
     render(<CollectionTree refresh={refresh} />);
 
-    await user.click(screen.getByRole("button", { name: /delete/i }));
+    const row = document.querySelector('[data-tree-id="req-1"]') as HTMLElement;
+    row.focus();
+    await user.keyboard("{Delete}");
 
     expect(state.items).toHaveLength(0);
   });

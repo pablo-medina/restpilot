@@ -682,6 +682,7 @@ html[data-window-platform="macos"] .activity-bar {
   position: relative;
   display: grid;
   grid-template-columns: 12px 18px minmax(0, 1fr);
+  column-gap: 4px;
   align-items: center;
   height: 26px;
   padding-right: 4px;
@@ -809,7 +810,7 @@ html[data-window-platform="macos"] .activity-bar {
 
 .tree-method {
   flex-shrink: 0;
-  min-width: 2.8em;
+  min-width: 3.4em;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1239,6 +1240,10 @@ html[data-window-platform="macos"] .activity-bar {
   background: var(--rp-bg);
   box-shadow: inset 0 2px 0 var(--rp-accent);
   color: var(--rp-text);
+}
+
+.request-tab.is-preview .tab-label {
+  font-style: italic;
 }
 
 .request-tab .tab-label {
@@ -2982,10 +2987,27 @@ select,
 
 .window-layer--stack {
   z-index: 30;
+  pointer-events: auto;
 }
 
 .window-layer--settings {
   z-index: 20;
+  pointer-events: auto;
+}
+
+/* Transparent backdrop in all themes — blocks clicks on content behind any open dialog. */
+.window-layer--stack::before,
+.window-layer--settings::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+/* Dark theme: add visible scrim on top of the transparent blocker. */
+[data-theme="dark"] .window-layer--stack::before,
+[data-theme="dark"] .window-layer--settings::before {
+  background: rgba(0, 0, 0, 0.42);
 }
 
 .app-toast {
@@ -4416,8 +4438,6 @@ select,
 [data-theme="dark"] .variables-stats-card,
 [data-theme="dark"] .variables-panel,
 [data-theme="dark"] .variable-item,
-[data-theme="dark"] .app-dialog,
-[data-theme="dark"] .context-menu,
 [data-theme="dark"] .app-toast,
 [data-theme="dark"] .app-popover,
 [data-theme="dark"] .var-autocomplete,
@@ -4425,6 +4445,20 @@ select,
   background: var(--dark-bg-surface);
   border-color: var(--dark-border);
   color: var(--dark-text);
+}
+
+[data-theme="dark"] .app-dialog {
+  background: var(--dark-bg-raised);
+  border-color: var(--rp-border);
+  color: var(--dark-text);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .context-menu {
+  background: var(--rp-chrome-elevated);
+  border-color: var(--rp-border);
+  color: var(--rp-text);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 [data-theme="dark"] .context-menu-shortcut {
@@ -4480,7 +4514,7 @@ select,
 }
 
 [data-theme="dark"] .app-dialog.is-dragging {
-  background: #22211e;
+  background: var(--dark-bg-raised);
 }
 
 [data-theme="dark"] .brand-mark {
@@ -4723,8 +4757,20 @@ select,
   color: var(--dark-accent-bright);
 }
 
+[data-theme="dark"] .context-menu button {
+  color: var(--rp-text);
+}
+
 [data-theme="dark"] .context-menu button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+[data-theme="dark"] .context-menu button.danger {
+  color: #e07a6a;
+}
+
+[data-theme="dark"] .context-menu hr {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme="dark"] .settings-radio-row {
@@ -4909,6 +4955,44 @@ select,
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(236, 231, 220, 0.22);
   background-clip: padding-box;
+}
+
+/* ── Missing dark overrides ──────────────────────────────────────────────── */
+
+/* Empty workspace state — was rgba(255,252,246,0.48) which composited to medium gray */
+[data-theme="dark"] .empty-editor {
+  background: var(--rp-surface);
+  border-color: var(--rp-border-subtle);
+  color: var(--rp-text-faint);
+}
+
+/* Response empty state — hardcoded light colors */
+[data-theme="dark"] .response-empty {
+  color: var(--rp-text-muted);
+}
+
+[data-theme="dark"] .response-empty h2 {
+  color: var(--rp-text);
+}
+
+[data-theme="dark"] .response-empty.error h2 {
+  color: #e07a6a;
+}
+
+/* Sidebar navigation tab — hover visible on dark */
+[data-theme="dark"] .sidebar-navigation-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* Sidebar action popover (+ and ⋯ menus at sidebar header) */
+[data-theme="dark"] .sidebar-action-popover {
+  background: var(--rp-chrome-elevated);
+  border-color: var(--rp-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="dark"] .sidebar-action-popover button:hover {
+  background: rgba(255, 255, 255, 0.09);
 }
 
 @media (max-width: 1180px) {
