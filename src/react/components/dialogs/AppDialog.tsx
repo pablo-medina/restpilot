@@ -128,6 +128,7 @@ export function AppDialog({ dialog, isTop }: Props) {
             <button
               className="mini-btn dialog-window-btn"
               type="button"
+              data-dialog-action="maximize"
               title={dialog.maximized ? labels.restore : labels.maximize}
               aria-label={dialog.maximized ? labels.restore : labels.maximize}
               onClick={() => submitDialogAction(dialog.id, "maximize", rootRef.current)}
@@ -138,6 +139,7 @@ export function AppDialog({ dialog, isTop }: Props) {
           <button
             className="mini-btn dialog-window-btn"
             type="button"
+            data-dialog-action="close"
             title={labels.close}
             aria-label={labels.close}
             onClick={() => submitDialogAction(dialog.id, "close", rootRef.current)}

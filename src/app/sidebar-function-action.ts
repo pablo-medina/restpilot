@@ -104,8 +104,11 @@ export async function runSidebarFunctionAction(funcId: string, onRefresh: () => 
   setState(prev => ({ ...prev, activeSidebarFunctionPlayLoading: funcId }));
   onRefresh();
 
+  let success = false;
+  let extractedResult: unknown = null;
+  let errorMsg = "";
+
   try {
-    let extractedResult: unknown;
     if (func.functionType === "javascript") {
       extractedResult = runStandaloneJavascript(func);
     } else {
@@ -119,11 +122,28 @@ export async function runSidebarFunctionAction(funcId: string, onRefresh: () => 
       extractedValue: extractedResult
     };
     scheduleSave();
+    success = true;
 
     if (state.activeFunctionId === funcId) {
       onRefresh();
     }
+  } catch (error: unknown) {
+    errorMsg = error instanceof Error ? error.message : String(error);
+    func.lastTestResult = {
+      success: false,
+      error: errorMsg
+    };
 
+    if (state.activeFunctionId === funcId) {
+      onRefresh();
+    }
+  } finally {
+    // Clear the spinner before showing the result dialog.
+    setState(prev => ({ ...prev, activeSidebarFunctionPlayLoading: null }));
+    onRefresh();
+  }
+
+  if (success) {
     await applicationDialog({
       title: t().functions.dialogResultTitle.replace("{name}", func.name),
       body: "",
@@ -134,17 +154,7 @@ export async function runSidebarFunctionAction(funcId: string, onRefresh: () => 
       resizable: true,
       actions: [{ id: "close", label: t().dialog.close ?? "Close", role: "primary" }]
     });
-  } catch (error: unknown) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    func.lastTestResult = {
-      success: false,
-      error: errorMsg
-    };
-
-    if (state.activeFunctionId === funcId) {
-      onRefresh();
-    }
-
+  } else {
     await applicationDialog({
       title: t().functions.dialogErrorTitle.replace("{name}", func.name),
       body: "",
@@ -155,8 +165,5 @@ export async function runSidebarFunctionAction(funcId: string, onRefresh: () => 
       resizable: false,
       actions: [{ id: "close", label: t().dialog.close ?? "Close", role: "primary" }]
     });
-  } finally {
-    setState(prev => ({ ...prev, activeSidebarFunctionPlayLoading: null }));
-    onRefresh();
   }
 }

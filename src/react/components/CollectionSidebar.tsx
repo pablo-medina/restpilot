@@ -273,7 +273,9 @@ export function CollectionSidebar({ refresh }: Props) {
 
   return (
     <aside className="app-sidebar collection-sidebar" aria-label={contextTitle} aria-hidden={!sidebarVisible}>
-      <SidebarNavigation activePanel={activePanel} refresh={refresh} />
+      <div className="sidebar-header">
+        <SidebarNavigation activePanel={activePanel} refresh={refresh} />
+      </div>
       <div className="sidebar-context">{context}</div>
     </aside>
   );

@@ -374,6 +374,15 @@ button {
   display: none;
 }
 
+/* Shared styles for all draggable title bar regions. */
+.title-bar-center,
+.title-bar-drag {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+  cursor: default;
+}
+
 /* Drag filler when there are no open tabs (tabs host hidden). */
 .title-bar--tabs > .title-bar-drag {
   flex: 1 1 auto;
@@ -394,7 +403,6 @@ button {
   flex: 1 1 auto;
   min-width: 48px;
   align-self: stretch;
-  pointer-events: none;
 }
 
 .title-bar--tabs .tab-bar {
@@ -705,10 +713,14 @@ html[data-window-platform="macos"] .activity-bar {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding-right: 68px;
+  padding-right: 0;
 }
 
-.tree-row.is-editing .tree-main {
+.functions-tree .tree-main {
+  padding-right: 32px;
+}
+
+.functions-tree .tree-row.is-editing .tree-main {
   padding-right: 0;
 }
 
@@ -766,35 +778,33 @@ html[data-window-platform="macos"] .activity-bar {
   z-index: 10000;
 }
 
-.tree-icon,
 .tree-chevron {
-  color: #3d7f6f;
-  font-size: 10px;
-  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rp-text-muted);
+  transition: transform 180ms ease;
+}
+
+.tree-row.is-expanded > .tree-chevron {
+  transform: rotate(90deg);
+}
+
+.tree-chevron--leaf {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .tree-item-icon {
-  width: 14px;
-  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #b88b44;
 }
 
-.folder-icon {
-  position: relative;
-  border: 1px solid #b88b44;
-  border-radius: 2px;
-  background: rgba(184, 139, 68, 0.16);
-}
-
-.folder-icon::before {
-  position: absolute;
-  left: 1px;
-  top: -4px;
-  width: 7px;
-  height: 4px;
-  border: 1px solid #b88b44;
-  border-bottom: 0;
-  border-radius: 2px 2px 0 0;
-  content: "";
+.tree-row.is-selected .tree-item-icon,
+.tree-row.is-open-tab .tree-item-icon {
+  color: #c4973a;
 }
 
 .tree-method {
@@ -943,6 +953,14 @@ html[data-window-platform="macos"] .activity-bar {
   color: var(--field-remove-color);
 }
 
+.func-play-btn {
+  color: #2ecc71;
+}
+
+.func-play-btn:hover {
+  color: #27ae60;
+}
+
 [data-theme="dark"] .tree-rename-input {
   background: rgba(24, 23, 21, 0.95);
   color: #ece7dc;
@@ -972,6 +990,15 @@ html[data-window-platform="macos"] .activity-bar {
 [data-theme="dark"] .tree-action-btn.danger:hover {
   background: rgba(181, 74, 58, 0.2);
   color: #e07060;
+}
+
+[data-theme="dark"] .tree-item-icon {
+  color: #c4973a;
+}
+
+[data-theme="dark"] .tree-row.is-selected .tree-item-icon,
+[data-theme="dark"] .tree-row.is-open-tab .tree-item-icon {
+  color: #d4a85a;
 }
 
 .variables-link {
@@ -3604,6 +3631,60 @@ select,
   overflow: visible;
 }
 
+/* Shared item/action styles used by both React and legacy selection popovers. */
+.zen-popover-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--rp-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  transition: background 0.15s ease;
+  box-sizing: border-box;
+  margin-bottom: 2px;
+}
+
+.zen-popover-item:hover {
+  background: var(--rp-hover);
+}
+
+.zen-popover-item.active {
+  background: rgba(61, 127, 111, 0.1);
+  font-weight: 600;
+  color: #3d7f6f;
+}
+
+.zen-manage-btn {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  padding: 8px;
+  font-weight: 600;
+  display: block;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--rp-text);
+  transition: background 0.15s ease;
+  border-radius: 6px;
+}
+
+.zen-manage-btn:hover {
+  background: var(--rp-hover);
+}
+
+.var-list-item.is-disabled {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
 .function-import-popover .app-popover-body,
 .describe-popover .app-popover-body {
   display: flex;
@@ -5130,12 +5211,22 @@ select,
   display: flex;
   flex-direction: column;
   width: 260px;
-  padding: 12px 12px 10px;
+  padding: 0;
   box-sizing: border-box;
   border-right: 1px solid var(--rp-border);
   background: var(--rp-chrome-elevated) !important;
   backdrop-filter: none !important;
   overflow: visible;
+}
+
+.sidebar-header {
+  flex-shrink: 0;
+  height: var(--title-bar-height);
+  min-height: var(--title-bar-height);
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  border-bottom: 1px solid var(--rp-border);
 }
 
 .sidebar-context-header,
@@ -5145,48 +5236,46 @@ select,
   align-items: center;
 }
 
+/* Flat tab strip — no pill container, icon-only, scales to any number of sections */
 .sidebar-navigation {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 3px;
-  padding: 3px;
-  border: 1px solid var(--rp-border);
-  border-radius: 8px;
-  background: var(--rp-surface-muted);
+  display: flex;
+  gap: 0;
+  padding: 0;
 }
 
 .sidebar-navigation-item {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 0;
-  height: 32px;
+  width: 44px;
+  flex-shrink: 0;
+  height: 100%;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--rp-text-muted);
   cursor: pointer;
   font: inherit;
-  font-size: 10.5px;
-  font-weight: 600;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
 .sidebar-navigation-item svg {
   flex: 0 0 auto;
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
 }
 
 .sidebar-navigation-item:hover {
   color: var(--rp-text);
-  background: var(--rp-surface);
+  background: rgba(52, 48, 42, 0.05);
 }
 
 .sidebar-navigation-item.is-active {
   color: var(--rp-accent-strong);
-  background: var(--rp-surface);
-  box-shadow: 0 1px 3px rgba(20, 29, 43, 0.09);
+  background: transparent;
+  border-bottom-color: var(--rp-accent-strong);
 }
 
 .sidebar-context {
@@ -5194,7 +5283,7 @@ select,
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding-top: 15px;
+  padding: 12px 12px 0;
 }
 
 .sidebar-context-header {

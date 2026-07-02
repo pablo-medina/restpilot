@@ -1,7 +1,7 @@
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { runSidebarFunctionAction } from "../../../app/sidebar-function-action";
 import { state } from "../../../app/state";
-import { iconFunction, iconPlay, iconRemove, iconRename } from "../../../lib/icons";
+import { iconFunction, iconPlay } from "../../../lib/icons";
 import { t } from "../../../i18n";
 import {
   cancelFuncRename,
@@ -9,7 +9,7 @@ import {
   deleteFunction,
   openFunctionInWorkspace,
   selectFunctionInSidebar,
-  startFuncRename
+  startFuncRename,
 } from "../../lib/function-actions";
 import { useRenderGeneration } from "../../hooks/useRenderGeneration";
 import { stopRowActionPointer } from "../../lib/row-action-events";
@@ -53,7 +53,7 @@ export function FunctionsTree({ refresh }: Props) {
   };
 
   return (
-    <section className="tree" tabIndex={-1} aria-label={t().nav.functions} onKeyDown={handleTreeKeyDown}>
+    <section className="tree functions-tree" tabIndex={-1} aria-label={t().nav.functions} onKeyDown={handleTreeKeyDown}>
       {filtered.map((func) => {
         const active = func.id === state.activeFunctionId;
         const selected = func.id === state.selectedFunctionId;
@@ -141,19 +141,12 @@ export function FunctionsTree({ refresh }: Props) {
             {!editing ? (
               <span className="tree-row-actions">
                 <button
-                  className="mini-btn tree-action-btn"
+                  className="mini-btn tree-action-btn func-play-btn"
                   data-func-action="play"
                   data-func-id={func.id}
                   type="button"
                   title="Run & Save Variable"
                   aria-label="Run & Save Variable"
-                  style={{
-                    color: "#2ecc71",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    position: "relative"
-                  }}
                   onClick={(event) => {
                     event.stopPropagation();
                     void runSidebarFunctionAction(func.id, refresh);
@@ -175,34 +168,6 @@ export function FunctionsTree({ refresh }: Props) {
                   ) : (
                     <Icon html={iconPlay} />
                   )}
-                </button>
-                <button
-                  className="mini-btn tree-action-btn"
-                  data-func-action="rename"
-                  data-func-id={func.id}
-                  type="button"
-                  title={labels.rename}
-                  aria-label={labels.rename}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    startFuncRename(func.id, refresh);
-                  }}
-                >
-                  <Icon html={iconRename} />
-                </button>
-                <button
-                  className="mini-btn tree-action-btn danger"
-                  data-func-action="delete"
-                  data-func-id={func.id}
-                  type="button"
-                  title={labels.delete}
-                  aria-label={labels.delete}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void deleteFunction(func.id, refresh);
-                  }}
-                >
-                  <Icon html={iconRemove} />
                 </button>
               </span>
             ) : null}

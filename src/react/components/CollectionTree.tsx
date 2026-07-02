@@ -6,15 +6,13 @@ import { scheduleSave } from "../../app/persistence";
 import { setState, state } from "../../app/state";
 import { collectionSearchVisibleIds, folderExpandedForSearch } from "../../app/collection-search";
 import { COLLECTION_ROOT_PARENT_ID } from "../../app/collection-parent";
-import { iconDuplicate, iconRemove, iconRename } from "../../lib/icons";
 import { isHttpMethod } from "../../lib/http-methods";
 import { t } from "../../i18n";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { TreeItem } from "../../types";
 import { treeRowClassName } from "../../ui/collection-tree";
 import { openRequestTab } from "../lib/tab-actions";
-import { deleteTreeItem, duplicateTreeItem } from "../lib/collection-tree-actions";
-import { Icon } from "./Icon";
+import { deleteTreeItem } from "../lib/collection-tree-actions";
 
 type TreeRowProps = {
   item: TreeItem;
@@ -68,20 +66,19 @@ function TreeRow({ item, depth, searchVisible, refresh, onSelect }: TreeRowProps
   return (
     <>
       <div
-        className={treeRowClassName(item, editing)}
+        className={`${treeRowClassName(item, editing)}${expanded ? " is-expanded" : ""}`}
         tabIndex={0}
         data-tree-id={item.id}
         data-kind={item.kind}
         style={{ "--depth": depth } as CSSProperties}
         onDoubleClick={(event) => {
-          if ((event.target as HTMLElement).closest("[data-tree-action], .tree-rename-input")) return;
+          if ((event.target as HTMLElement).closest(".tree-rename-input")) return;
           handleActivate();
         }}
         onKeyDown={(event) => {
           if ((event.target as HTMLElement).closest(".tree-rename-input")) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            if ((event.target as HTMLElement).closest("[data-tree-action]")) return;
             handleActivate();
           } else if (event.key === "F2") {
             event.preventDefault();
@@ -94,14 +91,23 @@ function TreeRow({ item, depth, searchVisible, refresh, onSelect }: TreeRowProps
         }}
       >
         <span
-          className="tree-chevron"
-          onClick={selectRow}
-          onMouseDown={stopRowActionPointer}
+          className={`tree-chevron${item.kind !== "folder" ? " tree-chevron--leaf" : ""}`}
+          onClick={item.kind === "folder" ? selectRow : undefined}
+          onMouseDown={item.kind === "folder" ? stopRowActionPointer : undefined}
+          aria-hidden="true"
         >
-          {item.kind === "folder" ? (expanded ? "v" : ">") : ""}
+          {item.kind === "folder" ? (
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 18L15 12 9 6" />
+            </svg>
+          ) : null}
         </span>
         {item.kind === "folder" ? (
-          <span className="tree-item-icon folder-icon" onClick={selectRow} onMouseDown={stopRowActionPointer} />
+          <span className="tree-item-icon" onClick={selectRow} onMouseDown={stopRowActionPointer} aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 7C3 5.9 3.9 5 5 5H9.17C9.7 5 10.21 5.21 10.59 5.59L11.41 6.41C11.79 6.79 12.3 7 12.83 7H19C20.1 7 21 7.9 21 9V17C21 18.1 20.1 19 19 19H5C3.9 19 3 18.1 3 17V7z" />
+            </svg>
+          </span>
         ) : item.kind === "request" && !editing ? (
           <span
             className="tree-method"
@@ -115,7 +121,7 @@ function TreeRow({ item, depth, searchVisible, refresh, onSelect }: TreeRowProps
         <div
           className="tree-main"
           onClick={(event) => {
-            if ((event.target as HTMLElement).closest("[data-tree-action], .tree-rename-input")) return;
+            if ((event.target as HTMLElement).closest(".tree-rename-input")) return;
             selectRow();
           }}
         >
@@ -149,53 +155,6 @@ function TreeRow({ item, depth, searchVisible, refresh, onSelect }: TreeRowProps
             </span>
           )}
         </div>
-        {!editing ? (
-          <span className="tree-row-actions">
-            <button
-              className="mini-btn tree-action-btn"
-              data-tree-action="rename"
-              data-tree-id={item.id}
-              type="button"
-              title={labels.rename}
-              aria-label={labels.rename}
-              onClick={(event) => {
-                event.stopPropagation();
-                setState(prev => ({ ...prev, editingTreeId: item.id, selectedTreeId: item.id }));
-                refresh();
-              }}
-            >
-              <Icon html={iconRename} />
-            </button>
-            <button
-              className="mini-btn tree-action-btn"
-              data-tree-action="duplicate"
-              data-tree-id={item.id}
-              type="button"
-              title={labels.duplicate}
-              aria-label={labels.duplicate}
-              onClick={(event) => {
-                event.stopPropagation();
-                duplicateTreeItem(item.id, refresh);
-              }}
-            >
-              <Icon html={iconDuplicate} />
-            </button>
-            <button
-              className="mini-btn tree-action-btn danger"
-              data-tree-action="delete"
-              data-tree-id={item.id}
-              type="button"
-              title={labels.delete}
-              aria-label={labels.delete}
-              onClick={(event) => {
-                event.stopPropagation();
-                void deleteTreeItem(item.id, refresh);
-              }}
-            >
-              <Icon html={iconRemove} />
-            </button>
-          </span>
-        ) : null}
       </div>
       {item.kind === "folder" && item.expanded
         ? state.items
@@ -264,7 +223,7 @@ export function CollectionTree({ refresh, panelRef }: Props) {
   return (
     <section
       ref={treeRef}
-      className="tree"
+      className="tree collection-tree"
       tabIndex={-1}
       aria-label={t().nav.collection}
       onKeyDown={handleTreeKeyDown}

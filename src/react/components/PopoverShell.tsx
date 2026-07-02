@@ -51,6 +51,7 @@ export function PopoverShell({ className, title, ariaLabel, anchor, onClose, chi
       className={`app-popover${extraClass}`}
       role="dialog"
       aria-label={ariaLabel ?? title}
+      data-react-portal="true"
     >
       <header className="app-popover-head">
         <strong className="app-popover-title">{title}</strong>

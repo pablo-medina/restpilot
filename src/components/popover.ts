@@ -73,5 +73,8 @@ export function bindPopoverClose(popover: HTMLElement, onClose: () => void) {
 }
 
 export function removePopovers() {
-  document.querySelectorAll(".app-popover").forEach((node) => node.remove());
+  // Only remove legacy (non-React) popovers. React-managed portals have
+  // data-react-portal="true" and must be unmounted by React to avoid
+  // reconciliation errors when React later tries to remove an already-gone node.
+  document.querySelectorAll(".app-popover:not([data-react-portal])").forEach((node) => node.remove());
 }

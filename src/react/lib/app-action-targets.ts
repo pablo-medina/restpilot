@@ -4,7 +4,6 @@
  * These are elements with explicit React onClick handlers that perform their own actions.
  */
 const APP_ACTION_SELECTOR = [
-  "[data-tree-action]",
   "[data-func-action]",
   ".tree-row-actions",
   ".tree-action-btn",
