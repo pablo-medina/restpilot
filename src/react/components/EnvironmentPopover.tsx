@@ -82,7 +82,7 @@ export function EnvironmentPopover({ anchor }: Props) {
               }}
             >
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{env.name}</span>
-              {isActive && <span style={{ color: "#2e7d32", fontWeight: "bold", fontSize: 12, marginLeft: "auto" }}>✓</span>}
+              {isActive && <span style={{ color: "var(--rp-accent-strong)", fontWeight: "bold", fontSize: 12, marginLeft: "auto" }}>✓</span>}
             </button>
           );
         })}

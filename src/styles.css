@@ -1420,7 +1420,7 @@ html[data-window-platform="macos"] .activity-bar {
 
 .env-chip-caret {
   flex-shrink: 0;
-  color: #6f6a62;
+  color: var(--rp-text-muted);
   font-size: 10px;
 }
 
@@ -1471,7 +1471,7 @@ html[data-window-platform="macos"] .activity-bar {
 .app-popover-title {
   font-size: 12px;
   font-weight: 700;
-  color: #2f5f54;
+  color: var(--rp-accent-strong);
 }
 
 .mini-btn.app-popover-close {
@@ -1849,9 +1849,9 @@ html[data-window-platform="macos"] .activity-bar {
   align-items: center;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px dashed rgba(52, 48, 42, 0.2);
+  border: 1px dashed var(--rp-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--rp-input-bg);
   cursor: pointer;
 }
 
@@ -1859,7 +1859,7 @@ html[data-window-platform="macos"] .activity-bar {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #555048;
+  color: var(--rp-text-secondary);
   font-size: 12px;
 }
 
@@ -2630,7 +2630,7 @@ select,
   height: 52px;
   border-radius: 14px;
   background: rgba(61, 127, 111, 0.14);
-  color: #2f5f54;
+  color: var(--rp-accent-strong);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 18px;
   font-weight: 700;
@@ -2805,7 +2805,7 @@ select,
 
 .request-auth-panel .auth-hint {
   margin: 0;
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -3218,7 +3218,7 @@ select,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #777067;
+  color: var(--rp-text-muted);
 }
 
 .dialog-body {
@@ -3288,6 +3288,9 @@ select,
 .app-dialog.resizable .dialog-body.dialog-body-curl {
   display: flex;
   flex-direction: column;
+  /* The pre block scrolls internally; the outer dialog body must not scroll as a whole
+     or the summary line scrolls away together with the payload text. */
+  overflow: hidden;
 }
 
 .curl-preview {
@@ -3302,6 +3305,7 @@ select,
 .curl-preview-summary {
   display: grid;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .curl-preview-line {
@@ -3320,18 +3324,19 @@ select,
 }
 
 .curl-preview-meta {
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 12px;
 }
 
 .curl-preview pre {
   flex: 1;
-  min-height: 120px;
+  min-height: 0;
   margin: 0;
   padding: 12px;
-  overflow: visible;
+  overflow: auto;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
   line-height: 1.45;
@@ -3699,7 +3704,7 @@ select,
 .zen-popover-item.active {
   background: rgba(61, 127, 111, 0.1);
   font-weight: 600;
-  color: #3d7f6f;
+  color: var(--rp-accent);
 }
 
 .zen-manage-btn {
@@ -4551,7 +4556,7 @@ select,
   --rp-text: #ece7dc;
   --rp-text-secondary: #c8c2b8;
   --rp-text-muted: #9a948b;
-  --rp-text-faint: #7a756e;
+  --rp-text-faint: #928b81;
   --rp-border: #33302b;
   --rp-border-subtle: #2a2825;
   --rp-accent: #7eb8a8;
@@ -4834,6 +4839,16 @@ select,
 [data-theme="dark"] .mini-btn:hover {
   background: rgba(255, 255, 255, 0.06);
   color: var(--dark-text);
+}
+
+/* Keep the delete (×) control's dedicated red — the generic .mini-btn dark rule above
+   would otherwise win by source order and mute it back to gray. */
+[data-theme="dark"] .mini-btn.field-remove-btn {
+  color: var(--field-remove-color);
+}
+
+[data-theme="dark"] .mini-btn.field-remove-btn:hover {
+  color: var(--field-remove-color-hover);
 }
 
 [data-theme="dark"] .mini-btn.field-remove-btn:hover,
@@ -6556,3 +6571,4 @@ select,
 [data-theme="dark"] .error-boundary-message {
   color: #e07a6a;
 }
+

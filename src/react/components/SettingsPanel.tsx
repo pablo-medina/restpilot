@@ -616,7 +616,7 @@ export function SettingsPanel({ refresh }: Props) {
               <dl className="about-list">
                 <div>
                   <dt>{labels.aboutAuthor}</dt>
-                  <dd>Pablo Medina</dd>
+                  <dd>© 2026 Pablo Medina</dd>
                 </div>
                 <div>
                   <dt>{labels.aboutDescription}</dt>

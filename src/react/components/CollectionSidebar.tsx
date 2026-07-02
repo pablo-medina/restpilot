@@ -28,6 +28,10 @@ type Props = {
   refresh: () => void;
 };
 
+function closeActionMenu(event: { currentTarget: HTMLElement }) {
+  event.currentTarget.closest("details")?.removeAttribute("open");
+}
+
 function SidebarSearch({
   id,
   clearId,
@@ -153,7 +157,7 @@ export function CollectionSidebar({ refresh }: Props) {
                   id="new-request"
                   type="button"
                   data-tauri-drag-region="false"
-                  onClick={() => createRequest(refresh)}
+                  onClick={(event) => { closeActionMenu(event); createRequest(refresh); }}
                 >
                   <span dangerouslySetInnerHTML={{ __html: iconRequestAdd }} />
                   <span>{labels.tree.newRequest}</span>
@@ -162,7 +166,7 @@ export function CollectionSidebar({ refresh }: Props) {
                   id="new-folder"
                   type="button"
                   data-tauri-drag-region="false"
-                  onClick={() => createFolder(refresh)}
+                  onClick={(event) => { closeActionMenu(event); createFolder(refresh); }}
                 >
                   <span dangerouslySetInnerHTML={{ __html: iconFolderAdd }} />
                   <span>{labels.tree.newFolder}</span>
@@ -184,7 +188,7 @@ export function CollectionSidebar({ refresh }: Props) {
                   id="import-collection"
                   type="button"
                   data-tauri-drag-region="false"
-                  onClick={() => void startImport()}
+                  onClick={(event) => { closeActionMenu(event); void startImport(); }}
                 >
                   <span dangerouslySetInnerHTML={{ __html: iconImport }} />
                   <span>{labels.collection.importCollection}</span>
@@ -193,7 +197,7 @@ export function CollectionSidebar({ refresh }: Props) {
                   id="export-collection"
                   type="button"
                   data-tauri-drag-region="false"
-                  onClick={() => void exportCollection()}
+                  onClick={(event) => { closeActionMenu(event); void exportCollection(); }}
                 >
                   <span dangerouslySetInnerHTML={{ __html: iconExport }} />
                   <span>{labels.collection.exportCollection}</span>
