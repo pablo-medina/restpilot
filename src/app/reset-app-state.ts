@@ -12,11 +12,11 @@ export function defaultRuntimeState(): Pick<
   | "pendingCurl"
   | "contextMenu"
   | "previousPanel"
+  | "sidebarVisible"
   | "openRequestPopover"
   | "envManageSelectedId"
   | "variablesWorkspaceTab"
   | "collectionSearchQuery"
-  | "collectionSidebarOpen"
   | "editingFunctionId"
   | "selectedFunctionId"
   | "functionSearchQuery"
@@ -38,11 +38,11 @@ export function defaultRuntimeState(): Pick<
     pendingCurl: null,
     contextMenu: null,
     previousPanel: "request",
+    sidebarVisible: true,
     openRequestPopover: null,
     envManageSelectedId: null,
     variablesWorkspaceTab: "globals",
     collectionSearchQuery: "",
-    collectionSidebarOpen: true,
     editingFunctionId: null,
     selectedFunctionId: null,
     functionSearchQuery: "",

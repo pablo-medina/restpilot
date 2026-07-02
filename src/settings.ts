@@ -8,7 +8,7 @@ import { hiddenClass, setVisible } from "./ui/visibility";
 import { clampRequestTimeoutSecs, DEFAULT_PROXY_TEST_URL, type UserSettings } from "./types";
 
 /** How much of the app to re-render after a settings mutation. */
-export type SettingsChangeScope = "full" | "activity-bar" | "persist";
+export type SettingsChangeScope = "full" | "content" | "persist";
 
 export type SettingsChangeHandler = (scope?: SettingsChangeScope) => void;
 
@@ -246,20 +246,6 @@ export function renderSettings(settings: UserSettings): string {
         </section>
         ` : ""}
         ${settingsActiveTab === "about" ? `
-        <section class="settings-card settings-card-wide">
-          <h2>${labels.shortcutsSection}</h2>
-          <dl class="settings-shortcuts">
-            <div><dt>${labels.shortcutSend}</dt><dd><kbd>${labels.shortcutSendKeys}</kbd></dd></div>
-            <div><dt>${labels.shortcutCloseTab}</dt><dd><kbd>${labels.shortcutCloseTabKeys}</kbd></dd></div>
-            <div><dt>${labels.shortcutFocusUrl}</dt><dd><kbd>${labels.shortcutFocusUrlKeys}</kbd></dd></div>
-            <div><dt>${labels.shortcutFormatJson}</dt><dd><kbd>${labels.shortcutFormatJsonKeys}</kbd></dd></div>
-            <div><dt>${labels.shortcutUndo}</dt><dd><kbd>${labels.shortcutUndoKeys}</kbd></dd></div>
-            <div><dt>${labels.shortcutRedo}</dt><dd><kbd>${labels.shortcutRedoKeys}</kbd></dd></div>
-            <div><dt>${labels.shortcutContextMenu}</dt><dd><kbd>${labels.shortcutContextMenuKeys}</kbd></dd></div>
-            <div><dt>${labels.shortcutTreeNav}</dt><dd>${labels.shortcutTreeNavKeys}</dd></div>
-          </dl>
-        </section>
-
         <section class="settings-card settings-card-wide about-card">
           <h2>${labels.about}</h2>
           <dl class="about-list">
@@ -402,7 +388,7 @@ export function bindSettings(
       const next = button.dataset.settingsTab as SettingsTabId | undefined;
       if (!next || next === settingsActiveTab) return;
       settingsActiveTab = next;
-      onChange("full");
+      onChange("content");
     });
   });
 

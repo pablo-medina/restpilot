@@ -3,9 +3,11 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   applicationDialog,
   bindDialogs,
+  hasDialogMode,
   initDialogs,
   messageDialog,
-  renderDialogLayer
+  renderDialogLayer,
+  updateDialogPreview
 } from "./components/dialogs";
 import {
   escapeHtml,
@@ -22,7 +24,7 @@ import {
 } from "./curl";
 import { mountHeadersTable } from "./headers-table";
 import { getEditorRuntime, preloadEditorRuntime } from "./app/editor-runtime";
-import { renderActivityBarMarkup, renderCollectionSidebarShell, renderFunctionsSidebarShell } from "./app/shell-ui";
+import { renderAppSidebarShell } from "./app/shell-ui";
 import {
   iconChevronLeft,
   iconChevronRight,
@@ -37,9 +39,7 @@ import {
   iconRemove,
   iconRename,
   iconRequestAdd,
-  iconMoon,
-  iconSearch,
-  iconSun
+  iconSearch
 } from "./icons";
 
 import { exportCollection, importCollection } from "./app/collection-io";
@@ -60,7 +60,7 @@ import {
   setRequestPopoverHooks,
   syncRequestPopover
 } from "./request-popovers";
-import { bindVariablesWorkspace, renderVariablesWorkspace } from "./variables-workspace";
+import { bindVariablesWorkspace, renderVariablesSidebar, renderVariablesWorkspace } from "./variables-workspace";
 import { environmentChipLabel, getEffectiveVariables, getActiveEnvironment, activeEnvironmentVariables } from "./app/environments";
 import { buildRequestUrl, ingestUrlIntoRequest, migrateRequestQuery } from "./url-params";
 import { resolvedOutboundUrl, normalizeRequestAuth, defaultRequestAuth } from "./app/request-auth";
@@ -364,11 +364,13 @@ function focusUrlOnStartup() {
 }
 
 function renderShellChrome(labels: ReturnType<typeof t>) {
-  return renderCollectionSidebarShell(labels, {
+  return renderAppSidebarShell(labels, {
     activePanel: state.activePanel,
-    collectionSidebarOpen: state.collectionSidebarOpen,
     collectionSearchQuery: state.collectionSearchQuery,
+    functionSearchQuery: state.functionSearchQuery,
     treeHtml: renderExplorerTree(COLLECTION_ROOT_PARENT_ID, 0),
+    functionsHtml: renderFunctionsList(),
+    variablesHtml: renderVariablesSidebar(),
     escapeAttribute
   });
 }
@@ -436,66 +438,24 @@ function updateActivityBarActive() {
     button.setAttribute("aria-current", active ? "page" : "false");
   });
   syncCollectionSidebarDom();
-  updateThemeToggleIcon();
 }
 
 function syncAppFrameLayout() {
   const isRequest = state.activePanel === "request";
   const isFunctions = state.activePanel === "functions";
-  const collectionCollapsed = (isRequest || isFunctions) && !state.collectionSidebarOpen;
+  const hasSidebar = isRequest || isFunctions || state.activePanel === "variables";
   appRoot.classList.add("app-frame");
   appRoot.classList.toggle("app-frame--request", isRequest);
   appRoot.classList.toggle("app-frame--functions", isFunctions);
-  appRoot.classList.toggle("is-collection-collapsed", collectionCollapsed);
+  appRoot.classList.toggle("app-frame--sidebar", hasSidebar);
+  appRoot.classList.toggle("is-sidebar-hidden", hasSidebar && !state.sidebarVisible);
+  appRoot.classList.remove("is-collection-collapsed");
 }
 
 function syncCollectionSidebarDom() {
-  const sidebar = document.querySelector(".collection-sidebar");
-  if (sidebar) {
-    const open = state.collectionSidebarOpen;
-    sidebar.classList.toggle("is-collapsed", !open);
-    sidebar.setAttribute("aria-hidden", (state.activePanel !== "request" && state.activePanel !== "functions") || !open ? "true" : "false");
-    const toggle = document.querySelector<HTMLButtonElement>("#toggle-collection-sidebar");
-    if (toggle) {
-      toggle.setAttribute("aria-expanded", open ? "true" : "false");
-      const labels = t();
-      toggle.title = labels.nav.hideCollection;
-      toggle.setAttribute("aria-label", labels.nav.hideCollection);
-    }
-  }
   syncAppFrameLayout();
 }
 
-
-function updateThemeToggleIcon() {
-  const button = document.querySelector<HTMLButtonElement>("#activity-theme-toggle");
-  if (!button) return;
-  const labels = t();
-  const isDark = state.settings.theme === "dark";
-  button.innerHTML = isDark ? iconSun : iconMoon;
-  const label = isDark ? labels.nav.switchToLight : labels.nav.switchToDark;
-  button.title = label;
-  button.setAttribute("aria-label", label);
-}
-
-function toggleCollectionSidebar() {
-  state.collectionSidebarOpen = !state.collectionSidebarOpen;
-  if (document.querySelector(".collection-sidebar")) {
-    syncCollectionSidebarDom();
-    return;
-  }
-  render();
-}
-
-function toggleThemeFromActivityBar() {
-  state.settings.theme = state.settings.theme === "dark" ? "light" : "dark";
-  applyUserSettings(state.settings);
-  scheduleSave();
-  updateThemeToggleIcon();
-  const themeSelect = document.querySelector<HTMLSelectElement>("#setting-theme");
-  if (themeSelect) themeSelect.value = state.settings.theme;
-  if (state.activePanel === "request") renderWorkspace();
-}
 
 /** Leave settings/variables and return to the request workspace. */
 function focusRequestWorkspace(): boolean {
@@ -711,29 +671,28 @@ function renderApp() {
   const tab = request ? ensureTab(request.id) : null;
   const labels = t();
   const isRequest = state.activePanel === "request";
+  const settingsDialogOpen = hasDialogMode("settings");
 
   unmountTabDisplay(state.activeTabId);
   unmountFunctionEditors();
   syncAppFrameLayout();
 
   const titleBar = isRequest
-    ? renderWindowChromeTabsMarkup(renderTabBar(request, tab))
-    : renderWindowChromeMarkup({ center: resolveTitleBarCenter() });
+    ? renderWindowChromeTabsMarkup(renderTabBar(request, tab), {
+        settingsActive: settingsDialogOpen,
+        sidebarVisible: state.sidebarVisible
+      })
+    : renderWindowChromeMarkup({
+        center: resolveTitleBarCenter(),
+        settingsActive: settingsDialogOpen,
+        sidebarVisible: state.activePanel === "functions" || state.activePanel === "variables"
+          ? state.sidebarVisible
+          : undefined
+      });
 
-  const sidebar = isRequest
-      ? renderShellChrome(labels)
-      : state.activePanel === "functions"
-        ? renderFunctionsSidebarShell(labels, {
-            activePanel: state.activePanel,
-            collectionSidebarOpen: state.collectionSidebarOpen,
-            functionSearchQuery: state.functionSearchQuery,
-            functionsHtml: renderFunctionsList(),
-            escapeAttribute
-          })
-        : "";
+  const sidebar = renderShellChrome(labels);
 
   appRoot.innerHTML = `
-      ${renderActivityBarMarkup(labels, state.activePanel, state.settings.theme)}
       ${titleBar}
       ${sidebar}
       <main class="shell shell--workspace-only">
@@ -1303,9 +1262,21 @@ function bindAppTree() {
 
 function bindEvents() {
   bindWindowChrome();
+  document.querySelector("[data-title-bar-sidebar]")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    state.sidebarVisible = !state.sidebarVisible;
+    render();
+  });
+  document.querySelector("[data-title-bar-settings]")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openSettingsDialog();
+  });
   void syncMaximizeControl();
   bindAppTree();
   bindDialogs();
+  if (hasDialogMode("settings")) {
+    bindSettings(state.settings, onSettingsChanged, clearAllData);
+  }
   bindFunctionResultDialogs();
   bindActivityBar();
   bindTabBar({
@@ -1327,61 +1298,53 @@ function bindEvents() {
   bindWorkspace();
 }
 
-function remountActivityBar() {
-  const nav = document.querySelector<HTMLElement>(".activity-bar");
-  if (!nav) return;
-  const labels = t();
-  const wrapper = document.createElement("div");
-  wrapper.innerHTML = renderActivityBarMarkup(
-    labels,
-    state.activePanel,
-    state.settings.theme
-  );
-  const fresh = wrapper.querySelector<HTMLElement>(".activity-bar");
-  if (!fresh) return;
-  nav.replaceWith(fresh);
-  bindActivityBar();
-  updateThemeToggleIcon();
+function openSettingsDialog() {
+  if (hasDialogMode("settings")) return;
+  const width = Math.min(920, Math.max(640, window.innerWidth - 120));
+  const height = Math.min(680, Math.max(480, window.innerHeight - 90));
+  void applicationDialog({
+    title: t().settings.title,
+    body: "",
+    mode: "settings",
+    previewHtml: renderSettings(state.settings),
+    actions: [],
+    resizable: true,
+    width,
+    height
+  });
 }
 
 function bindActivityBar() {
   document.querySelectorAll<HTMLButtonElement>("[data-activity]").forEach((button) => {
     button.addEventListener("click", () => {
       const activity = button.dataset.activity;
-      if (activity === "theme") {
-        toggleThemeFromActivityBar();
-        return;
-      }
       if (activity === "request") {
-        if (state.activePanel === "request") {
-          toggleCollectionSidebar();
-          return;
-        }
+        if (state.activePanel === "request") return;
         openPanel("request");
         return;
       }
       if (activity === "functions") {
-        if (state.activePanel === "functions") {
-          toggleCollectionSidebar();
-          return;
-        }
+        if (state.activePanel === "functions") return;
         openPanel("functions");
         return;
       }
-      if (activity === "variables") openVariablesWorkspace("globals");
+      if (activity === "variables") {
+        if (state.activePanel === "variables") return;
+        openVariablesWorkspace("globals");
+      }
       if (activity === "settings") openPanel("settings");
     });
   });
 
-  document.querySelector("#toggle-collection-sidebar")?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    if (state.collectionSidebarOpen) toggleCollectionSidebar();
-  });
 }
 
 
 function openPanel(panel: ActivePanel) {
-  if (panel !== state.activePanel && (panel === "settings" || panel === "variables")) {
+  if (panel === "settings") {
+    openSettingsDialog();
+    return;
+  }
+  if (panel !== state.activePanel && panel === "variables") {
     state.previousPanel = state.activePanel;
   }
   closeRequestPopovers();
@@ -1396,20 +1359,24 @@ function backToWorkspace() {
 
 function onSettingsChanged(scope: SettingsChangeScope = "full") {
   const languageChanged = getLocale() !== state.settings.language;
-  const settingsScrollTop =
-    state.activePanel === "settings" ? getSettingsScrollTop() : null;
+  const settingsOpen = hasDialogMode("settings");
+  const settingsScrollTop = settingsOpen ? getSettingsScrollTop() : null;
 
   applyUserSettings(state.settings);
   scheduleSave();
-  updateThemeToggleIcon();
 
   if (scope === "persist") {
     restoreSettingsScrollTop(settingsScrollTop);
     return;
   }
 
-  if (scope === "activity-bar") {
-    remountActivityBar();
+  if (scope === "content" && settingsOpen) {
+    refreshSettingsDialogContent(settingsScrollTop);
+    return;
+  }
+
+  if (settingsOpen) {
+    updateDialogPreview("settings", renderSettings(state.settings), t().settings.title);
     restoreSettingsScrollTop(settingsScrollTop);
     return;
   }
@@ -1424,6 +1391,15 @@ function onSettingsChanged(scope: SettingsChangeScope = "full") {
   else render();
 }
 
+function refreshSettingsDialogContent(scrollTop: number | null = null) {
+  const dialog = document.querySelector<HTMLElement>('.app-dialog[data-dialog-mode="settings"]');
+  const body = dialog?.querySelector<HTMLElement>(".dialog-body-rich");
+  if (!body) return;
+  body.innerHTML = renderSettings(state.settings);
+  bindSettings(state.settings, onSettingsChanged, clearAllData);
+  restoreSettingsScrollTop(scrollTop);
+}
+
 async function clearAllData() {
   const labels = t().settings;
   const answer = await messageDialog("confirmation", labels.clearDataTitle, labels.clearDataBody);
@@ -1434,7 +1410,11 @@ async function clearAllData() {
   resetSettingsSessionState();
   applyUserSettings(state.settings);
   await persistConfig();
-  render();
+  if (hasDialogMode("settings")) {
+    updateDialogPreview("settings", renderSettings(state.settings), t().settings.title);
+  } else {
+    render();
+  }
 }
 
 let toastTimeout: ReturnType<typeof setTimeout> | undefined;

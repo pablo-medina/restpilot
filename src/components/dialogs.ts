@@ -11,7 +11,8 @@ export type DialogMode =
   | "collection-import"
   | "import-source"
   | "import-preview"
-  | "function-result";
+  | "function-result"
+  | "settings";
 export type DialogOutcome = { action: string; data?: Record<string, unknown> };
 
 export type DialogState = {
@@ -51,6 +52,18 @@ const DIALOG_MAX_MARGIN = 0;
 
 export function hasOpenDialogs(): boolean {
   return dialogs.length > 0;
+}
+
+export function hasDialogMode(mode: DialogMode): boolean {
+  return dialogs.some((dialog) => dialog.data?.mode === mode);
+}
+
+export function updateDialogPreview(mode: DialogMode, previewHtml: string, title?: string): void {
+  const dialog = dialogs.slice().reverse().find((item) => item.data?.mode === mode);
+  if (!dialog?.data) return;
+  dialog.data.previewHtml = previewHtml;
+  if (title) dialog.title = title;
+  requestRender();
 }
 
 function applyDialogMaximizedBounds(dialog: DialogState) {

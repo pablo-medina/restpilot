@@ -26,7 +26,7 @@ export const iconVariables = strokeIcon('<path d="M6 3.25H5c-.8 0-1.25.45-1.25 1
 
 export const iconLayers = strokeIcon('<path d="m2.5 5.25 5.5-3 5.5 3-5.5 3zM2.5 8.25l5.5 3 5.5-3M2.5 11l5.5 3 5.5-3"/>');
 
-export const iconSettings = strokeIcon('<path d="M2.5 4h3M9.5 4h4M2.5 8h6M12.5 8h1M2.5 12h1M7.5 12h6"/><circle cx="7.5" cy="4" r="1.5"/><circle cx="10.5" cy="8" r="1.5"/><circle cx="5.5" cy="12" r="1.5"/>');
+export const iconSettings = strokeIcon('<path d="m8 1.75 1.1 1.35 1.75-.25.55 1.65 1.6.75-.55 1.7L13.75 8l-1.3 1.05.55 1.7-1.6.75-.55 1.65-1.75-.25L8 14.25 6.9 12.9l-1.75.25-.55-1.65-1.6-.75.55-1.7L2.25 8l1.3-1.05L3 5.25l1.6-.75.55-1.65 1.75.25z"/><circle cx="8" cy="8" r="2.1"/>');
 
 export const iconSun = strokeIcon('<circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v1.25M8 13.25v1.25M1.5 8h1.25M13.25 8h1.25M3.4 3.4l.9.9M11.7 11.7l.9.9M12.6 3.4l-.9.9M4.3 11.7l-.9.9"/>');
 
@@ -51,6 +51,12 @@ export const iconEyeOff = strokeIcon('<path d="M2 2l12 12M3.65 4.15A8.8 8.8 0 0 
 export const iconFunction = strokeIcon('<path d="m5.5 3.5-3 4.5 3 4.5M10.5 3.5l3 4.5-3 4.5M9 2.75l-2 10.5"/>');
 
 export const iconFunctionAdd = strokeIcon('<path d="m4.75 4.25-2.5 3.75 2.5 3.75M8 4.25 6.5 11.75M11.75 9.5v4M9.75 11.5h4"/>');
+
+export const iconPlus = strokeIcon('<path d="M8 2.75v10.5M2.75 8h10.5"/>');
+
+export const iconMoreHorizontal = strokeIcon('<circle cx="3.25" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="12.75" cy="8" r=".9" fill="currentColor" stroke="none"/>');
+
+export const iconSidebar = strokeIcon('<rect x="2.25" y="2.5" width="11.5" height="11" rx="1.5"/><path d="M5.75 2.75v10.5"/>');
 
 export const iconPlay = solidIcon('<path d="M5 3.15v9.7L12.75 8z"/>');
 

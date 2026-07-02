@@ -27,11 +27,11 @@ export type AppState = AppConfig & {
   pendingCurl: SavedRequest | null;
   contextMenu: ContextMenuState | null;
   previousPanel: ActivePanel;
+  sidebarVisible: boolean;
   openRequestPopover: "environment" | "variables" | null;
   envManageSelectedId: string | null;
   variablesWorkspaceTab: "globals" | "environments";
   collectionSearchQuery: string;
-  collectionSidebarOpen: boolean;
   editingFunctionId: string | null;
   selectedFunctionId: string | null;
   functionSearchQuery: string;
@@ -55,11 +55,11 @@ export const state: AppState = {
   pendingCurl: null,
   contextMenu: null,
   previousPanel: "request",
+  sidebarVisible: true,
   openRequestPopover: null,
   envManageSelectedId: null,
   variablesWorkspaceTab: "globals",
   collectionSearchQuery: "",
-  collectionSidebarOpen: true,
   editingFunctionId: null,
   selectedFunctionId: null,
   functionSearchQuery: "",

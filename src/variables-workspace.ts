@@ -8,6 +8,7 @@ import {
   syncVariableRowSecretUi
 } from "./variable-ui";
 import { scheduleSave } from "./app/persistence";
+import { render } from "./app/render";
 import { escapeAttribute, id, state } from "./app/state";
 import type { Environment, Variable } from "./types";
 
@@ -213,13 +214,12 @@ function renderManageVariableRow(variable: Variable): string {
   `;
 }
 
-export function renderVariablesWorkspace() {
+export function renderVariablesSidebar() {
   const envLabels = t().environments;
   const selectedId = state.envManageSelectedId ?? "globals";
 
-  // Sidebar Layout
-  const sidebarHtml = `
-    <aside class="variables-workspace-sidebar" style="display: flex; flex-direction: column; gap: 16px;">
+  return `
+    <div class="variables-workspace-sidebar">
       <!-- Globals Section -->
       <div class="variables-sidebar-section">
         <button class="variables-sidebar-item ${selectedId === "globals" ? "is-selected" : ""}" type="button" data-scope-select="globals" tabindex="0">
@@ -263,8 +263,12 @@ export function renderVariablesWorkspace() {
           }).join("")}
         </div>
       </div>
-    </aside>
+    </div>
   `;
+}
+
+export function renderVariablesWorkspace() {
+  const selectedId = state.envManageSelectedId ?? "globals";
 
   // Content Area
   let contentHtml = "";
@@ -279,11 +283,8 @@ export function renderVariablesWorkspace() {
 
   return `
     <section class="variables-view variables-workspace">
-      <div class="variables-workspace-columns">
-        ${sidebarHtml}
-        <div class="variables-workspace-content">
-          ${contentHtml}
-        </div>
+      <div class="variables-workspace-content">
+        ${contentHtml}
       </div>
     </section>
   `;
@@ -315,9 +316,10 @@ export function commitEnvironmentRename(envId: string, newName: string, onVariab
 export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandler) {
   const root = document.querySelector<HTMLElement>(".variables-workspace");
   if (!root) return;
+  const sidebarRoot = document.querySelector<HTMLElement>(".variables-workspace-sidebar");
 
   // Bind Sidebar scope selectors
-  root.querySelectorAll<HTMLButtonElement>("[data-scope-select]").forEach(btn => {
+  sidebarRoot?.querySelectorAll<HTMLButtonElement>("[data-scope-select]").forEach(btn => {
     btn.addEventListener("click", () => {
       const scope = btn.dataset.scopeSelect ?? "globals";
       state.envManageSelectedId = scope;
@@ -328,7 +330,7 @@ export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandle
   });
 
   // Bind Sidebar Add Environment
-  root.querySelector("[data-scope-add-env]")?.addEventListener("click", () => {
+  sidebarRoot?.querySelector("[data-scope-add-env]")?.addEventListener("click", () => {
     let dupName: string = t().environments.newEnvironment;
     let counter = 1;
     while (state.environments.some(item => item.name.trim().toLowerCase() === dupName.trim().toLowerCase())) {
@@ -360,7 +362,7 @@ export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandle
   });
 
   // Keyboard navigation for sidebar items
-  const sidebar = root.querySelector<HTMLElement>(".variables-workspace-sidebar");
+  const sidebar = sidebarRoot;
   sidebar?.addEventListener("keydown", (event) => {
     const active = document.activeElement as HTMLElement;
     if (!active || !active.classList.contains("variables-sidebar-item")) return;
@@ -392,7 +394,7 @@ export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandle
 
   // F2 Inline renaming input binding
   if (state.editingEnvId) {
-    const input = root.querySelector<HTMLInputElement>(`[data-env-rename-id="${state.editingEnvId}"]`);
+    const input = sidebarRoot?.querySelector<HTMLInputElement>(`[data-env-rename-id="${state.editingEnvId}"]`);
     if (input) {
       input.focus();
       input.select();
@@ -425,7 +427,7 @@ export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandle
   }
 
   // Bind right-click custom context menus for environments sidebar items
-  root.querySelectorAll<HTMLElement>("[data-scope-select]").forEach(btn => {
+  sidebarRoot?.querySelectorAll<HTMLElement>("[data-scope-select]").forEach(btn => {
     const scopeId = btn.dataset.scopeSelect;
     if (!scopeId || scopeId === "globals" || scopeId === "default") return;
 
@@ -529,18 +531,14 @@ export function bindVariablesWorkspace(onVariablesChanged?: VariableChangeHandle
 }
 
 function rerenderVariablesWorkspace(onVariablesChanged?: VariableChangeHandler) {
-  const host = document.querySelector<HTMLElement>(".variables-workspace");
-  if (!host) return;
-
   const selectedId = state.envManageSelectedId ?? "globals";
-
-  host.outerHTML = renderVariablesWorkspace();
-  bindVariablesWorkspace(onVariablesChanged);
+  render();
 
   // Always set focus on the selected sidebar item so keyboard navigation is instantly available
-  const newRoot = document.querySelector<HTMLElement>(".variables-workspace");
-  const target = newRoot?.querySelector<HTMLElement>(`[data-scope-select="${selectedId}"]`);
-  target?.focus();
+  requestAnimationFrame(() => {
+    const target = document.querySelector<HTMLElement>(`[data-scope-select="${selectedId}"]`);
+    target?.focus();
+  });
 }
 
 function bindGlobalsTab(onVariablesChanged?: VariableChangeHandler) {

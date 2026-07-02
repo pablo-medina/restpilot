@@ -35,11 +35,11 @@ function mockPopulatedState(): AppState {
     pendingCurl: null,
     contextMenu: null,
     previousPanel: "variables",
+    sidebarVisible: false,
     openRequestPopover: "environment",
     envManageSelectedId: "e1",
     variablesWorkspaceTab: "environments",
     collectionSearchQuery: "find me",
-    collectionSidebarOpen: false,
     functions: [{
       id: "f1",
       name: "myFunc",

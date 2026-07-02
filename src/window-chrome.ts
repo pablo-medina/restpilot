@@ -1,6 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { hasOpenDialogs } from "./components/dialogs";
+import { iconSettings, iconSidebar } from "./icons";
 import { t } from "./i18n";
 
 export type WindowPlatform = "windows" | "macos" | "linux" | "web";
@@ -37,7 +38,25 @@ export function initWindowChrome() {
   });
 }
 
-export function renderWindowChromeMarkup(options?: { center?: string }): string {
+type WindowChromeOptions = { center?: string; settingsActive?: boolean; sidebarVisible?: boolean };
+
+function renderSidebarControl(visible: boolean | undefined): string {
+  if (visible === undefined) return "";
+  const labels = t().nav;
+  const label = visible ? labels.hideSidebar : labels.showSidebar;
+  return `<button type="button" class="title-bar-sidebar-toggle${visible ? " is-active" : ""}" data-title-bar-sidebar title="${label}" aria-label="${label}" aria-pressed="${visible}">
+    ${iconSidebar}
+  </button>`;
+}
+
+function renderSettingsControl(active: boolean): string {
+  const labels = t();
+  return `<button type="button" class="title-bar-settings${active ? " is-active" : ""}" data-title-bar-settings title="${labels.nav.settings}" aria-label="${labels.nav.settings}" aria-current="${active ? "page" : "false"}">
+    ${iconSettings}
+  </button>`;
+}
+
+export function renderWindowChromeMarkup(options?: WindowChromeOptions): string {
   const labels = t().titleBar;
   const platform = detectWindowPlatform();
   const showControls = platform === "windows" || platform === "linux";
@@ -59,16 +78,20 @@ export function renderWindowChromeMarkup(options?: { center?: string }): string 
 
   return `
     <header class="title-bar title-bar--${platform}" aria-label="${labels.ariaLabel}">
+      <div class="title-bar-leading">${renderSidebarControl(options?.sidebarVisible)}</div>
       <div class="title-bar-center" data-tauri-drag-region>
         <span class="title-bar-center-text">${center}</span>
       </div>
-      ${controls}
+      <div class="title-bar-actions">
+        ${renderSettingsControl(Boolean(options?.settingsActive))}
+        ${controls}
+      </div>
     </header>
   `;
 }
 
 /** Request workspace: tab strip in the title bar instead of a centered title. */
-export function renderWindowChromeTabsMarkup(tabsMarkup: string): string {
+export function renderWindowChromeTabsMarkup(tabsMarkup: string, options?: Pick<WindowChromeOptions, "settingsActive" | "sidebarVisible">): string {
   const labels = t().titleBar;
   const platform = detectWindowPlatform();
   const showControls = platform === "windows" || platform === "linux";
@@ -93,9 +116,13 @@ export function renderWindowChromeTabsMarkup(tabsMarkup: string): string {
 
   return `
     <header class="title-bar title-bar--tabs title-bar--${platform}" aria-label="${labels.ariaLabel}">
+      <div class="title-bar-leading">${renderSidebarControl(options?.sidebarVisible)}</div>
       <div class="${tabsHostClass}"${tabsMarkup.trim() ? "" : ' aria-hidden="true"'}>${tabsMarkup}</div>
       <div class="title-bar-drag" data-tauri-drag-region aria-hidden="true"></div>
-      ${controls}
+      <div class="title-bar-actions">
+        ${renderSettingsControl(Boolean(options?.settingsActive))}
+        ${controls}
+      </div>
     </header>
   `;
 }
@@ -121,7 +148,7 @@ function usesNativeTitleBarDoubleClickMaximize(): boolean {
 function isTitleBarDoubleClickIgnored(target: EventTarget | null): boolean {
   return Boolean(
     (target as HTMLElement | null)?.closest(
-      "[data-window-action], .request-tab, .tab-close, .tab-scroll-btn, .tab-bar-tools button, .env-chip"
+      "[data-window-action], [data-title-bar-settings], [data-title-bar-sidebar], .request-tab, .tab-close, .tab-scroll-btn, .tab-bar-tools button, .env-chip"
     )
   );
 }

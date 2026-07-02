@@ -1,212 +1,128 @@
 import {
-  iconChevronLeft,
   iconExport,
   iconFolderAdd,
   iconFunction,
   iconFunctionAdd,
   iconImport,
-  iconMoon,
+  iconMoreHorizontal,
+  iconPlus,
   iconRequestAdd,
   iconSearch,
-  iconSettings,
-  iconSun,
   iconVariables
 } from "../icons";
 
 import type { TranslationTree } from "../i18n";
-import type { ActivePanel, ThemeMode } from "../types";
+import type { ActivePanel } from "../types";
 
-export function renderActivityBarMarkup(
-  labels: TranslationTree,
-  activePanel: ActivePanel,
-  theme: ThemeMode
-) {
-  const themeIcon = theme === "dark" ? iconSun : iconMoon;
-  const themeLabel = theme === "dark" ? labels.nav.switchToLight : labels.nav.switchToDark;
+function renderSidebarNavigation(labels: TranslationTree, activePanel: ActivePanel) {
+  const items = [
+    { panel: "request", label: labels.nav.requests, icon: iconRequestAdd },
+    { panel: "functions", label: labels.nav.functions, icon: iconFunction },
+    { panel: "variables", label: labels.nav.variables, icon: iconVariables }
+  ] as const;
+
   return `
-    <nav class="activity-bar" aria-label="${labels.nav.activityBar}">
-      <button
-        class="activity-item${activePanel === "request" ? " is-active" : ""}"
-        type="button"
-        data-activity="request"
-        title="${labels.nav.collection}"
-        aria-label="${labels.nav.collection}"
-        aria-current="${activePanel === "request" ? "page" : "false"}">
-        <img class="activity-brand-logo" src="/favicon.svg" width="28" height="28" alt="" />
-      </button>
-      <button
-        class="activity-item${activePanel === "functions" ? " is-active" : ""}"
-        type="button"
-        data-activity="functions"
-        title="${labels.nav.functions}"
-        aria-label="${labels.nav.functions}"
-        aria-current="${activePanel === "functions" ? "page" : "false"}">
-        ${iconFunction}
-      </button>
-
-      <button
-        class="activity-item${activePanel === "variables" ? " is-active" : ""}"
-        type="button"
-        data-activity="variables"
-        title="${labels.nav.variables}"
-        aria-label="${labels.nav.variables}"
-        aria-current="${activePanel === "variables" ? "page" : "false"}">
-        ${iconVariables}
-      </button>
-      <div class="activity-bar-spacer" aria-hidden="true"></div>
-      <button
-        class="activity-item activity-item--theme"
-        type="button"
-        id="activity-theme-toggle"
-        data-activity="theme"
-        title="${themeLabel}"
-        aria-label="${themeLabel}">
-        ${themeIcon}
-      </button>
-      <button
-        class="activity-item${activePanel === "settings" ? " is-active" : ""}"
-        type="button"
-        data-activity="settings"
-        title="${labels.nav.settings}"
-        aria-label="${labels.nav.settings}"
-        aria-current="${activePanel === "settings" ? "page" : "false"}">
-        ${iconSettings}
-      </button>
+    <nav class="sidebar-navigation" aria-label="${labels.nav.activityBar}">
+      ${items.map(({ panel, label, icon }) => `
+        <button
+          class="sidebar-navigation-item${activePanel === panel ? " is-active" : ""}"
+          type="button"
+          data-activity="${panel}"
+          title="${label}"
+          aria-label="${label}"
+          aria-current="${activePanel === panel ? "page" : "false"}">
+          ${icon}
+        </button>
+      `).join("")}
     </nav>
   `;
 }
 
-export function renderCollectionSidebarShell(
-  labels: TranslationTree,
-  options: {
-    activePanel: ActivePanel;
-    collectionSidebarOpen: boolean;
-    collectionSearchQuery: string;
-    treeHtml: string;
-    escapeAttribute: (value: string) => string;
-  }
-) {
-  if (options.activePanel !== "request") return "";
-  const open = options.collectionSidebarOpen;
-  const toggleLabel = labels.nav.hideCollection;
+function renderSearch(options: {
+  id: string;
+  clearId: string;
+  submitId: string;
+  label: string;
+  placeholder: string;
+  query: string;
+  escapeAttribute: (value: string) => string;
+}) {
   return `
-    <aside
-      class="collection-sidebar${open ? "" : " is-collapsed"}"
-      aria-label="${labels.nav.collection}"
-      aria-hidden="${open ? "false" : "true"}">
-      <div class="collection-sidebar-panel">
-        <div class="collection-sidebar-toolbar">
-          <div class="rail-actions collection-sidebar-actions">
-            <button
-              type="button"
-              id="toggle-collection-sidebar"
-              class="mini-btn tool-icon collection-sidebar-toggle"
-              title="${toggleLabel}"
-              aria-label="${toggleLabel}"
-              aria-expanded="${open}">
-              ${iconChevronLeft}
-            </button>
-            <button class="mini-btn tool-icon" id="export-collection" type="button" title="${labels.collection.exportCollection}" aria-label="${labels.collection.exportCollection}">${iconExport}</button>
-            <button class="mini-btn tool-icon" id="import-collection" type="button" title="${labels.collection.importCollection}" aria-label="${labels.collection.importCollection}">${iconImport}</button>
-            <button class="mini-btn tool-icon" id="new-folder" type="button" title="${labels.nav.newFolder}" aria-label="${labels.nav.newFolder}">${iconFolderAdd}</button>
-            <button class="mini-btn tool-icon" id="new-request" type="button" title="${labels.nav.newRequest}" aria-label="${labels.nav.newRequest}">${iconRequestAdd}</button>
-          </div>
-        </div>
-        <label class="collection-search">
-          <span class="sr-only">${labels.collection.search}</span>
-          <div class="collection-search-field">
-            <input
-              id="collection-search"
-              type="search"
-              value="${options.escapeAttribute(options.collectionSearchQuery)}"
-              placeholder="${labels.collection.searchPlaceholder}"
-              spellcheck="false"
-              autocomplete="off"
-            />
-            <button
-              class="mini-btn collection-search-clear${options.collectionSearchQuery.trim() ? "" : " is-hidden"}"
-              id="collection-search-clear"
-              type="button"
-              title="${labels.collection.searchClear}"
-              aria-label="${labels.collection.searchClear}"
-            >×</button>
-            <button
-              class="mini-btn collection-search-submit"
-              id="collection-search-submit"
-              type="button"
-              title="${labels.collection.search}"
-              aria-label="${labels.collection.search}"
-            >${iconSearch}</button>
-          </div>
-        </label>
-        <section class="tree" tabindex="0" aria-label="${labels.nav.collection}">${options.treeHtml}</section>
+    <label class="collection-search">
+      <span class="sr-only">${options.label}</span>
+      <div class="collection-search-field">
+        <input id="${options.id}" type="search" value="${options.escapeAttribute(options.query)}"
+          placeholder="${options.placeholder}" spellcheck="false" autocomplete="off" />
+        <button class="mini-btn collection-search-clear${options.query.trim() ? "" : " is-hidden"}"
+          id="${options.clearId}" type="button" title="${options.label}" aria-label="${options.label}">×</button>
+        <button class="mini-btn collection-search-submit" id="${options.submitId}" type="button"
+          title="${options.label}" aria-label="${options.label}">${iconSearch}</button>
       </div>
-    </aside>
+    </label>
   `;
 }
 
-export function renderFunctionsSidebarShell(
+export function renderAppSidebarShell(
   labels: TranslationTree,
   options: {
     activePanel: ActivePanel;
-    collectionSidebarOpen: boolean;
+    collectionSearchQuery: string;
     functionSearchQuery: string;
+    treeHtml: string;
     functionsHtml: string;
+    variablesHtml: string;
     escapeAttribute: (value: string) => string;
   }
 ) {
-  if (options.activePanel !== "functions") return "";
-  const open = options.collectionSidebarOpen;
-  const toggleLabel = labels.nav.hideCollection;
-  return `
-    <aside
-      class="collection-sidebar${open ? "" : " is-collapsed"}"
-      aria-label="${labels.nav.functions}"
-      aria-hidden="${open ? "false" : "true"}">
-      <div class="collection-sidebar-panel">
-        <div class="collection-sidebar-toolbar">
-          <div class="rail-actions collection-sidebar-actions">
-            <button
-              type="button"
-              id="toggle-collection-sidebar"
-              class="mini-btn tool-icon collection-sidebar-toggle"
-              title="${toggleLabel}"
-              aria-label="${toggleLabel}"
-              aria-expanded="${open}">
-              ${iconChevronLeft}
-            </button>
-            <button class="mini-btn tool-icon" id="new-function" type="button" title="${labels.nav.newFunction}" aria-label="${labels.nav.newFunction}">${iconFunctionAdd}</button>
-          </div>
+  if (!(["request", "functions", "variables"] as ActivePanel[]).includes(options.activePanel)) return "";
+
+  const contextTitle = options.activePanel === "request"
+    ? labels.nav.collection
+    : options.activePanel === "functions"
+      ? labels.nav.functions
+      : labels.nav.variables;
+
+  let context = options.variablesHtml;
+  if (options.activePanel === "request") {
+    context = `
+      <div class="sidebar-context-header">
+        <h2>${contextTitle}</h2>
+        <div class="sidebar-context-actions">
+          <details class="sidebar-action-menu">
+            <summary class="mini-btn tool-icon" role="button" aria-haspopup="menu" title="${labels.nav.newRequest}" aria-label="${labels.nav.newRequest}">${iconPlus}</summary>
+            <div class="sidebar-action-popover">
+              <button id="new-request" type="button">${iconRequestAdd}<span>${labels.tree.newRequest}</span></button>
+              <button id="new-folder" type="button">${iconFolderAdd}<span>${labels.tree.newFolder}</span></button>
+            </div>
+          </details>
+          <details class="sidebar-action-menu sidebar-action-menu--end">
+            <summary class="mini-btn tool-icon" role="button" aria-haspopup="menu" title="${labels.collection.importCollection}" aria-label="${labels.collection.importCollection}">${iconMoreHorizontal}</summary>
+            <div class="sidebar-action-popover">
+              <button id="import-collection" type="button">${iconImport}<span>${labels.collection.importCollection}</span></button>
+              <button id="export-collection" type="button">${iconExport}<span>${labels.collection.exportCollection}</span></button>
+            </div>
+          </details>
         </div>
-        <label class="collection-search">
-          <span class="sr-only">${labels.functions.search}</span>
-          <div class="collection-search-field">
-            <input
-              id="function-search"
-              type="search"
-              value="${options.escapeAttribute(options.functionSearchQuery)}"
-              placeholder="${labels.functions.searchPlaceholder}"
-              spellcheck="false"
-              autocomplete="off"
-            />
-            <button
-              class="mini-btn collection-search-clear${options.functionSearchQuery.trim() ? "" : " is-hidden"}"
-              id="function-search-clear"
-              type="button"
-              title="${labels.collection.searchClear}"
-              aria-label="${labels.collection.searchClear}"
-            >×</button>
-            <button
-              class="mini-btn collection-search-submit"
-              id="function-search-submit"
-              type="button"
-              title="${labels.functions.search}"
-              aria-label="${labels.functions.search}"
-            >${iconSearch}</button>
-          </div>
-        </label>
-        <section class="tree" tabindex="0" aria-label="${labels.nav.functions}">${options.functionsHtml}</section>
       </div>
+      ${renderSearch({ id: "collection-search", clearId: "collection-search-clear", submitId: "collection-search-submit", label: labels.collection.search, placeholder: labels.collection.searchPlaceholder, query: options.collectionSearchQuery, escapeAttribute: options.escapeAttribute })}
+      <section class="tree" tabindex="0" aria-label="${labels.nav.collection}">${options.treeHtml}</section>
+    `;
+  } else if (options.activePanel === "functions") {
+    context = `
+      <div class="sidebar-context-header">
+        <h2>${contextTitle}</h2>
+        <button class="mini-btn tool-icon" id="new-function" type="button" title="${labels.nav.newFunction}" aria-label="${labels.nav.newFunction}">${iconFunctionAdd}</button>
+      </div>
+      ${renderSearch({ id: "function-search", clearId: "function-search-clear", submitId: "function-search-submit", label: labels.functions.search, placeholder: labels.functions.searchPlaceholder, query: options.functionSearchQuery, escapeAttribute: options.escapeAttribute })}
+      <section class="tree" tabindex="0" aria-label="${labels.nav.functions}">${options.functionsHtml}</section>
+    `;
+  }
+
+  return `
+    <aside class="app-sidebar collection-sidebar"
+      aria-label="${contextTitle}" aria-hidden="false">
+      ${renderSidebarNavigation(labels, options.activePanel)}
+      <div class="sidebar-context">${context}</div>
     </aside>
   `;
 }
