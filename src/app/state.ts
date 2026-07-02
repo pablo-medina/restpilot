@@ -1,4 +1,4 @@
-import { escapeHtml } from "../content-display";
+import { escapeHtml } from "../lib/content-display";
 import { COLLECTION_ROOT_PARENT_ID, isCollectionRoot, normalizeParentId } from "./collection-parent";
 import type { TextContextFlags } from "./context-menu";
 import { defaultConfig } from "../types";
@@ -45,7 +45,7 @@ export type AppState = AppConfig & {
 };
 
 
-export const state: AppState = {
+export let state: AppState = {
   ...defaultConfig(),
   tabs: {},
   activePanel: "request",
@@ -71,6 +71,25 @@ export const state: AppState = {
   activeSidebarFunctionPlayLoading: null,
   editingEnvId: null
 };
+
+// ── Store primitives ────────────────────────────────────────────────────────
+type StateListener = () => void;
+const _stateListeners = new Set<StateListener>();
+
+export function subscribeToState(l: StateListener): () => void {
+  _stateListeners.add(l);
+  return () => _stateListeners.delete(l);
+}
+
+export function notifyState(): void {
+  for (const l of _stateListeners) l();
+}
+
+/** Immutable update: replaces `state` with the result of `updater` and notifies subscribers. */
+export function setState(updater: (prev: AppState) => AppState): void {
+  state = updater(state);
+  notifyState();
+}
 
 
 const root = document.querySelector<HTMLDivElement>("#app");

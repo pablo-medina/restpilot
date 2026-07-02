@@ -22,9 +22,11 @@ async function applyStartupPrefs() {
   updateBootMessage();
 }
 
-void (async () => {
+  void (async () => {
   const configPromise = loadStoredConfig();
   await applyStartupPrefs();
+  const { mountReactApp } = await import("./react/main");
+  mountReactApp();
   const { startApp } = await import("./app");
   await startApp(configPromise);
 })();

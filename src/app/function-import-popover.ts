@@ -5,11 +5,11 @@ import {
   removePopovers,
   renderPopoverShell
 } from "../components/popover";
-import { escapeHtml } from "../content-display";
+import { escapeHtml } from "../lib/content-display";
 import { t } from "../i18n";
 import { applyRequestToFunction } from "./request-function-copy";
 import { scheduleSave } from "./persistence";
-import { render } from "./render";
+import { bumpRenderGeneration } from "../react/render-bridge";
 import { state } from "./state";
 import type { AppFunction, SavedRequest } from "../types";
 
@@ -38,7 +38,11 @@ function listCollectionRequests(): RequestListEntry[] {
     .sort((a, b) => a.path.localeCompare(b.path, undefined, { sensitivity: "base" }));
 }
 
-export function openFunctionImportPopover(func: AppFunction, anchor: HTMLElement): void {
+export function openFunctionImportPopover(
+  func: AppFunction,
+  anchor: HTMLElement,
+  onRefresh: () => void = bumpRenderGeneration
+): void {
   removePopovers();
   const labels = t().functions;
   const entries = listCollectionRequests();
@@ -89,7 +93,7 @@ export function openFunctionImportPopover(func: AppFunction, anchor: HTMLElement
       applyRequestToFunction(func, entry.request);
       scheduleSave();
       removePopovers();
-      render();
+      onRefresh();
     });
   });
 

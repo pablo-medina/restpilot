@@ -45,7 +45,27 @@ const dialogs: DialogState[] = [];
 const resolvers = new Map<string, (value: string | DialogOutcome) => void>();
 let onRender: (() => void) | null = null;
 let dragState: DragState | null = null;
-let boundGlobals = false;
+let dialogRevision = 0;
+
+const dialogListeners = new Set<() => void>();
+
+export function subscribeDialogs(listener: () => void): () => void {
+  dialogListeners.add(listener);
+  return () => dialogListeners.delete(listener);
+}
+
+export function getDialogRevision(): number {
+  return dialogRevision;
+}
+
+export function getOpenDialogs(): readonly DialogState[] {
+  return dialogs;
+}
+
+function notifyDialogListeners() {
+  dialogRevision += 1;
+  for (const listener of dialogListeners) listener();
+}
 
 const VIEWPORT_MARGIN = 16;
 const DIALOG_MAX_MARGIN = 0;
@@ -99,148 +119,10 @@ function centerDialog(dialog: DialogState, measuredHeight?: number) {
 
 export function initDialogs(render: () => void) {
   onRender = render;
-  if (!boundGlobals) {
-    boundGlobals = true;
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("keydown", onDialogKeydown);
-  }
 }
 
-export function renderDialogLayer(): string {
-  return `<section class="window-layer">${dialogs.map(renderDialog).join("")}</section>`;
-}
 
-export function bindDialogs() {
-  document.querySelectorAll<HTMLElement>("[data-dialog-id]").forEach((element) => {
-    const dialogId = element.dataset.dialogId ?? "";
-    const dialog = dialogs.find((item) => item.id === dialogId);
-    if (!dialog) return;
-
-    element.querySelectorAll<HTMLElement>("[data-dialog-action]").forEach((action) => {
-      action.addEventListener("click", () => {
-        const actionId = action.dataset.dialogAction ?? "close";
-        if (actionId === "maximize") {
-          toggleMaximize(dialog);
-          updateDialogElement(dialog);
-          syncDialogMaximizeButton(element, dialog);
-          return;
-        }
-        captureDialogForm(dialog, element);
-        closeDialog(dialogId, actionId);
-      });
-    });
-
-    const titleBar = element.querySelector<HTMLElement>("[data-dialog-drag]");
-    titleBar?.addEventListener("pointerdown", (event) => {
-      if (dialog.maximized) return;
-      const target = event.target as HTMLElement;
-      if (target.closest("[data-dialog-action]")) return;
-      event.preventDefault();
-      dragState = { type: "move", id: dialogId, dx: event.clientX - dialog.x, dy: event.clientY - dialog.y };
-      setDialogDragging(dialogId, true);
-      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-    });
-
-    titleBar?.addEventListener("dblclick", (event) => {
-      if (!dialog.resizable) return;
-      if ((event.target as HTMLElement).closest("[data-dialog-action]")) return;
-      event.preventDefault();
-      event.stopPropagation();
-      toggleMaximize(dialog);
-      updateDialogElement(dialog);
-      syncDialogMaximizeButton(element, dialog);
-    });
-
-    element.tabIndex = -1;
-
-    if (dialog.resizable) {
-      element.querySelectorAll<HTMLElement>("[data-resize]").forEach((handle) => {
-        handle.addEventListener("pointerdown", (event) => {
-          if (dialog.maximized) return;
-          event.preventDefault();
-          event.stopPropagation();
-          dragState = {
-            type: "resize",
-            id: dialogId,
-            edge: handle.dataset.resize as ResizeEdge,
-            startX: event.clientX,
-            startY: event.clientY,
-            startBounds: { x: dialog.x, y: dialog.y, width: dialog.width, height: dialog.height }
-          };
-          setDialogDragging(dialogId, true);
-          handle.setPointerCapture(event.pointerId);
-        });
-      });
-    }
-
-    if (dialog.data?.mode === "collection-import") {
-      const syncConflictVisibility = () => {
-        const replace =
-          element.querySelector<HTMLInputElement>('input[name="collection-import-mode"][value="replace"]')?.checked ??
-          false;
-        element.querySelector<HTMLElement>("[data-collection-import-conflicts]")?.toggleAttribute("hidden", replace);
-      };
-      element.querySelectorAll<HTMLInputElement>('input[name="collection-import-mode"]').forEach((radio) => {
-        radio.addEventListener("change", syncConflictVisibility);
-      });
-      syncConflictVisibility();
-    }
-
-    if (dialog.data?.mode === "import-source") {
-      const syncCurlArea = () => {
-        const isCurl =
-          element.querySelector<HTMLInputElement>('input[name="import-source"][value="curl"]')?.checked ?? false;
-        const area = element.querySelector<HTMLElement>("#import-curl-area");
-        if (area) area.classList.toggle("hidden", !isCurl);
-      };
-      element.querySelectorAll<HTMLInputElement>('input[name="import-source"]').forEach((radio) => {
-        radio.addEventListener("change", syncCurlArea);
-      });
-      syncCurlArea();
-    }
-
-    const inputEl = element.querySelector<HTMLInputElement>(".dialog-input");
-    if (inputEl) {
-      inputEl.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-          event.preventDefault();
-          event.stopPropagation();
-          captureDialogForm(dialog, element);
-          closeDialog(dialogId, "save");
-        }
-      });
-    }
-
-    if (dialogs[dialogs.length - 1]?.id === dialogId) {
-      if (inputEl) {
-        inputEl.focus();
-        inputEl.select();
-      } else {
-        element.focus();
-      }
-      if (!dialog.maximized && dialog.height === 0) {
-        requestAnimationFrame(() => {
-          const current = dialogs.find((item) => item.id === dialogId);
-          const node = document.querySelector<HTMLElement>(`[data-dialog-id="${dialogId}"]`);
-          if (!current || !node) return;
-          const measured = node.getBoundingClientRect().height;
-          if (measured <= 0) return;
-          centerDialog(current, measured);
-          applyDialogBounds(node, current);
-          
-          const inputInNode = node.querySelector<HTMLInputElement>(".dialog-input");
-          if (inputInNode) {
-            inputInNode.focus();
-            inputInNode.select();
-          }
-        });
-      }
-    }
-  });
-}
-
-function onDialogKeydown(event: KeyboardEvent) {
+export function onDialogKeydown(event: KeyboardEvent) {
   const top = dialogs[dialogs.length - 1];
   if (!top) return;
   const element = document.querySelector<HTMLElement>(`[data-dialog-id="${top.id}"]`);
@@ -264,6 +146,8 @@ function handleDialogKeydown(event: KeyboardEvent, dialog: DialogState) {
   if (dialog.data?.mode === "input" && target.classList.contains("dialog-input")) {
     event.preventDefault();
     event.stopPropagation();
+    const element = document.querySelector<HTMLElement>(`[data-dialog-id="${dialog.id}"]`);
+    if (element) captureDialogForm(dialog, element);
     closeDialog(dialog.id, "save");
     return;
   }
@@ -273,6 +157,8 @@ function handleDialogKeydown(event: KeyboardEvent, dialog: DialogState) {
 
   event.preventDefault();
   event.stopPropagation();
+  const element = document.querySelector<HTMLElement>(`[data-dialog-id="${dialog.id}"]`);
+  if (element) captureDialogForm(dialog, element);
   closeDialog(dialog.id, primaryActionId(dialog));
 }
 
@@ -364,7 +250,7 @@ export async function inputDialog(title: string, body: string, value: string): P
 }
 
 function syncModalChromeState() {
-  document.documentElement.toggleAttribute("data-modal-open", dialogs.length > 0);
+  // Modal chrome is driven by React App (settings + DialogLayer).
 }
 
 function openDialog(dialog: DialogState): Promise<string | DialogOutcome> {
@@ -461,7 +347,7 @@ function toggleMaximize(dialog: DialogState) {
   dialog.maximized = true;
 }
 
-function onPointerMove(event: PointerEvent) {
+export function onPointerMove(event: PointerEvent) {
   if (!dragState) return;
   const dialog = dialogs.find((item) => item.id === dragState?.id);
   if (!dialog || dialog.maximized) return;
@@ -477,10 +363,43 @@ function onPointerMove(event: PointerEvent) {
   updateDialogElement(dialog);
 }
 
-function onPointerUp() {
-  if (dragState) setDialogDragging(dragState.id, false);
-  dragState = null;
+export function beginDialogMove(dialogId: string, clientX: number, clientY: number) {
+  const dialog = dialogs.find((item) => item.id === dialogId);
+  if (!dialog || dialog.maximized) return;
+  dragState = { type: "move", id: dialogId, dx: clientX - dialog.x, dy: clientY - dialog.y };
+  setDialogDragging(dialogId, true);
 }
+
+export function beginDialogResize(
+  dialogId: string,
+  edge: ResizeEdge,
+  clientX: number,
+  clientY: number
+) {
+  const dialog = dialogs.find((item) => item.id === dialogId);
+  if (!dialog || dialog.maximized) return;
+  dragState = {
+    type: "resize",
+    id: dialogId,
+    edge,
+    startX: clientX,
+    startY: clientY,
+    startBounds: { x: dialog.x, y: dialog.y, width: dialog.width, height: dialog.height }
+  };
+  setDialogDragging(dialogId, true);
+}
+
+export function endDialogDrag() {
+  if (!dragState) return;
+  setDialogDragging(dragState.id, false);
+  dragState = null;
+  requestRender();
+}
+
+function onPointerUp() {
+  endDialogDrag();
+}
+
 
 function applyResize(dialog: DialogState, edge: ResizeEdge, start: Bounds, deltaX: number, deltaY: number) {
   let { x, y, width, height } = start;
@@ -534,7 +453,75 @@ function updateDialogElement(dialog: DialogState) {
 }
 
 function requestRender() {
+  notifyDialogListeners();
   onRender?.();
+}
+
+export function submitDialogAction(dialogId: string, actionId: string, root?: HTMLElement | null) {
+  const dialog = dialogs.find((item) => item.id === dialogId);
+  if (!dialog) return;
+  if (actionId === "maximize") {
+    toggleMaximize(dialog);
+    requestRender();
+    return;
+  }
+  if (root) captureDialogForm(dialog, root);
+  closeDialog(dialogId, actionId);
+}
+
+export function syncDialogLayout(dialogId: string, bounds: Bounds) {
+  const dialog = dialogs.find((item) => item.id === dialogId);
+  if (!dialog || dialog.maximized) return;
+  dialog.x = bounds.x;
+  dialog.y = bounds.y;
+  dialog.width = bounds.width;
+  dialog.height = bounds.height;
+}
+
+export function bindDialogPreviewContent(root: HTMLElement, dialog: DialogState) {
+  if (dialog.data?.mode === "collection-import") {
+    const syncConflictVisibility = () => {
+      const replace =
+        root.querySelector<HTMLInputElement>('input[name="collection-import-mode"][value="replace"]')?.checked ?? false;
+      root.querySelector<HTMLElement>("[data-collection-import-conflicts]")?.toggleAttribute("hidden", replace);
+    };
+    root.querySelectorAll<HTMLInputElement>('input[name="collection-import-mode"]').forEach((radio) => {
+      radio.addEventListener("change", syncConflictVisibility);
+    });
+    syncConflictVisibility();
+  }
+
+  if (dialog.data?.mode === "import-source") {
+    const syncCurlArea = () => {
+      const isCurl = root.querySelector<HTMLInputElement>('input[name="import-source"][value="curl"]')?.checked ?? false;
+      const area = root.querySelector<HTMLElement>("#import-curl-area");
+      if (area) area.classList.toggle("hidden", !isCurl);
+    };
+    root.querySelectorAll<HTMLInputElement>('input[name="import-source"]').forEach((radio) => {
+      radio.addEventListener("change", syncCurlArea);
+    });
+    syncCurlArea();
+  }
+
+  const importSelectAll = root.querySelector<HTMLInputElement>("#import-select-all");
+  if (importSelectAll) {
+    importSelectAll.addEventListener("change", () => {
+      const checked = importSelectAll.checked;
+      root.querySelectorAll<HTMLInputElement>("[data-import-item-id]").forEach((checkbox) => {
+        checkbox.checked = checked;
+      });
+    });
+  }
+}
+
+export function measureAndCenterDialog(dialogId: string, node: HTMLElement) {
+  const dialog = dialogs.find((item) => item.id === dialogId);
+  if (!dialog || dialog.maximized || dialog.height !== 0) return;
+  const measured = node.getBoundingClientRect().height;
+  if (measured <= 0) return;
+  centerDialog(dialog, measured);
+  applyDialogBounds(node, dialog);
+  requestRender();
 }
 
 function renderDialog(dialog: DialogState): string {

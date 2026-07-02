@@ -1,5 +1,5 @@
 import type { EditorView } from "@codemirror/view";
-import { escapeHtml } from "../content-display";
+import { escapeHtml } from "../lib/content-display";
 import { t } from "../i18n";
 import { codeMirrorViewFromTarget } from "./codemirror-view";
 import { menuShortcuts } from "./menu-shortcuts";

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { applyVariables } from "../variables";
+import { applyVariables } from "../lib/variables";
 import type { ApiResponse, AppFunction, SavedRequest } from "../types";
 import { COLLECTION_ROOT_PARENT_ID } from "./collection-parent";
 import { getEffectiveVariables } from "./environments";

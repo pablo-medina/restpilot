@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Variable } from "../types";
-import { effectiveVariables } from "../variables";
+import { effectiveVariables } from "../lib/variables";
 
 const globalVars: Variable[] = [
   { id: "g1", name: "base_url", value: "https://global.test", enabled: true },

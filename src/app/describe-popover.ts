@@ -4,7 +4,7 @@ import {
   removePopovers,
   renderPopoverShell
 } from "../components/popover";
-import { escapeHtml } from "../content-display";
+import { escapeHtml } from "../lib/content-display";
 import { t } from "../i18n";
 import { scheduleSave } from "./persistence";
 import { render } from "./render";

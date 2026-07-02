@@ -1,12 +1,12 @@
 import type { RawType } from "../types";
 
-export type EditorRuntime = typeof import("../large-text-editor");
+export type EditorRuntime = typeof import("../ui/large-text-editor");
 
 let runtime: EditorRuntime | null = null;
 let loading: Promise<EditorRuntime> | null = null;
 
 export function preloadEditorRuntime(): Promise<EditorRuntime> {
-  loading ??= import("../large-text-editor").then((mod) => {
+  loading ??= import("../ui/large-text-editor").then((mod) => {
     runtime = mod;
     return mod;
   });
@@ -17,4 +17,4 @@ export async function getEditorRuntime(): Promise<EditorRuntime> {
   return runtime ?? preloadEditorRuntime();
 }
 
-export type { ViewerMode } from "../large-text-editor";
+export type { ViewerMode } from "../ui/large-text-editor";

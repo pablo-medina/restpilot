@@ -1,9 +1,11 @@
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://v2.tauri.app/start/frontend/vite/
 export default defineConfig(({ mode }) => ({
+  plugins: [react()],
   base: "./",
   clearScreen: false,
   server: {
@@ -18,7 +20,7 @@ export default defineConfig(({ mode }) => ({
   },
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["src/test-setup.ts"]
   }
 }));

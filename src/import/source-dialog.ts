@@ -1,6 +1,6 @@
 import { applicationDialog, messageDialog } from "../components/dialogs";
 import { t } from "../i18n";
-import { parseCurl } from "../curl";
+import { parseCurl } from "../lib/curl";
 import { blankRequest } from "../app/request-utils";
 import { parseCollectionExport } from "../app/collection-format";
 import { defaultSettings } from "../types";

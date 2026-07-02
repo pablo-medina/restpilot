@@ -1,5 +1,5 @@
 import { t } from "../i18n";
-import { iconBookmark, iconCopy } from "../icons";
+import { iconBookmark, iconCopy } from "../lib/icons";
 import {
   bodySourceKey,
   escapeHtml,
@@ -7,7 +7,7 @@ import {
   formatResponseBody,
   highlightResponse,
   isLargeText
-} from "../content-display";
+} from "../lib/content-display";
 import {
   state,
   formatBytes,
@@ -17,15 +17,15 @@ import {
 import { scheduleSave } from "../app/persistence";
 import { hasResponseBodySelection } from "../app/context-menu";
 import { getEditorRuntime } from "../app/editor-runtime";
-import { mountHeadersTable } from "../headers-table";
+import { mountHeadersTable } from "../ui/headers-table";
 import { messageDialog, inputDialog } from "../components/dialogs";
-import { render } from "../app/render";
+import { bumpRenderGeneration } from "../react/render-bridge";
+import { pushToast } from "../react/components/index";
 import type { TabState, SavedRequest, RawType, ResponseTab, SavedResponseHistoryItem, ApiResponse } from "../types";
 
 export interface ResponsePanelCallbacks {
   closeContextMenu: () => void;
   syncContextMenu: () => void;
-  showToast: (message: string) => void;
 }
 
 let callbacks: ResponsePanelCallbacks | undefined;
@@ -274,7 +274,7 @@ export function bindResponseHeadActions(tab: TabState): void {
   const select = document.querySelector<HTMLSelectElement>("[data-select-response-version]");
   select?.addEventListener("change", () => {
     tab.selectedSavedResponseId = select.value;
-    render();
+    bumpRenderGeneration();
   });
 
   const saveBtn = document.querySelector<HTMLButtonElement>("[data-action-save-response]");
@@ -314,10 +314,8 @@ export function bindResponseHeadActions(tab: TabState): void {
     tab.selectedSavedResponseId = savedItem.id;
 
     scheduleSave();
-    if (callbacks?.showToast) {
-      callbacks.showToast(t().request.saveResponseSuccess ?? "Respuesta guardada correctamente");
-    }
-    render();
+    pushToast(t().request.saveResponseSuccess ?? "Respuesta guardada correctamente");
+    bumpRenderGeneration();
   });
 
   const deleteBtn = document.querySelector<HTMLButtonElement>("[data-delete-saved-response]");
@@ -333,7 +331,7 @@ export function bindResponseHeadActions(tab: TabState): void {
 
     tab.selectedSavedResponseId = "current";
     scheduleSave();
-    render();
+    bumpRenderGeneration();
   });
 }
 
@@ -361,7 +359,7 @@ async function copyText(text: string): Promise<void> {
   const labels = t().messages;
   try {
     await navigator.clipboard.writeText(text);
-    callbacks?.showToast(labels.copySuccess);
+    pushToast(labels.copySuccess);
   } catch {
     await messageDialog("error", labels.copyCurlTitle, labels.copyFailed);
   }
@@ -373,7 +371,7 @@ export function bindResponseTabs(requestId: string): void {
   document.querySelectorAll<HTMLButtonElement>(".response-card [data-response-tab]").forEach((button) => {
     button.addEventListener("click", () => {
       tab.selectedResponseTab = button.dataset.responseTab as ResponseTab;
-      render();
+      bumpRenderGeneration();
     });
   });
 }
@@ -382,24 +380,6 @@ export function scheduleResponseRender(): void {
   if (responseRenderFrame) return;
   responseRenderFrame = requestAnimationFrame(() => {
     responseRenderFrame = undefined;
-    const request = getActiveRequest();
-    if (!request) return;
-    const tab = state.tabs[request.id];
-    if (!tab?.response) return;
-    const card = document.querySelector(".response-card");
-    if (!card) return;
-
-    const canPatchBody =
-      tab.selectedResponseTab === "body" &&
-      card.querySelector("[data-response-body-viewer], [data-response-body-stream]");
-
-    if (canPatchBody) {
-      void refreshResponseBodyDisplay(request, tab);
-      return;
-    }
-
-    card.innerHTML = renderResponse(tab);
-    bindResponseTabs(request.id);
-    void mountResponseDisplays(request, tab);
+    bumpRenderGeneration();
   });
 }

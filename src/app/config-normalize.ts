@@ -2,7 +2,7 @@ import { clampTabSize } from "../types";
 import { normalizeProxySettings } from "./proxy-settings";
 import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth, normalizeRequestAuth } from "./request-auth";
-import { migrateRequestQuery } from "../url-params";
+import { migrateRequestQuery } from "../lib/url-params";
 import { normalizeParentId } from "./collection-parent";
 import {
   clampRequestTimeoutSecs,

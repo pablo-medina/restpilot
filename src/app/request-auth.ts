@@ -1,5 +1,5 @@
-import { applyVariables } from "../variables";
-import { buildRequestUrl } from "../url-params";
+import { applyVariables } from "../lib/variables";
+import { buildRequestUrl } from "../lib/url-params";
 import type { Pair, RequestAuth, SavedRequest, Variable } from "../types";
 
 export const AUTH_HEADER_NAME = "authorization";

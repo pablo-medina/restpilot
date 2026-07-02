@@ -1,4 +1,4 @@
-import { applyVariables } from "../variables";
+import { applyVariables } from "../lib/variables";
 import { buildOutboundHeaders, defaultRequestAuth } from "./request-auth";
 import { clampRequestTimeoutSecs, type SavedRequest, type UserSettings } from "../types";
 import { getEffectiveVariables } from "./environments";

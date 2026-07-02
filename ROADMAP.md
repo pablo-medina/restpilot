@@ -112,7 +112,7 @@ Goal: refined experience across all surfaces — search, navigation, context men
 |---|------|--------|--------|
 | 4.1 | **Tab context menu** — right-click tab for Close, Close Others, Close to Right, Close All | `src/app/context-menu.ts` — `request-tab` kind is typed but not rendered | planned |
 | 4.2 | **Context menu keyboard navigation** — Arrow/Tab/Enter within menus | `src/app/context-menu.ts` | planned |
-| 4.3 | **Tree virtual scrolling** — virtualized collection tree for large collections | Reuse/extend `src/virtual-list.ts` pattern | planned |
+| 4.3 | **Tree virtual scrolling** — virtualized collection tree for large collections | New virtual-list module (legacy `virtual-list.ts` removed) | planned |
 | 4.4 | **Search in responses** — filter response body text (case-insensitive, highlight) | Response panel search bar | planned |
 | 4.5 | **Search in variables** — filter global/env variable tables | Variables workspace search | planned |
 | 4.6 | **Search highlighting** — bold/color matched text in tree items and variable rows | Collection tree + variable panels | planned |

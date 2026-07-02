@@ -117,7 +117,7 @@ RestPilot uses high-density Excel-style datagrids for Globals and Environment Va
 - Markup: `class="block${hiddenClass(!visible)}"` — import `hiddenClass` / `setVisible` from `src/ui/visibility.ts`.
 - CSS: scoped rule, e.g. `.my-panel .my-block.is-hidden { display: none; }`.
 - Runtime: `element.classList.toggle("is-hidden", !visible)` (same as `setVisible(el, visible)`).
-- Example: `src/request-auth-panel.ts` + `.request-auth-panel .auth-fields.is-hidden`.
+- Example: `src/react/components/RequestEditor.tsx` + `.request-auth-panel .auth-fields.is-hidden`.
 
 #### Checklist for a new request-card tab panel
 
