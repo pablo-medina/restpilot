@@ -256,6 +256,7 @@ export const es = {
     activeEnvironment: "Entorno activo",
     searchPlaceholder: "Buscar entornos...",
     manage: "Administrar entornos…",
+    manageAll: "Configurar entornos y variables",
     manageTitle: "Variables y entornos",
     manageHint: "Cree entornos para desarrollo, pruebas o producción. Las variables del entorno activo reemplazan a las globales con el mismo nombre.",
     tabGlobals: "Globales",
@@ -418,5 +419,12 @@ export const es = {
     header: "Encabezado",
     param: "Parámetro",
     value: "Valor"
+  },
+  errorBoundary: {
+    title: "Ocurrió un problema",
+    titleIn: 'Ocurrió un problema en "{label}"',
+    retry: "Reintentar",
+    reload: "Recargar aplicación",
+    details: "Detalles técnicos"
   }
 } as const;

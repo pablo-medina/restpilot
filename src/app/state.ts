@@ -28,7 +28,7 @@ export type AppState = AppConfig & {
   contextMenu: ContextMenuState | null;
   previousPanel: ActivePanel;
   sidebarVisible: boolean;
-  openRequestPopover: "environment" | "variables" | null;
+  openRequestPopover: "environment" | null;
   envManageSelectedId: string | null;
   variablesWorkspaceTab: "globals" | "environments";
   collectionSearchQuery: string;
@@ -44,6 +44,8 @@ export type AppState = AppConfig & {
   editingEnvId: string | null;
   /** ID of the tab currently in "preview" mode (shown in italic). Null if none. */
   previewTabId: string | null;
+  /** Whether the variables accordion in the environment popover is expanded. */
+  envPopoverVariablesExpanded: boolean;
 };
 
 
@@ -73,6 +75,7 @@ export let state: AppState = {
   activeSidebarFunctionPlayLoading: null,
   editingEnvId: null,
   previewTabId: null,
+  envPopoverVariablesExpanded: false,
 };
 
 // ── Store primitives ────────────────────────────────────────────────────────

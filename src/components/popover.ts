@@ -1,4 +1,5 @@
 import { t } from "../i18n";
+import { closeRequestPopovers } from "../ui/request-popovers";
 import { computePopoverPosition } from "./popover-position";
 
 export type PopoverShellOptions = {
@@ -57,7 +58,10 @@ export function positionPopoverElement(popover: HTMLElement, anchor: HTMLElement
 }
 
 export function mountPopover(html: string, anchor: HTMLElement): HTMLElement {
-  document.querySelectorAll(".app-popover").forEach((node) => node.remove());
+  // Close React-managed popovers (env/variables) through state so React unmounts its own
+  // portal; only sweep away legacy (non-React) popover nodes directly here.
+  closeRequestPopovers();
+  document.querySelectorAll(".app-popover:not([data-react-portal])").forEach((node) => node.remove());
   document.body.insertAdjacentHTML("beforeend", html);
   const popover = document.querySelector<HTMLElement>(".app-popover");
   if (!popover) throw new Error("Popover mount failed.");

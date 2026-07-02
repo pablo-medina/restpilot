@@ -34,7 +34,7 @@ function mockPopulatedState(): AppState {
     autoTitleFromUrlId: "1",
     pendingCurl: null,
     contextMenu: null,
-    previousPanel: "variables",
+    previousPanel: "settings",
     sidebarVisible: false,
     openRequestPopover: "environment",
     envManageSelectedId: "e1",
@@ -69,6 +69,7 @@ function mockPopulatedState(): AppState {
     activeSidebarFunctionPlayLoading: null,
     editingEnvId: "e1",
     previewTabId: "1",
+    envPopoverVariablesExpanded: true,
   };
 }
 

@@ -1,10 +1,9 @@
 import { useLayoutEffect, useRef } from "react";
 import { EnvironmentPopover } from "./EnvironmentPopover";
-import { VariablesPopover } from "./VariablesPopover";
 import { environmentChipLabel } from "../../app/environments";
 import { useTabReorder } from "../hooks/useTabReorder";
 import { getActiveRequest, getRequest, setState, state } from "../../app/state";
-import { iconChevronLeft, iconChevronRight, iconVariables } from "../../lib/icons";
+import { iconChevronLeft, iconChevronRight } from "../../lib/icons";
 import { t } from "../../i18n";
 import { toggleRequestPopover } from "../../ui/request-popovers";
 import { useRenderGeneration } from "../hooks/useRenderGeneration";
@@ -55,15 +54,12 @@ type Props = {
 
 function TabBarTools({ request }: { request: SavedRequest }) {
   const envLabels = t().environments;
-  const varLabels = t().variables;
   const requestLabels = t().request;
   const envExpanded = state.openRequestPopover === "environment";
-  const varsExpanded = state.openRequestPopover === "variables";
   const actionsOpen =
     state.contextMenu?.kind === "request-actions" && state.contextMenu.requestId === request.id;
 
   const envBtnRef = useRef<HTMLButtonElement>(null);
-  const varsBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="tab-bar-tools">
@@ -83,18 +79,6 @@ function TabBarTools({ request }: { request: SavedRequest }) {
         </span>
       </button>
       <button
-        ref={varsBtnRef}
-        type="button"
-        id="request-vars-btn"
-        className={`tool-icon request-tool-btn request-popover-trigger${varsExpanded ? " is-active" : ""}`}
-        title={varLabels.popoverTitle}
-        aria-haspopup="dialog"
-        aria-expanded={varsExpanded}
-        onClick={() => { toggleRequestPopover("variables"); bumpRenderGeneration(); }}
-      >
-        <span className="title-bar-icon request-tool-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconVariables }} />
-      </button>
-      <button
         type="button"
         id="request-actions-trigger"
         className={`tab-actions-trigger${request.streamResponse ? " has-stream" : ""}`}
@@ -108,7 +92,6 @@ function TabBarTools({ request }: { request: SavedRequest }) {
         <span dangerouslySetInnerHTML={{ __html: iconChevronRight }} />
       </button>
       {envExpanded && <EnvironmentPopover anchor={envBtnRef.current} />}
-      {varsExpanded && <VariablesPopover anchor={varsBtnRef.current} />}
     </div>
   );
 }
@@ -133,6 +116,11 @@ function RequestTab({
       aria-selected={active}
       tabIndex={0}
       onClick={() => openRequestTab(requestId, refresh)}
+      onMouseDown={(event) => {
+        if (event.button !== 1) return;
+        event.preventDefault();
+        closeRequestTab(requestId, refresh);
+      }}
     >
       <span className="tab-label">{request.title}</span>
       <button

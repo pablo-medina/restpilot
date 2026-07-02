@@ -28,6 +28,7 @@ export function defaultRuntimeState(): Pick<
   | "activeSidebarFunctionPlayLoading"
   | "editingEnvId"
   | "previewTabId"
+  | "envPopoverVariablesExpanded"
 > {
 
   return {
@@ -55,6 +56,7 @@ export function defaultRuntimeState(): Pick<
     activeSidebarFunctionPlayLoading: null,
     editingEnvId: null,
     previewTabId: null,
+    envPopoverVariablesExpanded: false,
   };
 }
 

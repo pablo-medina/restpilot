@@ -34,7 +34,6 @@ async function runWindowAction(action: string): Promise<void> {
 
 function resolveTitleBarCenter(): string {
   if (state.activePanel === "settings") return t().settings.title;
-  if (state.activePanel === "variables") return t().nav.variables;
   if (state.activePanel === "functions") return "";
   const request = getActiveRequest();
   if (request?.title.trim()) return request.title.trim();

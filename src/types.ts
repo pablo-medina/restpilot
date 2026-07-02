@@ -29,7 +29,7 @@ export type Locale = "en" | "es";
 export type ProxyMode = "none" | "system" | "environment" | "manual";
 /** Proxy authentication negotiated by libcurl (manual) or forced scheme. */
 export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
-export type ActivePanel = "request" | "variables" | "settings" | "functions";
+export type ActivePanel = "request" | "settings" | "functions";
 
 export type AppFunction = {
   id: string;

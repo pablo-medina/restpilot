@@ -216,7 +216,6 @@ export function SettingsPanel({ refresh }: Props) {
             <section className="settings-card">
               <h2>{labels.windowSection}</h2>
               <label className="settings-field settings-toggle">
-                <span>{labels.maximizeOnStartup}</span>
                 <input
                   id="setting-maximize-on-startup"
                   type="checkbox"
@@ -226,6 +225,7 @@ export function SettingsPanel({ refresh }: Props) {
                     persist();
                   }}
                 />
+                <span>{labels.maximizeOnStartup}</span>
               </label>
             </section>
 
@@ -308,9 +308,8 @@ export function SettingsPanel({ refresh }: Props) {
                   </label>
                   <p className="settings-option-hint">{labels.tabSizeHint}</p>
                 </div>
-                <div className="settings-option">
+                <div className="settings-option settings-option--compact">
                   <label className="settings-toggle-row" htmlFor="setting-auto-prettify-json">
-                    <span className="settings-option-label">{labels.autoPrettifyJson}</span>
                     <input
                       id="setting-auto-prettify-json"
                       type="checkbox"
@@ -320,12 +319,11 @@ export function SettingsPanel({ refresh }: Props) {
                         persist();
                       }}
                     />
+                    <span className="settings-option-label">{labels.autoPrettifyJson}</span>
                   </label>
-                  <p className="settings-option-hint">{labels.autoPrettifyJsonHint}</p>
                 </div>
-                <div className="settings-option">
+                <div className="settings-option settings-option--compact">
                   <label className="settings-toggle-row" htmlFor="setting-click-to-select">
-                    <span className="settings-option-label">{labels.clickToSelect}</span>
                     <input
                       id="setting-click-to-select"
                       type="checkbox"
@@ -335,8 +333,8 @@ export function SettingsPanel({ refresh }: Props) {
                         persist();
                       }}
                     />
+                    <span className="settings-option-label">{labels.clickToSelect}</span>
                   </label>
-                  <p className="settings-option-hint">{labels.clickToSelectHint}</p>
                 </div>
               </div>
             </section>
@@ -364,7 +362,6 @@ export function SettingsPanel({ refresh }: Props) {
                 />
               </label>
               <label className="settings-toggle-row settings-network-toggle" htmlFor="setting-follow-redirects">
-                <span>{labels.followRedirects}</span>
                 <input
                   id="setting-follow-redirects"
                   type="checkbox"
@@ -375,6 +372,7 @@ export function SettingsPanel({ refresh }: Props) {
                     persist();
                   }}
                 />
+                <span>{labels.followRedirects}</span>
               </label>
             </div>
 
@@ -419,7 +417,6 @@ export function SettingsPanel({ refresh }: Props) {
 
               <div className={`settings-proxy-environment${environmentOpen ? " open" : ""}`} id="proxy-environment-fields">
                 <label className="settings-toggle-row" htmlFor="setting-proxy-env-http">
-                  <span>HTTP_PROXY</span>
                   <input
                     id="setting-proxy-env-http"
                     type="checkbox"
@@ -430,9 +427,9 @@ export function SettingsPanel({ refresh }: Props) {
                       persist();
                     }}
                   />
+                  <span>HTTP_PROXY</span>
                 </label>
                 <label className="settings-toggle-row" htmlFor="setting-proxy-env-https">
-                  <span>HTTPS_PROXY</span>
                   <input
                     id="setting-proxy-env-https"
                     type="checkbox"
@@ -443,9 +440,9 @@ export function SettingsPanel({ refresh }: Props) {
                       persist();
                     }}
                   />
+                  <span>HTTPS_PROXY</span>
                 </label>
                 <label className="settings-toggle-row" htmlFor="setting-proxy-env-no-proxy">
-                  <span>NO_PROXY</span>
                   <input
                     id="setting-proxy-env-no-proxy"
                     type="checkbox"
@@ -456,6 +453,7 @@ export function SettingsPanel({ refresh }: Props) {
                       persist();
                     }}
                   />
+                  <span>NO_PROXY</span>
                 </label>
               </div>
 

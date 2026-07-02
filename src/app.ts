@@ -87,8 +87,7 @@ export async function startApp(
   });
   setRenderApp(renderApp);
   setRequestPopoverHooks({
-    onVariablesChanged: onEffectiveVariablesChanged,
-    openVariablesPanel: openVariablesWorkspace
+    onVariablesChanged: onEffectiveVariablesChanged
   });
 
   const editorsReady = preloadEditorRuntime();
@@ -138,16 +137,6 @@ export async function startApp(
 function focusUrlOnStartup() {
   if (state.activePanel !== "request" || !getActiveRequest()) return;
   focusRequestUrl();
-}
-
-function openVariablesWorkspace(tab: "globals" | "environments" = "globals") {
-  state.variablesWorkspaceTab = tab;
-  if (tab === "globals") {
-    state.envManageSelectedId = "globals";
-  } else {
-    state.envManageSelectedId = state.activeEnvironmentId ?? "default";
-  }
-  openPanel("variables");
 }
 
 // (updateTabStripActive extracted to src/ui/tabs-bar.ts)
@@ -201,9 +190,6 @@ function openPanel(panel: ActivePanel) {
   if (panel === "settings") {
     openSettingsDialog();
     return;
-  }
-  if (panel !== state.activePanel && panel === "variables") {
-    state.previousPanel = state.activePanel;
   }
   closeRequestPopovers();
   state.activePanel = panel;

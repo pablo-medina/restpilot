@@ -90,7 +90,7 @@ describe("title bar chrome actions", () => {
     expect(openSettings).toHaveBeenCalledTimes(1);
   });
 
-  it("variables toolbar button toggles the request variables popover", async () => {
+  it("environment toolbar button toggles the environment & variables popover", async () => {
     const user = userEvent.setup();
     render(
       <header className="title-bar title-bar--tabs">
@@ -98,10 +98,11 @@ describe("title bar chrome actions", () => {
       </header>
     );
 
-    await user.click(screen.getByRole("button", { name: /global variables/i }));
-    expect(state.openRequestPopover).toBe("variables");
+    const envTrigger = screen.getByTitle(/active environment and variables/i);
+    await user.click(envTrigger);
+    expect(state.openRequestPopover).toBe("environment");
 
-    await user.click(screen.getByRole("button", { name: /global variables/i }));
+    await user.click(envTrigger);
     expect(state.openRequestPopover).toBeNull();
   });
 });

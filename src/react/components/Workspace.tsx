@@ -6,7 +6,6 @@ import { FunctionNamingPlaceholder } from "./functions/FunctionNamingPlaceholder
 import { RequestEditor } from "./RequestEditor";
 import { ResponsePanel } from "./ResponsePanel";
 import { SettingsPanel } from "./SettingsPanel";
-import { VariablesWorkspace } from "./variables/VariablesWorkspace";
 
 type Props = {
   refresh: () => void;
@@ -29,14 +28,6 @@ export function Workspace({ refresh }: Props) {
     return (
       <div className="workspace-body">
         <SettingsPanel refresh={refresh} />
-      </div>
-    );
-  }
-
-  if (panel === "variables") {
-    return (
-      <div className="workspace-body">
-        <VariablesWorkspace refresh={refresh} onVariablesChanged={refresh} />
       </div>
     );
   }

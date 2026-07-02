@@ -256,6 +256,7 @@ export const en = {
     activeEnvironment: "Active environment",
     searchPlaceholder: "Search environments...",
     manage: "Manage environments…",
+    manageAll: "Configure environments and variables",
     manageTitle: "Variables & environments",
     manageHint: "Create environments for dev, staging, or production. Variables in the active environment override globals with the same name.",
     tabGlobals: "Globals",
@@ -418,5 +419,12 @@ export const en = {
     header: "Header",
     param: "Parameter",
     value: "Value"
+  },
+  errorBoundary: {
+    title: "Something went wrong",
+    titleIn: 'Something went wrong in "{label}"',
+    retry: "Retry",
+    reload: "Reload app",
+    details: "Technical details"
   }
 } as const;

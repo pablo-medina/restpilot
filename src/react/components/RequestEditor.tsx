@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useCallback, type ReactNode } from "react";
 import { scheduleSave } from "../../app/persistence";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { VariableInput } from "./VariableInput";
@@ -297,6 +297,12 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
   const request = getActiveRequest();
   const tab = request ? ensureTab(request.id) : null;
 
+  // Stable identity: CodeMirrorEditor remounts its editor instance whenever `onSend`
+  // changes, so a fresh arrow function here on every render would flicker the body editor.
+  const sendActiveRequest = useCallback(() => {
+    void trySendRequest(refresh);
+  }, [refresh]);
+
   const persist = () => {
     scheduleSave();
     refresh();
@@ -337,7 +343,7 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
           tabSize={state.settings.tabSize}
           autoPrettifyJson={state.settings.autoPrettifyJson}
           onChange={(value) => { request.body = value; scheduleSave(); }}
-          onSend={() => void trySendRequest(refresh)}
+          onSend={sendActiveRequest}
           onPaste={(event) => void handleRequestCurlPaste(event.nativeEvent, refresh)}
           className={`code-editor ${modeClass}`}
         />
@@ -413,7 +419,7 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
               language="text"
               tabSize={state.settings.tabSize}
               onChange={(value) => { request.body = value; scheduleSave(); }}
-              onSend={() => void trySendRequest(refresh)}
+              onSend={sendActiveRequest}
               className="code-editor text-mode"
               style={{
                 flex: 1,

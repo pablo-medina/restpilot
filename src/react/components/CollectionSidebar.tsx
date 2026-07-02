@@ -13,8 +13,7 @@ import {
   iconMoreHorizontal,
   iconPlus,
   iconRequestAdd,
-  iconSearch,
-  iconVariables
+  iconSearch
 } from "../../lib/icons";
 import { t } from "../../i18n";
 import type { ActivePanel } from "../../types";
@@ -23,7 +22,6 @@ import { createNewFunction } from "../lib/function-actions";
 import { switchActivityPanel } from "../lib/sync-app-frame";
 import { FunctionsTree } from "./functions/FunctionsTree";
 import { CollectionTree } from "./CollectionTree";
-import { VariablesSidebar } from "./variables/VariablesSidebar";
 import { Icon } from "./Icon";
 
 type Props = {
@@ -96,8 +94,7 @@ function SidebarNavigation({
   const labels = t();
   const items = [
     { panel: "request" as const, label: labels.nav.requests, icon: iconRequestAdd },
-    { panel: "functions" as const, label: labels.nav.functions, icon: iconFunction },
-    { panel: "variables" as const, label: labels.nav.variables, icon: iconVariables }
+    { panel: "functions" as const, label: labels.nav.functions, icon: iconFunction }
   ];
 
   return (
@@ -128,16 +125,11 @@ export function CollectionSidebar({ refresh }: Props) {
   const sidebarVisible = useStore(s => s.sidebarVisible);
   const labels = t();
 
-  if (!(["request", "functions", "variables"] as ActivePanel[]).includes(activePanel)) {
+  if (!(["request", "functions"] as ActivePanel[]).includes(activePanel)) {
     return null;
   }
 
-  const contextTitle =
-    activePanel === "request"
-      ? labels.nav.collection
-      : activePanel === "functions"
-        ? labels.nav.functions
-        : labels.nav.variables;
+  const contextTitle = activePanel === "request" ? labels.nav.collection : labels.nav.functions;
 
   let context: ReactNode;
   if (activePanel === "request") {
@@ -231,7 +223,7 @@ export function CollectionSidebar({ refresh }: Props) {
         <CollectionTree refresh={refresh} />
       </>
     );
-  } else if (activePanel === "functions") {
+  } else {
     context = (
       <>
         <div className="sidebar-context-header">
@@ -267,8 +259,6 @@ export function CollectionSidebar({ refresh }: Props) {
         <FunctionsTree refresh={refresh} />
       </>
     );
-  } else {
-    context = <VariablesSidebar refresh={refresh} onVariablesChanged={refresh} />;
   }
 
   return (

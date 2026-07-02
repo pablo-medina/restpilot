@@ -8,5 +8,7 @@ export { CollectionSidebar } from "./CollectionSidebar";
 export { SettingsPanel } from "./SettingsPanel";
 export { Workspace } from "./Workspace";
 export { SettingsDialog } from "./SettingsDialog";
+export { VariablesManagerDialog } from "./dialogs/VariablesManagerDialog";
 export { DialogLayer } from "./DialogLayer";
 export { Toast, pushToast } from "./Toast";
+export { ErrorBoundary } from "./ErrorBoundary";
