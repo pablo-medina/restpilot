@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { CodeMirrorEditor } from "../CodeMirrorEditor";
 import { scheduleSave } from "../../../app/persistence";
 import { id, state } from "../../../app/state";
@@ -109,6 +110,13 @@ function MultipartRow({
 export function FunctionBodyPanel({ func, refresh, onChange }: Props) {
   const labels = t().request;
 
+  // Stable identity: CodeMirrorEditor remounts its editor instance whenever `onSend`
+  // changes, so a fresh arrow function here on every keystroke (each edit bumps the app
+  // render generation via `onChange`) would flicker the body editor while typing.
+  const sendActiveFunctionRequest = useCallback(() => {
+    void sendFunctionRequest(func, refresh);
+  }, [func, refresh]);
+
   const setBodyMode = (mode: BodyMode) => {
     func.bodyMode = mode;
     if (func.bodyMode === "form" && func.form.length === 0) {
@@ -180,7 +188,7 @@ export function FunctionBodyPanel({ func, refresh, onChange }: Props) {
             language={func.rawType}
             tabSize={state.settings.tabSize}
             onChange={(value) => { func.body = value; scheduleSave(); onChange(); }}
-            onSend={() => void sendFunctionRequest(func, refresh)}
+            onSend={sendActiveFunctionRequest}
             className={`code-editor ${func.rawType === "json" ? "json-mode" : func.rawType === "xml" ? "xml-mode" : "text-mode"}`}
             style={{
               flex: 1,
@@ -263,7 +271,7 @@ export function FunctionBodyPanel({ func, refresh, onChange }: Props) {
                 language="text"
                 tabSize={state.settings.tabSize}
                 onChange={(value) => { func.body = value; scheduleSave(); onChange(); }}
-                onSend={() => void sendFunctionRequest(func, refresh)}
+                onSend={sendActiveFunctionRequest}
                 className="code-editor text-mode"
                 style={{
                   flex: 1,
@@ -282,7 +290,7 @@ export function FunctionBodyPanel({ func, refresh, onChange }: Props) {
                 language="json"
                 tabSize={state.settings.tabSize}
                 onChange={(value) => { func.graphqlVariables = value; scheduleSave(); onChange(); }}
-                onSend={() => void sendFunctionRequest(func, refresh)}
+                onSend={sendActiveFunctionRequest}
                 className="code-editor json-mode"
                 style={{
                   flex: 1,

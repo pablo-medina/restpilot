@@ -438,7 +438,7 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
               language="json"
               tabSize={state.settings.tabSize}
               onChange={(value) => { request.graphqlVariables = value; scheduleSave(); }}
-              onSend={() => void trySendRequest(refresh)}
+              onSend={sendActiveRequest}
               className="code-editor json-mode"
               style={{
                 flex: 1,

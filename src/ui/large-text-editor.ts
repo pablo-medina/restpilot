@@ -46,7 +46,11 @@ function codeEditorTheme() {
       fontSize: "13px",
       lineHeight: "1.5"
     },
-    ".cm-content": { padding: "10px" },
+    // CodeMirror's base theme hardcodes `caret-color: black`, which makes the cursor
+    // invisible on a dark background. Follow the app's text color instead so the caret
+    // stays visible in both themes.
+    ".cm-content": { padding: "10px", caretColor: "var(--rp-text)" },
+    ".cm-cursor, .cm-cursor-primary": { borderLeftColor: "var(--rp-text)" },
     "&.cm-focused": { outline: "none" }
   });
 }

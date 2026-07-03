@@ -17,11 +17,6 @@ export function usePopoverClose() {
 
       const isTrigger =
         target.closest(".request-popover-trigger") ||
-        target.closest("#func-popover-params-btn") ||
-        target.closest("#func-popover-headers-btn") ||
-        target.closest("#func-popover-body-btn") ||
-        target.closest("#func-popover-auth-btn") ||
-        target.closest("#function-import-btn") ||
         target.closest("[data-popover-trigger]") ||
         target.closest(".env-chip") ||
         target.closest(".request-tool-btn") ||

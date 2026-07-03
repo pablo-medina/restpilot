@@ -15,8 +15,6 @@ export function FunctionNamingPlaceholder() {
         textAlign: "center",
         gap: 16,
         padding: 32,
-        background: "rgba(255, 252, 246, 0.48)",
-        backdropFilter: "blur(10px)",
         border: "1px dashed var(--rp-border)",
         borderRadius: "var(--rp-radius)",
         margin: 24,

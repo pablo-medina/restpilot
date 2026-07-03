@@ -226,6 +226,7 @@ export function ContextMenu() {
   return createPortal(
     <div
       className={`context-menu${anchorEnd ? " context-menu--anchor-end" : ""}`}
+      data-react-portal="true"
       style={{ left: menu.x, top: menu.y }}
     >
       {content}

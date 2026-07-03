@@ -41,10 +41,10 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="error-boundary-fallback" role="alert">
         <p className="error-boundary-message">{title}</p>
         <div className="error-boundary-actions">
-          <button type="button" className="mini-btn" onClick={this.reset}>
+          <button type="button" className="error-boundary-btn" onClick={this.reset}>
             {labels.retry}
           </button>
-          <button type="button" className="mini-btn" onClick={() => window.location.reload()}>
+          <button type="button" className="error-boundary-btn" onClick={() => window.location.reload()}>
             {labels.reload}
           </button>
         </div>

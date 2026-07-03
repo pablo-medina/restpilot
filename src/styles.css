@@ -6520,24 +6520,48 @@ select,
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 12px;
+  margin: 16px;
+  padding: 16px 18px;
   border: 1px solid rgba(181, 74, 58, 0.3);
-  border-radius: 8px;
+  border-radius: var(--rp-radius);
   background: rgba(181, 74, 58, 0.06);
   color: var(--rp-text);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .error-boundary-message {
   margin: 0;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 14px;
   color: #b54a3a;
 }
 
 .error-boundary-actions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+}
+
+.error-boundary-btn {
+  flex-shrink: 0;
+  width: auto;
+  height: 30px;
+  min-width: 84px;
+  padding: 0 14px;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  background: var(--rp-surface);
+  color: var(--rp-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.error-boundary-btn:hover {
+  background: var(--rp-hover);
+  border-color: var(--rp-border-strong, var(--rp-border));
 }
 
 .error-boundary-details {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { openFunctionImportPopover } from "../../../app/function-import-popover";
 import { scheduleSave } from "../../../app/persistence";
 import { state } from "../../../app/state";
@@ -45,6 +45,18 @@ export function FunctionHttpWorkspace({ func, refresh }: Props) {
   const activeParams = func.queryParams.filter((pair) => pair.enabled && pair.key.trim());
   const activeHeaders = func.headers.filter((pair) => pair.enabled && pair.key.trim());
   const httpRes = func.lastHttpResponse;
+
+  // Stable identities: CodeMirrorEditor remounts its editor instance whenever `onSend`
+  // changes, so fresh arrow functions here on every render (e.g. when a popover opens
+  // above) would flicker the extractor editor.
+  const runExtractor = useCallback(() => {
+    void runFunctionExtractor(func, refresh);
+  }, [func, refresh]);
+
+  const handleExtractorChange = useCallback((value: string) => {
+    func.extractorCode = value;
+    scheduleSave();
+  }, [func]);
 
   const togglePopover = (kind: FunctionPopoverKind, anchor: HTMLButtonElement | null) => {
     if (activePopover === kind) {
@@ -176,6 +188,7 @@ export function FunctionHttpWorkspace({ func, refresh }: Props) {
                     popoverAnchors.current[kind] = element;
                   }}
                   type="button"
+                  data-popover-trigger
                   className="segmented-btn"
                   style={{
                     padding: "4px 10px",
@@ -215,6 +228,7 @@ export function FunctionHttpWorkspace({ func, refresh }: Props) {
             <button
               ref={importBtnRef}
               type="button"
+              data-popover-trigger
               className="segmented-btn"
               style={{
                 padding: "4px 10px",
@@ -388,7 +402,7 @@ export function FunctionHttpWorkspace({ func, refresh }: Props) {
             <span className="function-extractor-actions" style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <FunctionPlayButton
                 loading={state.activeFunctionExtractorLoading}
-                onClick={() => void runFunctionExtractor(func, refresh)}
+                onClick={runExtractor}
               />
             </span>
           </div>
@@ -399,11 +413,8 @@ export function FunctionHttpWorkspace({ func, refresh }: Props) {
               remountKey={func.id}
               value={func.extractorCode}
               rawType="javascript"
-              onChange={(value) => {
-                func.extractorCode = value;
-                scheduleSave();
-              }}
-              onSend={() => void runFunctionExtractor(func, refresh)}
+              onChange={handleExtractorChange}
+              onSend={runExtractor}
             />
           </div>
 

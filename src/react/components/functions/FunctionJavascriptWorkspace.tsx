@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { scheduleSave } from "../../../app/persistence";
 import { state } from "../../../app/state";
 import { t } from "../../../i18n";
@@ -14,6 +15,13 @@ type Props = {
 
 export function FunctionJavascriptWorkspace({ func, refresh }: Props) {
   const funcLabels = t().functions;
+
+  // Stable identity: CodeMirrorEditor remounts its editor instance whenever `onSend`
+  // changes, so a fresh arrow function here on every render would flicker the editor
+  // right after running the function.
+  const runExtractor = useCallback(() => {
+    void runFunctionExtractor(func, refresh);
+  }, [func, refresh]);
 
   return (
     <div
@@ -38,7 +46,7 @@ export function FunctionJavascriptWorkspace({ func, refresh }: Props) {
           <span className="function-extractor-actions" style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <FunctionPlayButton
               loading={state.activeFunctionExtractorLoading}
-              onClick={() => void runFunctionExtractor(func, refresh)}
+              onClick={runExtractor}
             />
           </span>
         </div>
@@ -51,7 +59,7 @@ export function FunctionJavascriptWorkspace({ func, refresh }: Props) {
             func.code = value;
             scheduleSave();
           }}
-          onSend={() => void runFunctionExtractor(func, refresh)}
+          onSend={runExtractor}
         />
       </div>
 

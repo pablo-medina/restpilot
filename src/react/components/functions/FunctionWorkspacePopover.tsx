@@ -154,6 +154,7 @@ export function FunctionWorkspacePopover({ func, kind, anchor, refresh, onClose 
     <div
       ref={popoverRef}
       className={`app-popover func-${kind}-popover`}
+      data-react-portal="true"
       role="dialog"
       aria-label={title}
       style={{
