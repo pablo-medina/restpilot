@@ -275,6 +275,17 @@ export function applyCurlToRequest(target: SavedRequest, parsed: SavedRequest) {
   target.headers = hydrated.headers;
 }
 
+function hasContentTypeHeader(headers: Record<string, string>): boolean {
+  return Object.keys(headers).some((key) => key.toLowerCase() === "content-type");
+}
+
+function ensureRawBodyContentType(headers: Record<string, string>, rawType: RawType): Record<string, string> {
+  if (hasContentTypeHeader(headers)) return headers;
+  if (rawType === "json") return { ...headers, "Content-Type": "application/json" };
+  if (rawType === "xml") return { ...headers, "Content-Type": "application/xml" };
+  return headers;
+}
+
 export function requestToCurl(request: SavedRequest, variables: Variable[] = []): string {
   const auth = normalizeRequestAuth(request.auth);
   const mergedQuery = buildOutboundQueryParams(request, variables);
@@ -303,7 +314,11 @@ export function requestToCurl(request: SavedRequest, variables: Variable[] = [])
       ])
   );
   const outboundHeaders = applyAuthHeaders(manualHeaders, auth, variables);
-  const enabledHeaders = Object.entries(outboundHeaders).map(([key, value]) => ({ key, value }));
+  const resolvedOutboundHeaders =
+    request.bodyMode === "raw" && request.body.trim()
+      ? ensureRawBodyContentType(outboundHeaders, request.rawType)
+      : outboundHeaders;
+  const enabledHeaders = Object.entries(resolvedOutboundHeaders).map(([key, value]) => ({ key, value }));
 
   if (method === "GET" && request.bodyMode === "form" && hasEnabledFormFields(request)) {
     lines.push("-G");
@@ -340,11 +355,7 @@ export function requestToCurl(request: SavedRequest, variables: Variable[] = [])
 
   if (request.bodyMode === "raw" && request.body.trim()) {
     const body = applyVariables(request.body, variables);
-    if (request.rawType === "json") {
-      lines.push("--json", shellQuote(body));
-    } else {
-      lines.push("--data-raw", shellQuote(body));
-    }
+    lines.push("--data-raw", shellQuote(body));
   }
 
   return formatCurlLines(lines);

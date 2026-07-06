@@ -1,17 +1,9 @@
+import { invalidateResponseRenderCache } from "../lib/content-display";
 import { syncRequestPopover } from "../ui/request-popovers";
 import { unmountResponseDisplays } from "../ui/response-panel";
 import { closeAutocomplete } from "../ui/variable-autocomplete";
 import { bumpRenderGeneration } from "../react/render-bridge";
 import { state } from "./state";
-import type { TabState } from "../types";
-
-function invalidateLineCache(tab: TabState) {
-  tab.bodyLinesKey = undefined;
-  tab.bodyLineOffsets = undefined;
-  tab.bodyLineScanLength = undefined;
-  tab.responseDisplayKey = undefined;
-  tab.responseDisplayBody = undefined;
-}
 
 export function unmountRequestTabEditors(requestId: string | null | undefined): void {
   if (!requestId) return;
@@ -27,7 +19,7 @@ export function unmountRequestTabEditors(requestId: string | null | undefined): 
   tab.gqlVarsUnmount?.();
   tab.gqlVarsUnmount = undefined;
   unmountResponseDisplays(tab);
-  invalidateLineCache(tab);
+  invalidateResponseRenderCache(tab);
 }
 
 export function refreshRequestWorkspace(): void {

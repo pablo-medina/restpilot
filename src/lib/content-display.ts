@@ -5,13 +5,40 @@ const HIGHLIGHT_THRESHOLD = 48_000;
 
 const highlightCache = new Map<string, string>();
 
+export type ResponseRenderCache = {
+  bodyLinesKey?: string;
+  bodyLineOffsets?: number[];
+  bodyLineScanLength?: number;
+  responseDisplayKey?: string;
+  responseDisplayBody?: string;
+};
+
 export function isLargeText(value: string) {
   return value.length >= HIGHLIGHT_THRESHOLD;
 }
 
+function bodyFingerprint(body: string): string {
+  if (body.length < HIGHLIGHT_THRESHOLD) return body;
+  let hash = 0;
+  for (let i = 0; i < body.length; i++) {
+    hash = (Math.imul(31, hash) + body.charCodeAt(i)) | 0;
+  }
+  return `${hash}:${body.slice(0, 48)}:${body.slice(-48)}`;
+}
+
 export function bodySourceKey(body: string, headers: Record<string, string> = {}) {
   const contentType = Object.entries(headers).find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? "";
-  return `${body.length}:${contentType}:${body.slice(0, 48)}:${body.slice(-48)}`;
+  return `${body.length}:${contentType}:${bodyFingerprint(body)}`;
+}
+
+/** Drop tab + global caches used when rendering a response body. Call before each send. */
+export function invalidateResponseRenderCache(tab: ResponseRenderCache): void {
+  tab.bodyLinesKey = undefined;
+  tab.bodyLineOffsets = undefined;
+  tab.bodyLineScanLength = undefined;
+  tab.responseDisplayKey = undefined;
+  tab.responseDisplayBody = undefined;
+  highlightCache.clear();
 }
 
 function scanLineOffsets(body: string, startIndex: number, offsets: number[]) {

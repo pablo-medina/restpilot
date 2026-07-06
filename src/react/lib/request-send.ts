@@ -8,6 +8,7 @@ import { buildFormPayload, buildRequestHeaders, withContentType } from "../../ap
 import { messageDialog } from "../../components/dialogs";
 import { applyVariables } from "../../lib/variables";
 import { hasMissingMultipartFiles, missingMultipartFileNames } from "../../lib/request-multipart";
+import { invalidateResponseRenderCache } from "../../lib/content-display";
 import { scheduleResponseRender } from "../../ui/response-panel";
 import { t } from "../../i18n";
 import type { ApiResponse, TabState } from "../../types";
@@ -26,21 +27,13 @@ type StreamPayload = {
   error?: string;
 };
 
-function invalidateLineCache(tab: TabState) {
-  tab.bodyLinesKey = undefined;
-  tab.bodyLineOffsets = undefined;
-  tab.bodyLineScanLength = undefined;
-  tab.responseDisplayKey = undefined;
-  tab.responseDisplayBody = undefined;
-}
-
 function handleStreamEvent(
   payload: StreamPayload,
   runId: string,
   tab: TabState,
   onFinished?: () => void
 ) {
-  if (payload.request_id !== runId) return;
+  if (payload.request_id !== runId || tab.requestRunId !== runId) return;
 
   if (payload.error) {
     tab.error = payload.error;
@@ -75,7 +68,7 @@ function handleStreamEvent(
   if (payload.done) {
     tab.streaming = false;
     if (tab.response && payload.duration_ms !== undefined) tab.response.duration_ms = payload.duration_ms;
-    invalidateLineCache(tab);
+    invalidateResponseRenderCache(tab);
     onFinished?.();
   }
 
@@ -117,6 +110,7 @@ async function sendRequest(refresh: () => void): Promise<void> {
   tab.requestRunId = runId;
   tab.error = null;
   tab.response = null;
+  invalidateResponseRenderCache(tab);
   refresh();
 
   try {
@@ -186,6 +180,7 @@ async function sendRequest(refresh: () => void): Promise<void> {
       if (streamFinished) await streamFinished;
     } else {
       tab.response = await invoke<ApiResponse>("send_request", { payload });
+      invalidateResponseRenderCache(tab);
     }
 
     tab.error = null;

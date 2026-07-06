@@ -59,7 +59,11 @@ export function pairsFromUrlParams(params: { key: string; value: string }[], id:
 
 export function ingestUrlIntoRequest(request: SavedRequest, raw: string, id: () => string) {
   const split = splitUrl(raw);
-  request.url = split.base;
+  const hashIndex = raw.indexOf("#");
+  const withoutHash = hashIndex >= 0 ? raw.slice(0, hashIndex) : raw;
+  const hasBareQuery = withoutHash.includes("?") && withoutHash.endsWith("?");
+
+  request.url = split.params.length === 0 && hasBareQuery ? `${split.base}?` : split.base;
   request.urlHash = split.hash;
   request.queryParams = pairsFromUrlParams(split.params, id);
 }

@@ -75,4 +75,33 @@ describe("requestToCurl", () => {
     expect(curl).toContain("https://api.example.com/items?page=1");
     expect(curl).toContain("Accept: application/json");
   });
+
+  it("exports JSON bodies with --data-raw and Content-Type for broad importer support", () => {
+    const request: SavedRequest = {
+      id: "r2",
+      kind: "request",
+      parentId: "/",
+      title: "T",
+      method: "POST",
+      url: "https://api.example.com/items",
+      urlHash: "",
+      queryParams: [],
+      headers: [],
+      bodyMode: "raw",
+      rawType: "json",
+      body: '{"name":"a"}',
+      form: [],
+      streamResponse: false,
+      auth: { type: "none" },
+      lastResponse: null,
+      lastError: null
+    };
+    const curl = requestToCurl(request);
+    expect(curl).not.toContain("--json");
+    expect(curl).toContain("--data-raw");
+    expect(curl).toContain("Content-Type: application/json");
+    const parsed = parseCurl(curl, nextId);
+    expect(parsed?.method).toBe("POST");
+    expect(parsed?.rawType).toBe("json");
+  });
 });
