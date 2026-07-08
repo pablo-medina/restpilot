@@ -6,6 +6,26 @@ function pair(key: string, value: string, enabled = true): Pair {
   return { id: "p1", key, value, enabled };
 }
 
+function request(overrides: Pick<SavedRequest, "url" | "urlHash" | "queryParams">): SavedRequest {
+  return {
+    id: "r1",
+    kind: "request",
+    parentId: "/",
+    title: "T",
+    method: "GET",
+    headers: [],
+    bodyMode: "none",
+    rawType: "json",
+    body: "",
+    form: [],
+    streamResponse: false,
+    auth: { type: "none" },
+    lastResponse: null,
+    lastError: null,
+    ...overrides
+  };
+}
+
 describe("splitUrl", () => {
   it("splits base, query, and hash", () => {
     const parts = splitUrl("https://api.example.com/users?page=1&sort=name#section");
@@ -44,29 +64,29 @@ describe("buildRequestUrl", () => {
 
 describe("ingestUrlIntoRequest", () => {
   it("keeps a bare question mark while the user types query params", () => {
-    const request = {
+    const req = request({
       url: "https://api.example.com/users",
       urlHash: "",
       queryParams: []
-    } as SavedRequest;
+    });
     let nextId = 0;
-    ingestUrlIntoRequest(request, "https://api.example.com/users?", () => `p${++nextId}`);
-    expect(request.url).toBe("https://api.example.com/users?");
-    expect(request.queryParams).toEqual([]);
-    expect(buildRequestUrl(request.url, request.queryParams, request.urlHash)).toBe(
+    ingestUrlIntoRequest(req, "https://api.example.com/users?", () => `p${++nextId}`);
+    expect(req.url).toBe("https://api.example.com/users?");
+    expect(req.queryParams).toEqual([]);
+    expect(buildRequestUrl(req.url, req.queryParams, req.urlHash)).toBe(
       "https://api.example.com/users?"
     );
   });
 
   it("moves parsed query params out of the base url", () => {
-    const request = {
+    const req = request({
       url: "https://api.example.com/users",
       urlHash: "",
       queryParams: []
-    } as SavedRequest;
+    });
     let nextId = 0;
-    ingestUrlIntoRequest(request, "https://api.example.com/users?page=2", () => `p${++nextId}`);
-    expect(request.url).toBe("https://api.example.com/users");
-    expect(request.queryParams).toEqual([{ id: "p1", key: "page", value: "2", enabled: true }]);
+    ingestUrlIntoRequest(req, "https://api.example.com/users?page=2", () => `p${++nextId}`);
+    expect(req.url).toBe("https://api.example.com/users");
+    expect(req.queryParams).toEqual([{ id: "p1", key: "page", value: "2", enabled: true }]);
   });
 });
