@@ -56,7 +56,14 @@ export const es = {
     delete: "Eliminar",
     duplicateNameTitle: "Nombre ya en uso",
     duplicateNameBody:
-      'El nombre "{title}" ya se usa en {parent}:\n\n{paths}\n\nElija otro nombre.'
+      'El nombre "{title}" ya se usa en {parent}:\n\n{paths}\n\nElija otro nombre.',
+    exportAs: "Exportar como",
+    exportFolderRestpilot: "Colección RestPilot",
+    exportFolderPostman: "Colección Postman",
+    exportFolderHtml: "HTML autocontenido",
+    exportFolderHtmlTitle: "Exportar HTML autocontenido",
+    exportFolderHtmlFilter: "Paquete HTML",
+    exportHtmlVariables: "Exportar variables"
   },
   collection: {
     exportCollection: "Exportar colección",

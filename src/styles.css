@@ -1650,6 +1650,14 @@ html[data-window-platform="macos"] .activity-bar {
   font-weight: 400;
 }
 
+.dialog-html-export-var {
+  align-items: center;
+}
+
+.dialog-html-export-var input {
+  margin-top: 0;
+}
+
 .dialog-form-toggle {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -3124,6 +3132,42 @@ select,
   margin: 5px;
   border: 0;
   background: rgba(52, 48, 42, 0.12);
+}
+
+.context-menu-submenu {
+  position: relative;
+}
+
+.context-menu-submenu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #37332d;
+  cursor: pointer;
+}
+
+.context-menu-submenu-arrow {
+  flex-shrink: 0;
+  color: #777067;
+  font-size: 11px;
+}
+
+.context-menu-submenu-trigger:hover {
+  background: rgba(61, 127, 111, 0.1);
+}
+
+.context-menu-submenu-panel {
+  position: absolute;
+  top: -5px;
+  left: calc(100% - 4px);
+  min-width: 220px;
 }
 
 .var-autocomplete {
@@ -4985,6 +5029,18 @@ select,
 
 [data-theme="dark"] .context-menu hr {
   background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .context-menu-submenu-trigger {
+  color: var(--rp-text);
+}
+
+[data-theme="dark"] .context-menu-submenu-trigger:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+[data-theme="dark"] .context-menu-submenu-arrow {
+  color: #a8a093;
 }
 
 [data-theme="dark"] .settings-radio-row {

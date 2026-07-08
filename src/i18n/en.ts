@@ -56,7 +56,14 @@ export const en = {
     delete: "Delete",
     duplicateNameTitle: "Name already in use",
     duplicateNameBody:
-      'The name "{title}" is already used in {parent}:\n\n{paths}\n\nChoose a different name.'
+      'The name "{title}" is already used in {parent}:\n\n{paths}\n\nChoose a different name.',
+    exportAs: "Export as",
+    exportFolderRestpilot: "RestPilot collection",
+    exportFolderPostman: "Postman collection",
+    exportFolderHtml: "Self-contained HTML",
+    exportFolderHtmlTitle: "Export self-contained HTML",
+    exportFolderHtmlFilter: "HTML bundle",
+    exportHtmlVariables: "Export variables"
   },
   collection: {
     exportCollection: "Export collection",

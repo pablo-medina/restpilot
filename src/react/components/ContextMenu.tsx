@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { useState } from "react";
 import { runTextMenuAction, copyResponseBodySelection } from "../../app/context-menu";
 import { openDescribePopover } from "../../app/describe-popover";
 import { menuShortcuts } from "../../app/menu-shortcuts";
@@ -12,6 +13,11 @@ import { copyResponseBody, copyResponseHeaders, copyResponseStatus } from "../..
 import { useRenderGeneration } from "../hooks/useRenderGeneration";
 import { createFolder, createRequest } from "../lib/collection-actions";
 import { deleteTreeItem, duplicateTreeItem, startTreeRename } from "../lib/collection-tree-actions";
+import {
+  exportFolderAsHtml,
+  exportFolderAsPostman,
+  exportFolderAsRestpilot
+} from "../../export/folder-export";
 import { deleteFunction, createNewFunction, selectFunctionInSidebar, startFuncRename } from "../lib/function-actions";
 import { clearTabResponse, closeAllTabs, closeOtherTabs, closeRequestTab, openRequestTab } from "../lib/tab-actions";
 import { bumpRenderGeneration } from "../render-bridge";
@@ -43,6 +49,33 @@ function MenuButton({ label, shortcut, danger, disabled, checked, onClick }: Men
       <span className="context-menu-label">{label}</span>
       {shortcut && <span className="context-menu-shortcut">{shortcut}</span>}
     </button>
+  );
+}
+
+type MenuSubmenuProps = {
+  label: string;
+  children: React.ReactNode;
+};
+
+function MenuSubmenu({ label, children }: MenuSubmenuProps) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div
+      className="context-menu-submenu"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button type="button" className="context-menu-submenu-trigger">
+        <span className="context-menu-label">{label}</span>
+        <span className="context-menu-submenu-arrow" aria-hidden="true">▸</span>
+      </button>
+      {open && (
+        <div className="context-menu context-menu-submenu-panel" data-react-portal="true">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -199,6 +232,22 @@ export function ContextMenu() {
           <>
             <hr />
             <MenuButton label={tl.rename} shortcut={menuShortcuts.rename()} onClick={withClose(() => startTreeRename(itemId!, refresh))} />
+            {item.kind === "folder" && (
+              <MenuSubmenu label={tl.exportAs}>
+                <MenuButton
+                  label={tl.exportFolderRestpilot}
+                  onClick={withClose(() => void exportFolderAsRestpilot(itemId!))}
+                />
+                <MenuButton
+                  label={tl.exportFolderPostman}
+                  onClick={withClose(() => void exportFolderAsPostman(itemId!))}
+                />
+                <MenuButton
+                  label={tl.exportFolderHtml}
+                  onClick={withClose(() => void exportFolderAsHtml(itemId!))}
+                />
+              </MenuSubmenu>
+            )}
             {item.kind === "request" && (
               <MenuButton label={tl.show} onClick={withClose(() => openRequestTab(itemId!, refresh))} />
             )}

@@ -11,6 +11,7 @@ export type DialogMode =
   | "collection-import"
   | "import-source"
   | "import-preview"
+  | "html-export"
   | "function-result"
   | "settings";
 export type DialogOutcome = { action: string; data?: Record<string, unknown> };
@@ -279,6 +280,18 @@ function captureDialogForm(dialog: DialogState, root: HTMLElement) {
         root.querySelector<HTMLInputElement>('input[name="collection-import-conflict"]:checked')?.value ?? "rename"
     };
   }
+  if (mode === "html-export") {
+    const exportVariables: Array<{ name: string; include: boolean }> = [];
+    root.querySelectorAll<HTMLElement>("[data-html-export-var]").forEach((row) => {
+      const name = row.getAttribute("data-var-name") ?? "";
+      const include = Boolean(row.querySelector<HTMLInputElement>("[data-export-var]")?.checked);
+      exportVariables.push({ name, include });
+    });
+    dialog.data = {
+      ...dialog.data,
+      exportVariables
+    };
+  }
   if (mode === "import-source") {
     dialog.data = {
       ...dialog.data,
@@ -312,6 +325,7 @@ function closeDialog(dialogId: string, action: string) {
     dialog?.variant === "application" &&
     (dialog.data?.mode === "collection-export" ||
       dialog.data?.mode === "collection-import" ||
+      dialog.data?.mode === "html-export" ||
       dialog.data?.mode === "proxy-test-log" ||
       dialog.data?.mode === "import-source" ||
       dialog.data?.mode === "import-preview")
