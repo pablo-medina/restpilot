@@ -5,7 +5,7 @@ import {
   normalizeRequestAuth
 } from "../app/request-auth";
 import { applyVariables } from "./variables";
-import type { BodyMode, Pair, RawType, SavedRequest, Variable } from "../types";
+import type { BodyMode, HeaderPair, Pair, RawType, SavedRequest, Variable } from "../types";
 import { buildRequestUrl, migrateRequestQuery } from "./url-params";
 
 export function looksLikeCurl(value: string) {
@@ -275,14 +275,14 @@ export function applyCurlToRequest(target: SavedRequest, parsed: SavedRequest) {
   target.headers = hydrated.headers;
 }
 
-function hasContentTypeHeader(headers: Record<string, string>): boolean {
-  return Object.keys(headers).some((key) => key.toLowerCase() === "content-type");
+function hasContentTypeHeader(headers: HeaderPair[]): boolean {
+  return headers.some(([key]) => key.toLowerCase() === "content-type");
 }
 
-function ensureRawBodyContentType(headers: Record<string, string>, rawType: RawType): Record<string, string> {
+function ensureRawBodyContentType(headers: HeaderPair[], rawType: RawType): HeaderPair[] {
   if (hasContentTypeHeader(headers)) return headers;
-  if (rawType === "json") return { ...headers, "Content-Type": "application/json" };
-  if (rawType === "xml") return { ...headers, "Content-Type": "application/xml" };
+  if (rawType === "json") return [...headers, ["Content-Type", "application/json"]];
+  if (rawType === "xml") return [...headers, ["Content-Type", "application/xml"]];
   return headers;
 }
 
@@ -305,20 +305,18 @@ export function requestToCurl(request: SavedRequest, variables: Variable[] = [])
 
   const lines: string[] = ["curl"];
   const method = request.method.toUpperCase();
-  const manualHeaders = Object.fromEntries(
-    request.headers
-      .filter((header) => header.enabled && header.key.trim())
-      .map((header) => [
-        applyVariables(header.key.trim(), variables),
-        applyVariables(header.value, variables)
-      ])
-  );
+  const manualHeaders: HeaderPair[] = request.headers
+    .filter((header) => header.enabled && header.key.trim())
+    .map((header) => [
+      applyVariables(header.key.trim(), variables),
+      applyVariables(header.value, variables)
+    ]);
   const outboundHeaders = applyAuthHeaders(manualHeaders, auth, variables);
   const resolvedOutboundHeaders =
     request.bodyMode === "raw" && request.body.trim()
       ? ensureRawBodyContentType(outboundHeaders, request.rawType)
       : outboundHeaders;
-  const enabledHeaders = Object.entries(resolvedOutboundHeaders).map(([key, value]) => ({ key, value }));
+  const enabledHeaders = resolvedOutboundHeaders.map(([key, value]) => ({ key, value }));
 
   if (method === "GET" && request.bodyMode === "form" && hasEnabledFormFields(request)) {
     lines.push("-G");

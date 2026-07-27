@@ -1,6 +1,7 @@
 import { id, setState, state } from "../../../app/state";
 import { scheduleSave } from "../../../app/persistence";
 import { t } from "../../../i18n";
+import { messageDialog } from "../../../components/dialogs";
 import { commitEnvironmentRename } from "../../../app/environments";
 import { selectVariableScope } from "../../lib/sync-app-frame";
 
@@ -28,6 +29,29 @@ export function VariablesSidebar({ refresh, onVariablesChanged }: Props) {
       editingEnvId: env.id
     }));
     scheduleSave();
+    refresh();
+  };
+
+  const deleteEnvironment = async (envId: string) => {
+    const env = state.environments.find((item) => item.id === envId);
+    if (!env) return;
+
+    const answer = await messageDialog(
+      "confirmation",
+      envLabels.deleteEnvironmentTitle,
+      envLabels.deleteEnvironmentBody.replace("{name}", env.name)
+    );
+    if (answer !== "confirm") return;
+
+    setState(prev => ({
+      ...prev,
+      environments: prev.environments.filter((item) => item.id !== envId),
+      activeEnvironmentId: prev.activeEnvironmentId === envId ? null : prev.activeEnvironmentId,
+      envManageSelectedId: prev.envManageSelectedId === envId ? "default" : prev.envManageSelectedId,
+      editingEnvId: prev.editingEnvId === envId ? null : prev.editingEnvId
+    }));
+    scheduleSave();
+    onVariablesChanged?.();
     refresh();
   };
 
@@ -155,27 +179,48 @@ export function VariablesSidebar({ refresh, onVariablesChanged }: Props) {
             }
 
             return (
-              <button
-                key={env.id}
-                className={`variables-sidebar-item${selectedId === env.id ? " is-selected" : ""}`}
-                type="button"
-                data-scope-select={env.id}
-                data-tauri-drag-region="false"
-                tabIndex={0}
-                title={env.name}
-                onClick={() => selectVariableScope(env.id, refresh)}
-                onDoubleClick={() => {
-                  setState(prev => ({ ...prev, editingEnvId: env.id }));
-                  refresh();
-                }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "145px" }}>
-                  {env.name}
-                </span>
-                {state.activeEnvironmentId === env.id ? (
-                  <span className="variables-sidebar-active-indicator" title="Active" />
-                ) : null}
-              </button>
+              <div key={env.id} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <button
+                  className={`variables-sidebar-item${selectedId === env.id ? " is-selected" : ""}`}
+                  type="button"
+                  data-scope-select={env.id}
+                  data-tauri-drag-region="false"
+                  tabIndex={0}
+                  title={env.name}
+                  style={{ flex: 1, minWidth: 0 }}
+                  onClick={() => selectVariableScope(env.id, refresh)}
+                  onDoubleClick={() => {
+                    setState(prev => ({ ...prev, editingEnvId: env.id }));
+                    refresh();
+                  }}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "145px" }}>
+                    {env.name}
+                  </span>
+                  {state.activeEnvironmentId === env.id ? (
+                    <span className="variables-sidebar-active-indicator" title="Active" />
+                  ) : null}
+                </button>
+                <button
+                  className="mini-btn field-remove-btn"
+                  type="button"
+                  data-tauri-drag-region="false"
+                  aria-label={envLabels.deleteEnvironment}
+                  title={envLabels.deleteEnvironment}
+                  style={{
+                    flexShrink: 0,
+                    padding: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 22,
+                    height: 22
+                  }}
+                  onClick={() => void deleteEnvironment(env.id)}
+                >
+                  ×
+                </button>
+              </div>
             );
           })}
         </div>

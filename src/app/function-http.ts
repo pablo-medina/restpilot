@@ -81,6 +81,16 @@ export async function invokeFunctionHttp(func: AppFunction): Promise<ApiResponse
   return invoke<ApiResponse>("send_request", { payload });
 }
 
+/** Header lookup object for extractor scripts (`response.headers["content-type"]`).
+ * Repeated header names are joined with ", ", matching the Fetch API's Headers.get(). */
+function headerLookupObject(headers: ApiResponse["headers"]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of headers) {
+    result[key] = key in result ? `${result[key]}, ${value}` : value;
+  }
+  return result;
+}
+
 export function runExtractorOnResponse(func: AppFunction, response: ApiResponse): unknown {
   const codeToEval = func.extractorCode;
   let parsedBody: unknown = response.body;
@@ -108,7 +118,7 @@ export function runExtractorOnResponse(func: AppFunction, response: ApiResponse)
       }
     `);
 
-  return extractorFunc(response, parsedBody);
+  return extractorFunc({ ...response, headers: headerLookupObject(response.headers) }, parsedBody);
 }
 
 export function runStandaloneJavascript(func: AppFunction): unknown {

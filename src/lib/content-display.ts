@@ -1,4 +1,4 @@
-import type { RawType } from "../types";
+import type { HeaderPair, RawType } from "../types";
 
 /** Skip syntax highlighting above this size — full content is still shown. */
 const HIGHLIGHT_THRESHOLD = 48_000;
@@ -26,8 +26,8 @@ function bodyFingerprint(body: string): string {
   return `${hash}:${body.slice(0, 48)}:${body.slice(-48)}`;
 }
 
-export function bodySourceKey(body: string, headers: Record<string, string> = {}) {
-  const contentType = Object.entries(headers).find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? "";
+export function bodySourceKey(body: string, headers: HeaderPair[] = []) {
+  const contentType = headers.find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? "";
   return `${body.length}:${contentType}:${bodyFingerprint(body)}`;
 }
 
@@ -42,8 +42,8 @@ export function invalidateResponseRenderCache(tab: ResponseRenderCache): void {
 }
 
 
-function contentType(headers: Record<string, string>) {
-  return Object.entries(headers).find(([key]) => key.toLowerCase() === "content-type")?.[1]?.toLowerCase() ?? "";
+function contentType(headers: HeaderPair[]) {
+  return headers.find(([key]) => key.toLowerCase() === "content-type")?.[1]?.toLowerCase() ?? "";
 }
 
 function isLikelyJson(body: string) {
@@ -56,7 +56,7 @@ function isLikelyXml(body: string) {
   return trimmed.startsWith("<");
 }
 
-export function detectContentKind(body: string, headers: Record<string, string>): RawType {
+export function detectContentKind(body: string, headers: HeaderPair[]): RawType {
   const type = contentType(headers);
   if (type.includes("json")) return "json";
   if (type.includes("xml")) return "xml";
@@ -123,7 +123,7 @@ export function formatJsonBody(body: string) {
   return tryPrettifyJson(body) ?? body;
 }
 
-export function formatResponseBody(body: string, headers: Record<string, string>) {
+export function formatResponseBody(body: string, headers: HeaderPair[]) {
   const kind = detectContentKind(body, headers);
   if (kind === "json") return formatJsonBody(body);
   if (kind === "xml") return formatXml(body);
@@ -173,7 +173,7 @@ function highlightXml(value: string) {
   );
 }
 
-export function highlightResponse(body: string, headers: Record<string, string>) {
+export function highlightResponse(body: string, headers: HeaderPair[]) {
   if (isLargeText(body)) return "";
   const cacheKey = bodySourceKey(body, headers);
   const cached = highlightCache.get(cacheKey);

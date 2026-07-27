@@ -11,7 +11,7 @@ import { hasMissingMultipartFiles, missingMultipartFileNames } from "../../lib/r
 import { invalidateResponseRenderCache } from "../../lib/content-display";
 import { scheduleResponseRender } from "../../ui/response-panel";
 import { t } from "../../i18n";
-import type { ApiResponse, TabState } from "../../types";
+import type { ApiResponse, HeaderPair, TabState } from "../../types";
 import { ensureTab } from "./ensure-tab";
 
 const STREAM_EVENT = "restpilot:request-stream";
@@ -22,7 +22,7 @@ type StreamPayload = {
   done: boolean;
   status?: number;
   status_text?: string;
-  headers?: Record<string, string>;
+  headers?: HeaderPair[];
   duration_ms?: number;
   error?: string;
 };
@@ -44,12 +44,17 @@ function handleStreamEvent(
   }
 
   if (payload.status !== undefined && payload.headers) {
+    const body = tab.response?.body ?? "";
     tab.response = {
       status: payload.status,
       status_text: payload.status_text ?? "",
       duration_ms: payload.duration_ms ?? 0,
       headers: payload.headers,
-      body: tab.response?.body ?? ""
+      body,
+      // Streaming is always decoded as UTF-8 text; body_size tracks the
+      // running length and isn't meant to be byte-exact for multi-byte text.
+      body_is_base64: false,
+      body_size: body.length
     };
     tab.loading = false;
     tab.streaming = !payload.done;
@@ -58,11 +63,12 @@ function handleStreamEvent(
 
   if (payload.chunk) {
     if (!tab.response) {
-      tab.response = { status: 0, status_text: "", duration_ms: 0, headers: {}, body: "" };
+      tab.response = { status: 0, status_text: "", duration_ms: 0, headers: [], body: "", body_is_base64: false, body_size: 0 };
       tab.loading = false;
       tab.streaming = true;
     }
     tab.response.body += payload.chunk;
+    tab.response.body_size = tab.response.body.length;
   }
 
   if (payload.done) {

@@ -104,6 +104,10 @@ export type UserSettings = {
 
 export type DuplicateNamingMode = "copyOf" | "numbered";
 
+/** Ordered `[name, value]` pair — a list, not a map, so repeated header names
+ * (e.g. two `Set-Cookie` headers) don't collapse into one. */
+export type HeaderPair = [string, string];
+
 export type SavedResponseHistoryItem = {
   id: string;
   title: string;
@@ -111,8 +115,12 @@ export type SavedResponseHistoryItem = {
   status: number;
   status_text: string;
   duration_ms: number;
-  headers: Record<string, string>;
+  headers: HeaderPair[];
   body: string;
+  /** True when `body` holds base64-encoded bytes (the response was not valid UTF-8 text). */
+  body_is_base64: boolean;
+  /** Real byte length of the response body, independent of `body`'s encoding. */
+  body_size: number;
 };
 
 export type SavedRequest = {
@@ -164,8 +172,12 @@ export type ApiResponse = {
   status: number;
   status_text: string;
   duration_ms: number;
-  headers: Record<string, string>;
+  headers: HeaderPair[];
   body: string;
+  /** True when `body` holds base64-encoded bytes (the response was not valid UTF-8 text). */
+  body_is_base64: boolean;
+  /** Real byte length of the response body, independent of `body`'s encoding. */
+  body_size: number;
 };
 
 export type TabState = {

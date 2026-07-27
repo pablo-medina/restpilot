@@ -1,7 +1,6 @@
 //! HTTP via libcurl — proxy auth negotiation (Basic / NTLM / SPNEGO) like Insomnia.
 
 use std::{
-    collections::HashMap,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -282,17 +281,27 @@ fn apply_body(easy: &mut Easy, method: &Method, request: &RestRequest) -> Result
 
 fn install_response_header_collector(
     easy: &mut Easy,
-    headers: Arc<Mutex<HashMap<String, String>>>,
+    headers: Arc<Mutex<Vec<(String, String)>>>,
 ) -> Result<(), String> {
     easy.header_function(move |data| {
         let line = String::from_utf8_lossy(data);
         let line = line.trim_end_matches(['\r', '\n']);
-        if line.is_empty() || line.starts_with("HTTP/") {
+        if line.starts_with("HTTP/") {
+            // A status line marks the start of a fresh header block. Redirects
+            // invoke this callback once per hop, so reset here to keep only
+            // the final response's headers (matches reqwest's behavior) and
+            // avoid stale/duplicated entries from earlier hops.
+            if let Ok(mut list) = headers.lock() {
+                list.clear();
+            }
+            return true;
+        }
+        if line.is_empty() {
             return true;
         }
         if let Some((name, value)) = line.split_once(':') {
-            if let Ok(mut map) = headers.lock() {
-                map.insert(name.trim().to_string(), value.trim().to_string());
+            if let Ok(mut list) = headers.lock() {
+                list.push((name.trim().to_string(), value.trim().to_string()));
             }
         }
         true
@@ -376,7 +385,7 @@ pub fn execute_request_curl_sync(
 
     apply_body(&mut easy, &method, request)?;
 
-    let headers_cell = Arc::new(Mutex::new(HashMap::new()));
+    let headers_cell = Arc::new(Mutex::new(Vec::new()));
     install_response_header_collector(&mut easy, headers_cell.clone())?;
     let started = Instant::now();
     let request_id = request.id.clone();
@@ -445,7 +454,7 @@ pub fn execute_request_curl_sync(
     let body = body_cell
         .lock()
         .map_err(|_| "Response body lock poisoned.".to_string())?;
-    let body_text = String::from_utf8_lossy(&body).into_owned();
+    let (body_text, body_is_base64, body_size) = crate::decode_response_body(&body);
     let headers_map = headers_cell
         .lock()
         .map_err(|_| "Response headers lock poisoned.".to_string())?
@@ -475,6 +484,8 @@ pub fn execute_request_curl_sync(
         duration_ms,
         headers: headers_map,
         body: body_text,
+        body_is_base64,
+        body_size,
     })
 }
 

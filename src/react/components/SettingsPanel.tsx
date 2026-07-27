@@ -321,6 +321,7 @@ export function SettingsPanel({ refresh }: Props) {
                     />
                     <span className="settings-option-label">{labels.autoPrettifyJson}</span>
                   </label>
+                  <p className="settings-option-hint">{labels.autoPrettifyJsonHint}</p>
                 </div>
                 <div className="settings-option settings-option--compact">
                   <label className="settings-toggle-row" htmlFor="setting-click-to-select">
@@ -335,6 +336,7 @@ export function SettingsPanel({ refresh }: Props) {
                     />
                     <span className="settings-option-label">{labels.clickToSelect}</span>
                   </label>
+                  <p className="settings-option-hint">{labels.clickToSelectHint}</p>
                 </div>
               </div>
             </section>
@@ -496,6 +498,9 @@ export function SettingsPanel({ refresh }: Props) {
                     }}
                   />
                 </label>
+                <p className="settings-option-hint" style={{ gridColumn: "1 / -1" }}>
+                  {labels.proxyHttpsOnlyHint}
+                </p>
               </div>
 
               <div className={`settings-proxy-bypass${configuredNoProxyOpen ? " open" : ""}`} id="proxy-bypass-field">

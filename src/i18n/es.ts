@@ -205,6 +205,8 @@ export const es = {
     failedTitle: "La solicitud falló",
     emptyTitle: "Listo cuando lo esté",
     emptyBody: "Envíe una solicitud y la respuesta aparecerá aquí.",
+    binaryBodyTitle: "Respuesta binaria",
+    binaryBodyBody: "Esta respuesta no es texto ({size}) y no puede mostrarse aquí. Use el menú de copiado para copiarla en base64.",
     noTab: "No hay pestañas abiertas",
     headersSearch: "Buscar encabezados…",
     headersKey: "Encabezado",

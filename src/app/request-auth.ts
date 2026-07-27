@@ -1,6 +1,6 @@
 import { applyVariables } from "../lib/variables";
 import { buildRequestUrl } from "../lib/url-params";
-import type { Pair, RequestAuth, SavedRequest, Variable } from "../types";
+import type { HeaderPair, Pair, RequestAuth, SavedRequest, Variable } from "../types";
 
 export const AUTH_HEADER_NAME = "authorization";
 
@@ -66,29 +66,31 @@ export function parseAuthFromHeaders(headers: Pair[]): { auth: RequestAuth; head
   return { auth: defaultRequestAuth(), headers: remaining };
 }
 
-function headerRecordFromPairs(headers: Pair[], variables: Variable[]) {
-  return Object.fromEntries(
-    headers
-      .filter((header) => header.enabled && header.key.trim())
-      .map((header) => [
-        applyVariables(header.key.trim(), variables),
-        applyVariables(header.value, variables)
-      ])
-  );
+function headerPairsFromPairs(headers: Pair[], variables: Variable[]): HeaderPair[] {
+  return headers
+    .filter((header) => header.enabled && header.key.trim())
+    .map((header) => [
+      applyVariables(header.key.trim(), variables),
+      applyVariables(header.value, variables)
+    ]);
+}
+
+/** Remove every pair whose key matches `name` case-insensitively (auth headers are singular). */
+function withoutHeaderNamed(headers: HeaderPair[], name: string): HeaderPair[] {
+  const needle = name.toLowerCase();
+  return headers.filter(([key]) => key.toLowerCase() !== needle);
 }
 
 export function applyAuthHeaders(
-  headers: Record<string, string>,
+  headers: HeaderPair[],
   auth: RequestAuth,
   variables: Variable[]
-): Record<string, string> {
-  const next = { ...headers };
-  delete next[AUTH_HEADER_NAME];
-  delete next.Authorization;
+): HeaderPair[] {
+  const next = withoutHeaderNamed(headers, AUTH_HEADER_NAME);
 
   if (auth.type === "bearer") {
     const token = applyVariables(auth.bearerToken ?? "", variables).trim();
-    if (token) next.Authorization = `Bearer ${token}`;
+    if (token) next.push(["Authorization", `Bearer ${token}`]);
     return next;
   }
 
@@ -96,7 +98,7 @@ export function applyAuthHeaders(
     const username = applyVariables(auth.basicUsername ?? "", variables);
     const password = applyVariables(auth.basicPassword ?? "", variables);
     if (username || password) {
-      next.Authorization = `Basic ${btoa(`${username}:${password}`)}`;
+      next.push(["Authorization", `Basic ${btoa(`${username}:${password}`)}`]);
     }
     return next;
   }
@@ -104,7 +106,11 @@ export function applyAuthHeaders(
   if (auth.type === "apikey" && auth.apiKeyIn !== "query") {
     const name = applyVariables(auth.apiKeyName ?? "", variables).trim();
     const value = applyVariables(auth.apiKeyValue ?? "", variables);
-    if (name) next[name] = value;
+    if (name) {
+      const withoutExisting = withoutHeaderNamed(next, name);
+      withoutExisting.push([name, value]);
+      return withoutExisting;
+    }
   }
 
   return next;
@@ -126,8 +132,8 @@ export function mergeAuthQueryParams(params: Pair[], auth: RequestAuth, variable
 export function buildOutboundHeaders(
   request: SavedRequest,
   variables: Variable[]
-): Record<string, string> {
-  const manual = headerRecordFromPairs(request.headers, variables);
+): HeaderPair[] {
+  const manual = headerPairsFromPairs(request.headers, variables);
   return applyAuthHeaders(manual, normalizeRequestAuth(request.auth), variables);
 }
 

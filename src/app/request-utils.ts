@@ -1,6 +1,6 @@
 import { applyVariables } from "../lib/variables";
 import { buildOutboundHeaders, defaultRequestAuth } from "./request-auth";
-import { clampRequestTimeoutSecs, type SavedRequest, type UserSettings } from "../types";
+import { clampRequestTimeoutSecs, type HeaderPair, type SavedRequest, type UserSettings } from "../types";
 import { getEffectiveVariables } from "./environments";
 import { COLLECTION_ROOT_PARENT_ID, normalizeParentId } from "./collection-parent";
 import { id } from "./state";
@@ -44,31 +44,25 @@ export function hasEnabledFormFields(request: SavedRequest) {
   return request.form.some((field) => field.enabled && field.key.trim());
 }
 
-export function withContentType(request: SavedRequest, headers: Record<string, string>) {
+export function withContentType(request: SavedRequest, headers: HeaderPair[]): HeaderPair[] {
   if (request.bodyMode === "multipart") {
-    const next = { ...headers };
-    for (const key of Object.keys(next)) {
-      if (key.toLowerCase() === "content-type") {
-        delete next[key];
-      }
-    }
-    return next;
+    return headers.filter(([key]) => key.toLowerCase() !== "content-type");
   }
 
-  if (Object.keys(headers).some((key) => key.toLowerCase() === "content-type")) {
+  if (headers.some(([key]) => key.toLowerCase() === "content-type")) {
     return headers;
   }
 
   if (request.bodyMode === "form" && hasEnabledFormFields(request)) {
-    return { ...headers, "Content-Type": "application/x-www-form-urlencoded" };
+    return [...headers, ["Content-Type", "application/x-www-form-urlencoded"]];
   }
 
   if (request.bodyMode === "binary" && request.binaryFilePath) {
-    return { ...headers, "Content-Type": "application/octet-stream" };
+    return [...headers, ["Content-Type", "application/octet-stream"]];
   }
 
   if (request.bodyMode === "graphql" && request.body.trim()) {
-    return { ...headers, "Content-Type": "application/json" };
+    return [...headers, ["Content-Type", "application/json"]];
   }
 
   if (request.bodyMode === "raw" && request.body.trim()) {
@@ -78,7 +72,7 @@ export function withContentType(request: SavedRequest, headers: Record<string, s
         : request.rawType === "xml"
           ? "application/xml"
           : "text/plain";
-    return { ...headers, "Content-Type": type };
+    return [...headers, ["Content-Type", type]];
   }
 
   return headers;

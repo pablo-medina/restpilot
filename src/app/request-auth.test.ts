@@ -15,8 +15,30 @@ describe("request-auth", () => {
 
   it("applies bearer auth to outbound headers", () => {
     const auth: RequestAuth = { type: "bearer", bearerToken: "token" };
-    const headers = applyAuthHeaders({}, auth, []);
-    expect(headers.Authorization).toBe("Bearer token");
+    const headers = applyAuthHeaders([], auth, []);
+    expect(headers).toEqual([["Authorization", "Bearer token"]]);
+  });
+
+  it("preserves duplicate custom headers instead of collapsing them", () => {
+    const auth: RequestAuth = { type: "none" };
+    const headers = applyAuthHeaders(
+      [
+        ["Accept", "application/json"],
+        ["Accept", "text/plain"]
+      ],
+      auth,
+      []
+    );
+    expect(headers).toEqual([
+      ["Accept", "application/json"],
+      ["Accept", "text/plain"]
+    ]);
+  });
+
+  it("replaces only the previous Authorization header when auth changes", () => {
+    const auth: RequestAuth = { type: "bearer", bearerToken: "new" };
+    const headers = applyAuthHeaders([["Authorization", "Bearer old"]], auth, []);
+    expect(headers).toEqual([["Authorization", "Bearer new"]]);
   });
 
   it("merges api key query parameters", () => {

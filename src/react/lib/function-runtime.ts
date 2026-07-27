@@ -21,7 +21,15 @@ export async function sendFunctionRequest(func: AppFunction, refresh: () => void
       ...prev,
       functions: prev.functions.map(f => f.id === func.id ? {
         ...f,
-        lastHttpResponse: { status: 0, status_text: "Error", duration_ms: 0, headers: {}, body: message }
+        lastHttpResponse: {
+          status: 0,
+          status_text: "Error",
+          duration_ms: 0,
+          headers: [],
+          body: message,
+          body_is_base64: false,
+          body_size: message.length
+        }
       } : f),
     }));
   } finally {

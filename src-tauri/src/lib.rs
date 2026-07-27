@@ -1,10 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-    path::PathBuf,
-    sync::Mutex,
-    time::Instant,
-};
+use std::{collections::HashSet, fs, path::PathBuf, sync::Mutex, time::Instant};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::StreamExt;
@@ -79,7 +73,9 @@ struct RestRequest {
     id: String,
     method: String,
     url: String,
-    headers: HashMap<String, String>,
+    /// Ordered `(name, value)` pairs — a list, not a map, so repeated header
+    /// names (e.g. two `Accept` values) are all sent instead of collapsing.
+    headers: Vec<(String, String)>,
     body_mode: String,
     body: String,
     form: Vec<FormPair>,
@@ -104,7 +100,7 @@ struct StreamEvent {
     done: bool,
     status: Option<u16>,
     status_text: Option<String>,
-    headers: Option<HashMap<String, String>>,
+    headers: Option<Vec<(String, String)>>,
     duration_ms: Option<u128>,
     error: Option<String>,
 }
@@ -114,8 +110,19 @@ struct RestResponse {
     status: u16,
     status_text: String,
     duration_ms: u128,
-    headers: HashMap<String, String>,
+    /// Ordered `(name, value)` pairs — repeated header names (e.g. multiple
+    /// `Set-Cookie`) are preserved instead of collapsing to the last one.
+    headers: Vec<(String, String)>,
+    /// UTF-8 text as-is, or base64 when `body_is_base64` is true.
     body: String,
+    /// True when `body` holds base64-encoded bytes (the response was not
+    /// valid UTF-8 — images, PDFs, protobuf, etc). Streaming responses are
+    /// always decoded as lossy UTF-8 and never set this flag.
+    body_is_base64: bool,
+    /// Real byte length of the response body, independent of `body`'s
+    /// encoding (JS string length is wrong for base64 and for multi-byte
+    /// UTF-8 text).
+    body_size: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -185,6 +192,38 @@ fn save_app_config(config: serde_json::Value) -> Result<(), String> {
     fs::write(path, content).map_err(|error| error.to_string())
 }
 
+/// Response bodies/history live in their own file, sibling to `config.json`,
+/// so a handful of large saved responses don't bloat the settings file that
+/// gets rewritten on every collection edit.
+fn response_cache_file_path() -> Result<PathBuf, String> {
+    let mut path = config_file_path()?;
+    path.set_file_name("responses.json");
+    Ok(path)
+}
+
+#[tauri::command]
+fn load_response_cache() -> Result<serde_json::Value, String> {
+    let path = response_cache_file_path()?;
+    if !path.exists() {
+        return Ok(serde_json::Value::Null);
+    }
+
+    let content = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    serde_json::from_str(&content).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_response_cache(cache: serde_json::Value) -> Result<(), String> {
+    let path = response_cache_file_path()?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| "Could not resolve response cache directory.".to_string())?;
+
+    fs::create_dir_all(dir).map_err(|error| error.to_string())?;
+    let content = serde_json::to_string_pretty(&cache).map_err(|error| error.to_string())?;
+    fs::write(path, content).map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn cancel_request(state: tauri::State<RuntimeState>, id: String) -> Result<(), String> {
     state
@@ -244,8 +283,10 @@ async fn send_request(
             status: 0,
             status_text: String::new(),
             duration_ms: 0,
-            headers: HashMap::new(),
+            headers: Vec::new(),
             body: String::new(),
+            body_is_base64: false,
+            body_size: 0,
         });
     }
 
@@ -687,7 +728,9 @@ async fn test_proxy_connection(payload: TestProxyPayload) -> TestProxyResult {
     }
 }
 
-fn collect_headers(response: &reqwest::Response) -> HashMap<String, String> {
+/// `HeaderMap::iter()` yields one entry per value, so a response with two
+/// `Set-Cookie` headers produces two pairs here instead of collapsing them.
+fn collect_headers(response: &reqwest::Response) -> Vec<(String, String)> {
     response
         .headers()
         .iter()
@@ -698,6 +741,51 @@ fn collect_headers(response: &reqwest::Response) -> HashMap<String, String> {
             )
         })
         .collect()
+}
+
+/// Decode a response body for the frontend: valid UTF-8 stays as text;
+/// anything else (images, PDFs, protobuf, ...) is base64-encoded instead of
+/// being mangled through a lossy UTF-8 conversion. Returns `(body, is_base64,
+/// byte_size)` — `byte_size` is always the real byte count, unlike `body.len()`
+/// which would be the base64-inflated length when `is_base64` is true.
+fn decode_response_body(bytes: &[u8]) -> (String, bool, u64) {
+    let byte_size = bytes.len() as u64;
+    match String::from_utf8(bytes.to_vec()) {
+        Ok(text) => (text, false, byte_size),
+        Err(error) => (BASE64.encode(error.into_bytes()), true, byte_size),
+    }
+}
+
+#[cfg(test)]
+mod response_body_tests {
+    use super::decode_response_body;
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+
+    #[test]
+    fn keeps_valid_utf8_as_text() {
+        let (body, is_base64, size) = decode_response_body(r#"{"ok":true}"#.as_bytes());
+        assert_eq!(body, r#"{"ok":true}"#);
+        assert!(!is_base64);
+        assert_eq!(size, 11);
+    }
+
+    #[test]
+    fn base64_encodes_invalid_utf8_without_losing_bytes() {
+        // 0xFF is never valid as a UTF-8 lead byte.
+        let bytes: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+        let (body, is_base64, size) = decode_response_body(bytes);
+        assert!(is_base64);
+        assert_eq!(size, bytes.len() as u64);
+        assert_eq!(BASE64.decode(body).unwrap(), bytes);
+    }
+
+    #[test]
+    fn reports_real_byte_length_for_multibyte_text() {
+        // "café" is 4 chars but 5 bytes in UTF-8 (é = 2 bytes).
+        let (_, is_base64, size) = decode_response_body("café".as_bytes());
+        assert!(!is_base64);
+        assert_eq!(size, 5);
+    }
 }
 
 fn is_cancelled(state: &RuntimeState, request_id: &str) -> bool {
@@ -858,7 +946,9 @@ async fn execute_request(
         let value = value
             .parse::<reqwest::header::HeaderValue>()
             .map_err(|_| format!("Invalid value for header: {}", key))?;
-        headers.insert(name, value);
+        // `append`, not `insert`: a request can legitimately repeat a header
+        // name (e.g. two `Accept` values) and both must reach the server.
+        headers.append(name, value);
     }
 
     builder = builder.headers(headers);
@@ -929,16 +1019,23 @@ async fn execute_request(
             },
         )?;
 
+        // Streaming responses are always decoded as lossy UTF-8 chunk by
+        // chunk (SSE/NDJSON use cases); binary-safe decoding only applies
+        // to the buffered, non-streaming path below.
+        let body_size = body.len() as u64;
         return Ok(RestResponse {
             status: status_code,
             status_text,
             duration_ms,
             headers: headers_map,
             body,
+            body_is_base64: false,
+            body_size,
         });
     }
 
-    let body = response.text().await.map_err(|error| error.to_string())?;
+    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    let (body, body_is_base64, body_size) = decode_response_body(&bytes);
 
     Ok(RestResponse {
         status: status_code,
@@ -946,6 +1043,8 @@ async fn execute_request(
         duration_ms: started.elapsed().as_millis(),
         headers: headers_map,
         body,
+        body_is_base64,
+        body_size,
     })
 }
 
@@ -1049,6 +1148,8 @@ pub fn run() {
             load_startup_settings,
             load_app_config,
             save_app_config,
+            load_response_cache,
+            save_response_cache,
             send_request,
             test_proxy_connection,
             open_external_url

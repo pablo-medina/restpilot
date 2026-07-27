@@ -80,8 +80,10 @@ function ResponseHead({
       status: tab.response.status,
       status_text: tab.response.status_text,
       duration_ms: tab.response.duration_ms,
-      headers: { ...tab.response.headers },
-      body: tab.response.body
+      headers: [...tab.response.headers],
+      body: tab.response.body,
+      body_is_base64: tab.response.body_is_base64,
+      body_size: tab.response.body_size
     };
 
     if (!request.savedResponses) request.savedResponses = [];
@@ -148,7 +150,7 @@ function ResponseHead({
       <div className="response-head-actions">
         <div className="metrics">
           <span>{response.duration_ms} ms</span>
-          <span>{formatBytes(response.body.length)}</span>
+          <span>{formatBytes(response.body_size)}</span>
         </div>
         {isViewingCurrent ? (
           <button
@@ -178,6 +180,16 @@ function ResponseHead({
   );
 }
 
+function BinaryBodyPlaceholder({ response }: { response: ApiResponse }) {
+  const labels = t().request;
+  return (
+    <div className="response-empty">
+      <h2>{labels.binaryBodyTitle}</h2>
+      <p>{labels.binaryBodyBody.replace("{size}", formatBytes(response.body_size))}</p>
+    </div>
+  );
+}
+
 function ResponseBodyView({
   request,
   tab,
@@ -188,7 +200,7 @@ function ResponseBodyView({
   response: ApiResponse;
 }) {
   const streamRef = useRef<HTMLPreElement>(null);
-  const displayBody = getResponseBodyForDisplay(tab, response.body, response.headers);
+  const displayBody = response.body_is_base64 ? "" : getResponseBodyForDisplay(tab, response.body, response.headers);
   const useStream = tab.streaming && !isLargeText(response.body);
   const useViewer = isLargeText(response.body);
 
@@ -197,6 +209,10 @@ function ResponseBodyView({
       streamRef.current.textContent = displayBody;
     }
   }, [displayBody, useStream]);
+
+  if (response.body_is_base64) {
+    return <BinaryBodyPlaceholder response={response} />;
+  }
 
   if (useStream) {
     return <pre ref={streamRef} className="response-body response-body-stream" data-response-body-stream />;
@@ -229,7 +245,7 @@ function ResponseHeadersView({ request, tab }: { request: SavedRequest; tab: Tab
 
   if (!response) return <div className="response-headers-panel" />;
 
-  const rows = Object.entries(response.headers).map(([key, value]) => ({ key, value }));
+  const rows = response.headers.map(([key, value]) => ({ key, value }));
   return (
     <div className="response-headers-panel">
       <HeadersTable

@@ -14,12 +14,62 @@ import {
   type BodyMode,
   type Environment,
   type FormPartType,
+  type HeaderPair,
   type Pair,
   type RawType,
   type SavedRequest,
+  type SavedResponseHistoryItem,
   type TreeItem,
   type Variable
 } from "../types";
+
+/** Accepts the legacy `Record<string,string>` shape (pre-migration configs) or the
+ * current `[name, value][]` shape, and always returns the latter. */
+function normalizeHeaderPairs(raw: unknown): HeaderPair[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter((entry): entry is [unknown, unknown] => Array.isArray(entry) && entry.length === 2)
+      .map(([key, value]) => [String(key), String(value)] as HeaderPair);
+  }
+  if (raw && typeof raw === "object") {
+    return Object.entries(raw as Record<string, unknown>).map(([key, value]) => [key, String(value)] as HeaderPair);
+  }
+  return [];
+}
+
+/** Normalizes a stored `ApiResponse`, tolerating configs saved before headers
+ * became a list or before `body_is_base64`/`body_size` existed. */
+export function normalizeApiResponse(raw: unknown): ApiResponse | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value.status !== "number") return null;
+  const body = String(value.body ?? "");
+  return {
+    status: value.status,
+    status_text: String(value.status_text ?? ""),
+    duration_ms: Number(value.duration_ms ?? 0),
+    headers: normalizeHeaderPairs(value.headers),
+    body,
+    body_is_base64: value.body_is_base64 === true,
+    body_size: typeof value.body_size === "number" ? value.body_size : body.length
+  };
+}
+
+export function normalizeSavedResponseHistoryItem(raw: Record<string, unknown>): SavedResponseHistoryItem {
+  const body = String(raw.body ?? "");
+  return {
+    id: String(raw.id || crypto.randomUUID()),
+    title: String(raw.title ?? "Saved Response"),
+    timestamp: Number(raw.timestamp ?? Date.now()),
+    status: Number(raw.status ?? 200),
+    status_text: String(raw.status_text ?? "OK"),
+    duration_ms: Number(raw.duration_ms ?? 0),
+    headers: normalizeHeaderPairs(raw.headers),
+    body,
+    body_is_base64: raw.body_is_base64 === true,
+    body_size: typeof raw.body_size === "number" ? raw.body_size : body.length
+  };
+}
 
 function normalizeFunction(func: any): AppFunction {
   const form = (func.form ?? []).map((field: any) => ({
@@ -65,18 +115,20 @@ function normalizeFunction(func: any): AppFunction {
 }
 
 function normalizeFunctionLastHttp(func: Record<string, unknown>): AppFunction["lastHttpResponse"] {
-  const stored = func.lastHttpResponse as AppFunction["lastHttpResponse"];
-  if (stored && typeof stored === "object" && typeof (stored as { status?: number }).status === "number") {
-    return stored;
-  }
+  const stored = normalizeApiResponse(func.lastHttpResponse);
+  if (stored) return stored;
+
   const legacy = func.lastTestResult as { responseStatus?: number; responseBody?: string } | null | undefined;
   if (legacy?.responseBody != null && legacy.responseStatus != null) {
+    const body = String(legacy.responseBody);
     return {
       status: legacy.responseStatus,
       status_text: "",
       duration_ms: 0,
-      headers: {},
-      body: String(legacy.responseBody)
+      headers: [],
+      body,
+      body_is_base64: false,
+      body_size: body.length
     };
   }
   return null;
@@ -154,18 +206,9 @@ function normalizeTreeItem(item: TreeItem): TreeItem {
     headers: request.headers ?? [],
     form,
     streamResponse: request.streamResponse ?? false,
-    lastResponse: request.lastResponse ?? null,
+    lastResponse: normalizeApiResponse(request.lastResponse),
     lastError: request.lastError ?? null,
-    savedResponses: (request.savedResponses ?? []).map((res: any) => ({
-      id: String(res.id || crypto.randomUUID()),
-      title: String(res.title ?? "Saved Response"),
-      timestamp: Number(res.timestamp ?? Date.now()),
-      status: Number(res.status ?? 200),
-      status_text: String(res.status_text ?? "OK"),
-      duration_ms: Number(res.duration_ms ?? 0),
-      headers: res.headers ?? {},
-      body: String(res.body ?? "")
-    }))
+    savedResponses: (request.savedResponses ?? []).map(normalizeSavedResponseHistoryItem)
   };
   return hydrateRequestAuth(migrateRequestQuery(normalized));
 }

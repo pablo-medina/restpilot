@@ -9,17 +9,15 @@ describe("request-utils", () => {
       form: []
     } as unknown as SavedRequest;
 
-    const headers = {
-      "Content-Type": "multipart/form-data",
-      "Authorization": "Bearer 123",
-      "content-type": "application/octet-stream"
-    };
+    const headers: [string, string][] = [
+      ["Content-Type", "multipart/form-data"],
+      ["Authorization", "Bearer 123"],
+      ["content-type", "application/octet-stream"]
+    ];
 
     const result = withContentType(request, headers);
 
-    expect(result).toEqual({
-      "Authorization": "Bearer 123"
-    });
+    expect(result).toEqual([["Authorization", "Bearer 123"]]);
   });
 
   it("leaves custom Content-Type intact in non-multipart requests", () => {
@@ -29,15 +27,11 @@ describe("request-utils", () => {
       body: "{}"
     } as unknown as SavedRequest;
 
-    const headers = {
-      "Content-Type": "application/xml"
-    };
+    const headers: [string, string][] = [["Content-Type", "application/xml"]];
 
     const result = withContentType(request, headers);
 
-    expect(result).toEqual({
-      "Content-Type": "application/xml"
-    });
+    expect(result).toEqual([["Content-Type", "application/xml"]]);
   });
 
   it("adds Content-Type automatically for form/urlencoded requests", () => {
@@ -46,10 +40,27 @@ describe("request-utils", () => {
       form: [{ key: "foo", value: "bar", enabled: true }]
     } as unknown as SavedRequest;
 
-    const result = withContentType(request, {});
+    const result = withContentType(request, []);
 
-    expect(result).toEqual({
-      "Content-Type": "application/x-www-form-urlencoded"
-    });
+    expect(result).toEqual([["Content-Type", "application/x-www-form-urlencoded"]]);
+  });
+
+  it("preserves duplicate manual headers when adding Content-Type", () => {
+    const request = {
+      bodyMode: "raw",
+      rawType: "text",
+      body: "hi"
+    } as unknown as SavedRequest;
+
+    const result = withContentType(request, [
+      ["X-Trace", "a"],
+      ["X-Trace", "b"]
+    ]);
+
+    expect(result).toEqual([
+      ["X-Trace", "a"],
+      ["X-Trace", "b"],
+      ["Content-Type", "text/plain"]
+    ]);
   });
 });

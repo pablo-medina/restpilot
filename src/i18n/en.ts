@@ -205,6 +205,8 @@ export const en = {
     failedTitle: "Request failed",
     emptyTitle: "Ready when you are",
     emptyBody: "Send a request and the response will appear here.",
+    binaryBodyTitle: "Binary response",
+    binaryBodyBody: "This response is not text ({size}) and can't be displayed here. Use the copy menu to copy it as base64.",
     noTab: "No tab open",
     headersSearch: "Search headers…",
     headersKey: "Header",

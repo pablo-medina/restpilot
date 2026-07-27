@@ -3,7 +3,7 @@ import { bodySourceKey, highlightBodyContent, highlightResponse, invalidateRespo
 
 describe("bodySourceKey", () => {
   it("distinguishes bodies that share length, type, and edge slices", () => {
-    const headers = { "Content-Type": "application/json" };
+    const headers: [string, string][] = [["Content-Type", "application/json"]];
     const a = `{"items":[${"a".repeat(40)}],"id":1}`;
     const b = `{"items":[${"b".repeat(40)}],"id":2}`;
     expect(bodySourceKey(a, headers)).not.toBe(bodySourceKey(b, headers));
@@ -12,7 +12,7 @@ describe("bodySourceKey", () => {
 
 describe("invalidateResponseRenderCache", () => {
   it("clears tab display cache and global highlight cache", () => {
-    const headers = { "Content-Type": "application/json" };
+    const headers: [string, string][] = [["Content-Type", "application/json"]];
     const body = '{"ok":true}';
     highlightResponse(body, headers);
     const tab = {
