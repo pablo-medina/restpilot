@@ -14,10 +14,11 @@ function parseOpenApiUrl(urlStr: string, serverUrl: string | undefined): string 
   return urlStr;
 }
 
-function extractParams(params: unknown, location: string): Pair[] {
+/** Parameters declared for `location` (`query`, `header` or `path`) as editable pairs. */
+function extractParams(params: unknown, location: "query" | "header" | "path"): Pair[] {
   if (!Array.isArray(params)) return [];
   return params
-    .filter((p: unknown) => p && typeof p === "object")
+    .filter((p: unknown) => p && typeof p === "object" && (p as Record<string, unknown>).in === location)
     .map((p: unknown) => {
       const item = p as Record<string, unknown>;
       return {

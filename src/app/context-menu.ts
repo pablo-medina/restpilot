@@ -1,29 +1,7 @@
 import type { EditorView } from "@codemirror/view";
-import { escapeHtml } from "../lib/content-display";
-import { t } from "../i18n";
 import { codeMirrorViewFromTarget } from "./codemirror-view";
-import { menuShortcuts } from "./menu-shortcuts";
-import type { ContextMenuState } from "./state";
 
 export { codeMirrorViewFromTarget } from "./codemirror-view";
-
-export function contextMenuButton(
-  action: string,
-  label: string,
-  options: { shortcut?: string; enabled?: boolean; danger?: boolean; checked?: boolean } = {}
-): string {
-  const { shortcut, enabled = true, danger = false } = options;
-  const shortcutHtml = shortcut
-    ? `<span class="context-menu-shortcut">${escapeHtml(shortcut)}</span>`
-    : "";
-  const checkHtml =
-    "checked" in options
-      ? `<span class="context-menu-check" aria-hidden="true">${options.checked ? "✓" : ""}</span>`
-      : "";
-  return `<button data-menu-action="${action}" type="button"${danger ? ' class="danger"' : ""}${
-    enabled ? "" : " disabled"
-  }>${checkHtml}<span class="context-menu-label">${escapeHtml(label)}</span>${shortcutHtml}</button>`;
-}
 
 export type TextContextFlags = {
   canCut: boolean;
@@ -252,30 +230,3 @@ export async function runTextMenuAction(action: string): Promise<void> {
   }
 }
 
-export function renderTextContextMenuMarkup(menu: Extract<ContextMenuState, { kind: "text" }>): string {
-  const labels = t().contextMenu;
-  const btn = (action: string, label: string, enabled: boolean, shortcut?: string) =>
-    contextMenuButton(action, label, { enabled, shortcut });
-
-  const undoRedo =
-    menu.canUndo !== undefined
-      ? `<hr>${btn("text-undo", labels.undo, menu.canUndo, menuShortcuts.undo())}${btn(
-          "text-redo",
-          labels.redo,
-          menu.canRedo ?? false,
-          menuShortcuts.redo()
-        )}`
-      : "";
-
-  return `
-    <div class="context-menu" style="left:${menu.x}px;top:${menu.y}px">
-      ${btn("text-cut", labels.cut, menu.canCut, menuShortcuts.cut())}
-      ${btn("text-copy", labels.copy, menu.canCopy, menuShortcuts.copy())}
-      ${menu.canCopySelection ? btn("text-copy-selection", labels.copySelection, true, menuShortcuts.copy()) : ""}
-      ${btn("text-paste", labels.paste, menu.canPaste, menuShortcuts.paste())}
-      ${undoRedo}
-      <hr>
-      ${btn("text-select-all", labels.selectAll, menu.canSelectAll, menuShortcuts.selectAll())}
-    </div>
-  `;
-}

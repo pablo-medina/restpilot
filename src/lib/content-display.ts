@@ -41,56 +41,6 @@ export function invalidateResponseRenderCache(tab: ResponseRenderCache): void {
   highlightCache.clear();
 }
 
-function scanLineOffsets(body: string, startIndex: number, offsets: number[]) {
-  for (let i = startIndex; i < body.length; i++) {
-    const ch = body.charCodeAt(i);
-    if (ch === 10) {
-      offsets.push(i + 1);
-    } else if (ch === 13) {
-      if (body.charCodeAt(i + 1) === 10) {
-        offsets.push(i + 2);
-        i += 1;
-      } else {
-        offsets.push(i + 1);
-      }
-    }
-  }
-}
-
-export function getLineOffsets(
-  body: string,
-  cacheKey: string,
-  cache: { bodyLinesKey?: string; bodyLineOffsets?: number[]; bodyLineScanLength?: number },
-  appendOnly = false
-) {
-  if (cache.bodyLinesKey === cacheKey && cache.bodyLineOffsets) return cache.bodyLineOffsets;
-
-  const scanFrom =
-    appendOnly && cache.bodyLineOffsets && cache.bodyLineScanLength && body.length >= cache.bodyLineScanLength
-      ? cache.bodyLineScanLength
-      : 0;
-
-  if (scanFrom === 0) {
-    const offsets = [0];
-    scanLineOffsets(body, 0, offsets);
-    cache.bodyLineOffsets = offsets;
-  } else {
-    scanLineOffsets(body, scanFrom, cache.bodyLineOffsets!);
-  }
-
-  cache.bodyLinesKey = cacheKey;
-  cache.bodyLineScanLength = body.length;
-  return cache.bodyLineOffsets!;
-}
-
-export function sliceLine(body: string, offsets: number[], lineIndex: number) {
-  const start = offsets[lineIndex] ?? 0;
-  const end = lineIndex + 1 < offsets.length ? offsets[lineIndex + 1] : body.length;
-  let line = body.slice(start, end);
-  if (line.endsWith("\r\n")) return line.slice(0, -2);
-  if (line.endsWith("\n") || line.endsWith("\r")) return line.slice(0, -1);
-  return line;
-}
 
 function contentType(headers: Record<string, string>) {
   return Object.entries(headers).find(([key]) => key.toLowerCase() === "content-type")?.[1]?.toLowerCase() ?? "";
@@ -113,11 +63,6 @@ export function detectContentKind(body: string, headers: Record<string, string>)
   if (isLikelyXml(body)) return "xml";
   if (isLikelyJson(body)) return "json";
   return "text";
-}
-
-/** @deprecated Use detectContentKind */
-export function isJsonResponse(body: string, headers: Record<string, string>) {
-  return detectContentKind(body, headers) === "json";
 }
 
 export function formatXml(body: string) {

@@ -136,12 +136,6 @@ export function attachTabStripReorder(options: TabStripReorderOptions): void {
     marker.classList.remove("is-hidden");
   };
 
-  const resolveInsertIndex = (strip: HTMLElement, clientX: number): number => {
-    if (!savedOrder) return 0;
-    const slots = readTabSlotRects(strip, savedOrder);
-    return computeTabInsertIndexFromStrip(slots, sourceId, clientX);
-  };
-
   const autoScrollStrip = (viewport: HTMLElement, clientX: number) => {
     const rect = viewport.getBoundingClientRect();
     const edge = 48;

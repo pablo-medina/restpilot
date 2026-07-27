@@ -3,8 +3,7 @@ import { state } from "./state";
 import {
   collectionPathForFolder,
   collectionPathForParent,
-  collectionPathForRequest,
-  resolveCollectionPath
+  collectionPathForRequest
 } from "./collection-path";
 import { COLLECTION_ROOT_PARENT_ID } from "./collection-parent";
 
@@ -16,21 +15,17 @@ describe("collection paths", () => {
     ];
   });
 
-  it("resolves root path", () => {
-    expect(resolveCollectionPath("/").parentId).toBe(COLLECTION_ROOT_PARENT_ID);
-  });
-
-  it("resolves folder at root by path", () => {
-    expect(resolveCollectionPath("/Prueba").parentId).toBe("f1");
-  });
-
-  it("resolves nested folder path", () => {
-    expect(resolveCollectionPath("/Prueba/OpenRouter").parentId).toBe("f2");
-  });
-
   it("builds path for folder parent id", () => {
     expect(collectionPathForParent("f1")).toBe("/Prueba");
     expect(collectionPathForParent("f2")).toBe("/Prueba/OpenRouter");
+  });
+
+  it("returns root for items directly under the collection root", () => {
+    expect(collectionPathForParent(COLLECTION_ROOT_PARENT_ID)).toBe(COLLECTION_ROOT_PARENT_ID);
+  });
+
+  it("builds full path for a folder", () => {
+    expect(collectionPathForFolder(state.items[1] as any)).toBe("/Prueba/OpenRouter");
   });
 
   it("builds full path for a request", () => {

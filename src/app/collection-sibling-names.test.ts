@@ -3,7 +3,6 @@ import { state } from "./state";
 import {
   assertUniqueSiblingTitle,
   buildSiblingNameConflict,
-  duplicateTitleGroups,
   SiblingNameConflictError,
   uniquifySiblingTitle
 } from "./collection-sibling-names";
@@ -35,12 +34,6 @@ describe("collection-sibling-names", () => {
 
   it("uniquifies default sibling titles", () => {
     expect(uniquifySiblingTitle("/", "API")).toBe("API (2)");
-  });
-
-  it("lists duplicate title groups with full paths", () => {
-    state.items.push(folder("f3", "API", "/"));
-    const groups = duplicateTitleGroups();
-    expect(groups).toEqual([{ kind: "folder", title: "API", paths: ["/API", "/API"] }]);
   });
 
   it("blocks insertItemAt for duplicate sibling names", () => {

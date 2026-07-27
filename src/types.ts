@@ -177,15 +177,6 @@ export type TabState = {
   requestRunId: string | null;
   selectedResponseTab: ResponseTab;
   selectedRequestTab: RequestTab;
-  displayUnmount?: () => void;
-  bodyEditorUnmount?: () => void;
-  gqlQueryUnmount?: () => void;
-  gqlVarsUnmount?: () => void;
-  responseBodyUnmount?: () => void;
-  headersTableUnmount?: () => void;
-  bodyLinesKey?: string;
-  bodyLineOffsets?: number[];
-  bodyLineScanLength?: number;
   responseDisplayKey?: string;
   responseDisplayBody?: string;
   selectedSavedResponseId?: string | null;

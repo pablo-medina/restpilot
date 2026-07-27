@@ -6,10 +6,9 @@ export type RequestPopoverKind = "environment";
 export type VariableChangeHandler = () => void;
 
 let handlersBound = false;
-let variablesChangedHook: VariableChangeHandler | null = null;
 
-export function setRequestPopoverHooks(hooks: { onVariablesChanged?: VariableChangeHandler }) {
-  variablesChangedHook = hooks.onVariablesChanged ?? null;
+export function setRequestPopoverHooks(_hooks: { onVariablesChanged?: VariableChangeHandler }) {
+  // Variable changes re-render through the React store; nothing to store here.
 }
 
 export function closeRequestPopovers() {
@@ -22,8 +21,7 @@ export function syncRequestPopover() {
   bumpRenderGeneration();
 }
 
-export function bindRequestPopoverTriggers(onVariablesChanged?: VariableChangeHandler) {
-  if (onVariablesChanged) variablesChangedHook = onVariablesChanged;
+export function bindRequestPopoverTriggers() {
   ensurePopoverHandlers();
 }
 

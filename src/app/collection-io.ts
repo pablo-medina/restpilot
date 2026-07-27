@@ -34,7 +34,7 @@ function dialogData(result: string | DialogOutcome): Record<string, unknown> | u
   return typeof result === "object" && result !== null && "data" in result ? result.data : undefined;
 }
 
-export function buildCollectionExport(excludeValues: boolean) {
+function buildCollectionExport(excludeValues: boolean) {
   const collection = buildCollectionSnapshot(
     {
       items: state.items,
@@ -53,7 +53,7 @@ export function buildCollectionExport(excludeValues: boolean) {
   };
 }
 
-export function applyCollectionSnapshot(
+function applyCollectionSnapshot(
   snapshot: CollectionSnapshot,
   mode: ImportMode,
   conflict: ImportConflictPolicy

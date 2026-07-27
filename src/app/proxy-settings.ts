@@ -37,7 +37,7 @@ export function normalizeProxyAuthMode(value: unknown): ProxyAuthMode {
   return "auto";
 }
 
-export function normalizeNoProxy(value: unknown): string {
+function normalizeNoProxy(value: unknown): string {
   if (typeof value !== "string") return "localhost,127.0.0.1";
   const trimmed = value.trim();
   return trimmed || "localhost,127.0.0.1";

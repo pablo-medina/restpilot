@@ -48,7 +48,7 @@ export function buildRequestUrl(base: string, params: Pair[], hash = ""): string
   return url;
 }
 
-export function pairsFromUrlParams(params: { key: string; value: string }[], id: () => string): Pair[] {
+function pairsFromUrlParams(params: { key: string; value: string }[], id: () => string): Pair[] {
   return params.map((param) => ({
     id: id(),
     key: param.key,

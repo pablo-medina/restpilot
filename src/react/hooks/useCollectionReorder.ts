@@ -3,7 +3,7 @@ import { attachPointerReorder, type PointerReorderPlacement } from "../../app/po
 import { moveDroppedItem } from "../../app/collection-store";
 import { COLLECTION_ROOT_PARENT_ID } from "../../app/collection-parent";
 import { scheduleSave } from "../../app/persistence";
-import { getItem, setState, state } from "../../app/state";
+import { getItem, setState } from "../../app/state";
 import { shouldOfferTreeRootDrop, treeRowAtPointer } from "../../app/collection-tree-drag";
 import { bumpRenderGeneration } from "../render-bridge";
 

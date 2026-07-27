@@ -1,5 +1,5 @@
 import { escapeHtml } from "../lib/content-display";
-import { COLLECTION_ROOT_PARENT_ID, isCollectionRoot, normalizeParentId } from "./collection-parent";
+import { COLLECTION_ROOT_PARENT_ID, normalizeParentId } from "./collection-parent";
 import type { TextContextFlags } from "./context-menu";
 import { defaultConfig } from "../types";
 import type {

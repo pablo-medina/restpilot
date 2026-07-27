@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useRef } from "react";
 import { EnvironmentPopover } from "./EnvironmentPopover";
 import { environmentChipLabel } from "../../app/environments";
 import { useTabReorder } from "../hooks/useTabReorder";

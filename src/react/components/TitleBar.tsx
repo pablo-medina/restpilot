@@ -17,7 +17,6 @@ import { TabBar } from "./TabBar";
 
 const iconMinimize = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M2 6.5h8v-1H2z"/></svg>`;
 const iconMaximize = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.1" d="M2.5 2.5h7v7h-7z"/></svg>`;
-const iconRestore = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1" d="M5.5 2H10V6.5H5.5z"/><path fill="none" stroke="currentColor" stroke-width="1" d="M2 5H6.5V10H2z"/></svg>`;
 const iconClose = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" d="M3 3l6 6M9 3 3 9"/></svg>`;
 
 type Props = {

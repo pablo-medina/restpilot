@@ -122,7 +122,7 @@ function prettifyJsonKeymap(rawType: ViewerMode, onChange: (value: string) => vo
   ]);
 }
 
-function bodyPasteHandler(rawType: ViewerMode, autoPrettifyJson: boolean, onChange: (value: string) => void) {
+function bodyPasteHandler(rawType: ViewerMode, autoPrettifyJson: boolean) {
   return EditorView.domEventHandlers({
     paste(event, view) {
       if (!autoPrettifyJson || rawType !== "json") return false;
@@ -173,7 +173,7 @@ export function mountBodyEditor(host: HTMLElement, initial: string, options: Bod
     languageExtension(rawType),
     sendKeymap(options.onSend),
     prettifyJsonKeymap(rawType, onChange),
-    bodyPasteHandler(rawType, autoPrettifyJson, onChange),
+    bodyPasteHandler(rawType, autoPrettifyJson),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) onChange(update.state.doc.toString());
     })
@@ -184,9 +184,6 @@ export function mountBodyEditor(host: HTMLElement, initial: string, options: Bod
   (host as HTMLElement & { __cmView?: EditorView }).__cmView = view;
   return () => destroyView(host, view);
 }
-
-/** @deprecated Use mountBodyEditor */
-export const mountLargeTextEditor = mountBodyEditor;
 
 export function mountReadonlyViewer(host: HTMLElement, initial: string, mode: ViewerMode, tabSize = 2): () => void {
   host.classList.add("cm-host", "cm-readonly");
@@ -232,6 +229,3 @@ function destroyView(host: HTMLElement, view: EditorView) {
   host.classList.remove("cm-host", "cm-readonly");
   host.replaceChildren();
 }
-
-/** @deprecated Use setBodyEditorValue */
-export const setLargeTextEditorValue = setBodyEditorValue;

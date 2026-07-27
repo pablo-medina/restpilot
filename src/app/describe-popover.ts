@@ -9,7 +9,6 @@ import { t } from "../i18n";
 import { scheduleSave } from "./persistence";
 import { render } from "./render";
 import { getItem, state } from "./state";
-import type { AppFunction } from "../types";
 
 export type DescribeTarget = { kind: "request" | "function"; id: string };
 

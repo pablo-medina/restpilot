@@ -3,7 +3,7 @@ import { COLLECTION_ROOT_PARENT_ID } from "../../app/collection-parent";
 import { uniquifySiblingTitle } from "../../app/collection-sibling-names";
 import { scheduleSave } from "../../app/persistence";
 import { blankRequest } from "../../app/request-utils";
-import { childCount, selectedFolderId, setState, state, id } from "../../app/state";
+import { childCount, selectedFolderId, setState, id } from "../../app/state";
 import type { TreeItem } from "../../types";
 import { openRequestTab } from "./tab-actions";
 

@@ -18,7 +18,6 @@ import {
   type RawType,
   type SavedRequest,
   type TreeItem,
-  type UserSettings,
   type Variable
 } from "../types";
 

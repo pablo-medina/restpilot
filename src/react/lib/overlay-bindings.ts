@@ -1,11 +1,13 @@
 import { bindWindowChrome } from "../../ui/window-chrome";
-import { bindRequestPopoverTriggers, type VariableChangeHandler } from "../../ui/request-popovers";
+import { bindRequestPopoverTriggers } from "../../ui/request-popovers";
 
 let overlayBindingsReady = false;
-export function bindOverlayBindings(onVariablesChanged?: VariableChangeHandler): void {
+
+/** One-time document-level bindings for overlays rendered outside React. */
+export function bindOverlayBindings(): void {
   if (overlayBindingsReady) return;
   overlayBindingsReady = true;
 
-  bindRequestPopoverTriggers(onVariablesChanged);
+  bindRequestPopoverTriggers();
   bindWindowChrome();
 }

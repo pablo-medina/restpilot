@@ -75,32 +75,11 @@ export function hasOpenDialogs(): boolean {
   return dialogs.length > 0;
 }
 
-export function hasDialogMode(mode: DialogMode): boolean {
-  return dialogs.some((dialog) => dialog.data?.mode === mode);
-}
-
-export function updateDialogPreview(mode: DialogMode, previewHtml: string, title?: string): void {
-  const dialog = dialogs.slice().reverse().find((item) => item.data?.mode === mode);
-  if (!dialog?.data) return;
-  dialog.data.previewHtml = previewHtml;
-  if (title) dialog.title = title;
-  requestRender();
-}
-
 function applyDialogMaximizedBounds(dialog: DialogState) {
   dialog.x = DIALOG_MAX_MARGIN;
   dialog.y = DIALOG_MAX_MARGIN;
   dialog.width = Math.max(dialog.minWidth, window.innerWidth - DIALOG_MAX_MARGIN * 2);
   dialog.height = Math.max(dialog.minHeight, window.innerHeight - DIALOG_MAX_MARGIN * 2);
-}
-
-function syncDialogMaximizeButton(root: HTMLElement, dialog: DialogState) {
-  const maximizeBtn = root.querySelector<HTMLButtonElement>('[data-dialog-action="maximize"]');
-  if (!maximizeBtn) return;
-  const labels = t().dialog;
-  maximizeBtn.textContent = dialog.maximized ? "❐" : "□";
-  maximizeBtn.title = dialog.maximized ? labels.restore : labels.maximize;
-  maximizeBtn.setAttribute("aria-label", maximizeBtn.title);
 }
 
 function centerDialog(dialog: DialogState, measuredHeight?: number) {
@@ -121,7 +100,6 @@ function centerDialog(dialog: DialogState, measuredHeight?: number) {
 export function initDialogs(render: () => void) {
   onRender = render;
 }
-
 
 export function onDialogKeydown(event: KeyboardEvent) {
   const top = dialogs[dialogs.length - 1];
@@ -410,11 +388,6 @@ export function endDialogDrag() {
   requestRender();
 }
 
-function onPointerUp() {
-  endDialogDrag();
-}
-
-
 function applyResize(dialog: DialogState, edge: ResizeEdge, start: Bounds, deltaX: number, deltaY: number) {
   let { x, y, width, height } = start;
 
@@ -483,15 +456,6 @@ export function submitDialogAction(dialogId: string, actionId: string, root?: HT
   closeDialog(dialogId, actionId);
 }
 
-export function syncDialogLayout(dialogId: string, bounds: Bounds) {
-  const dialog = dialogs.find((item) => item.id === dialogId);
-  if (!dialog || dialog.maximized) return;
-  dialog.x = bounds.x;
-  dialog.y = bounds.y;
-  dialog.width = bounds.width;
-  dialog.height = bounds.height;
-}
-
 export function bindDialogPreviewContent(root: HTMLElement, dialog: DialogState) {
   if (dialog.data?.mode === "collection-import") {
     const syncConflictVisibility = () => {
@@ -538,62 +502,3 @@ export function measureAndCenterDialog(dialogId: string, node: HTMLElement) {
   requestRender();
 }
 
-function renderDialog(dialog: DialogState): string {
-  const kind = dialog.kind ?? "information";
-  const mode = String(dialog.data?.mode ?? "default");
-  const isInput = mode === "input";
-  const previewHtml = String(dialog.data?.previewHtml ?? "");
-  const labels = t().dialog;
-  const resizeHandles = dialog.resizable
-    ? ["n", "s", "e", "w", "ne", "nw", "se", "sw"]
-        .map((edge) => `<span class="resize-handle resize-${edge}" data-resize="${edge}"></span>`)
-        .join("")
-    : "";
-
-  const windowControls = dialog.resizable
-    ? `<button class="mini-btn dialog-window-btn" data-dialog-action="maximize" type="button" title="${dialog.maximized ? labels.restore : labels.maximize}" aria-label="${dialog.maximized ? labels.restore : labels.maximize}">${dialog.maximized ? "❐" : "□"}</button>`
-    : "";
-
-  const hasHeight = dialog.resizable || dialog.height > 0;
-  const sizeStyle = hasHeight
-    ? `width:${dialog.width}px;height:${dialog.height}px`
-    : `width:${dialog.width}px`;
-
-  return `
-    <div class="app-dialog ${dialog.variant} ${kind} ${dialog.resizable ? "resizable" : ""} ${dialog.maximized ? "maximized" : ""}"
-      style="left:${dialog.x}px;top:${dialog.y}px;${sizeStyle}"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="dialog-title-${dialog.id}"
-      data-dialog-id="${dialog.id}"
-      data-dialog-mode="${mode}">
-      ${resizeHandles}
-      <div class="dialog-title" data-dialog-drag="${dialog.id}">
-        <strong id="dialog-title-${dialog.id}">${escapeHtml(dialog.title)}</strong>
-        <div class="dialog-title-actions">
-          ${windowControls}
-          <button class="mini-btn dialog-window-btn" data-dialog-action="close" type="button" title="${labels.close}" aria-label="${labels.close}">×</button>
-        </div>
-      </div>
-      <div class="dialog-body${mode === "curl-preview" ? " dialog-body-curl" : ""}${mode === "proxy-test-log" ? " dialog-body-proxy-test" : ""}${mode === "import-source" ? " dialog-body-import-source" : ""}${mode === "import-preview" ? " dialog-body-import-preview" : ""}${previewHtml ? " dialog-body-rich" : ""}">
-        ${dialog.body ? `<p>${escapeHtml(dialog.body)}</p>` : ""}
-        ${isInput ? `<input class="dialog-input" value="${escapeAttribute(String(dialog.data?.value ?? ""))}" spellcheck="false" />` : ""}
-        ${previewHtml}
-      </div>
-      <div class="dialog-actions">${dialog.actions
-        .map((action) => {
-          const isPrimary = action.role === "primary" || action.role === "danger";
-          return `<button class="${action.role ?? ""}" data-dialog-action="${action.id}" type="button"${isPrimary ? ' data-dialog-primary="true"' : ""}>${escapeHtml(action.label)}</button>`;
-        })
-        .join("")}</div>
-    </div>
-  `;
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char] ?? char);
-}
-
-function escapeAttribute(value: string) {
-  return escapeHtml(value).replace(/`/g, "&#096;");
-}

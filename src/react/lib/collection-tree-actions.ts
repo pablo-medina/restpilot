@@ -3,9 +3,24 @@ import { duplicateFolderItem, duplicateRequestItem } from "../../app/collection-
 import { isCollectionRoot } from "../../app/collection-parent";
 import { scheduleSave } from "../../app/persistence";
 import { childrenOf, collectChildren, getItem, setState, state } from "../../app/state";
+import type { SiblingNameConflict } from "../../app/collection-sibling-names";
 import { visibleTreeItems } from "../../ui/collection-tree";
 import { t } from "../../i18n";
 import { openRequestTab } from "./tab-actions";
+
+/** Warn that a sibling already uses this name, listing the colliding paths. */
+export async function showSiblingNameConflictDialog(conflict: SiblingNameConflict): Promise<void> {
+  const labels = t().tree;
+  const paths = conflict.existing.map((entry) => `• ${entry.path}`).join("\n");
+  await messageDialog(
+    "warning",
+    labels.duplicateNameTitle,
+    labels.duplicateNameBody
+      .replace("{title}", conflict.title)
+      .replace("{parent}", conflict.parentPath)
+      .replace("{paths}", paths)
+  );
+}
 
 export function focusTreeRenameInput(itemId: string): void {
   const input = document.querySelector<HTMLInputElement>(`.tree-row[data-tree-id="${itemId}"] .tree-rename-input`);

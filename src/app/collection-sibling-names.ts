@@ -1,8 +1,7 @@
 import {
   collectionPathForFolder,
   collectionPathForParent,
-  collectionPathForRequest,
-  normalizeCollectionPath
+  collectionPathForRequest
 } from "./collection-path";
 import { duplicateBaseTitle } from "./collection-names";
 import { normalizeParentId } from "./collection-parent";
@@ -32,7 +31,7 @@ export class SiblingNameConflictError extends Error {
   }
 }
 
-export function itemCollectionPath(item: TreeItem): string {
+function itemCollectionPath(item: TreeItem): string {
   if (item.kind === "folder") return collectionPathForFolder(item);
   return collectionPathForRequest(item);
 }
@@ -52,7 +51,7 @@ export function uniquifySiblingTitle(
   return `${base} (${index})`;
 }
 
-export function findSiblingTitleConflicts(
+function findSiblingTitleConflicts(
   parentId: string,
   title: string,
   excludeId?: string
@@ -94,45 +93,4 @@ export function assertUniqueSiblingTitle(
 ): void {
   const conflict = buildSiblingNameConflict(parentId, title, excludeId);
   if (conflict) throw new SiblingNameConflictError(conflict);
-}
-
-/** Titles that appear more than once in the collection (same kind), for disambiguation. */
-export function duplicateTitleKeySet(): Set<string> {
-  const counts = new Map<string, number>();
-  for (const item of state.items) {
-    const key = `${item.kind}\0${item.title.trim().toLowerCase()}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return new Set(
-    [...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key)
-  );
-}
-
-export function duplicateTitleGroups(): Array<{ kind: TreeItem["kind"]; title: string; paths: string[] }> {
-  const groups = new Map<string, { kind: TreeItem["kind"]; title: string; paths: string[] }>();
-  for (const item of state.items) {
-    const title = item.title.trim();
-    const key = `${item.kind}\0${title.toLowerCase()}`;
-    const path = itemCollectionPath(item);
-    const group = groups.get(key);
-    if (group) {
-      group.paths.push(path);
-    } else {
-      groups.set(key, { kind: item.kind, title, paths: [path] });
-    }
-  }
-  return [...groups.values()].filter((group) => group.paths.length > 1);
-}
-
-export function siblingNameConflictPayload(conflict: SiblingNameConflict) {
-  return {
-    error: "duplicate_sibling_name",
-    title: conflict.title,
-    parent_path: normalizeCollectionPath(conflict.parentPath),
-    existing: conflict.existing.map((entry) => ({
-      kind: entry.kind,
-      path: entry.path,
-      title: entry.title
-    }))
-  };
 }

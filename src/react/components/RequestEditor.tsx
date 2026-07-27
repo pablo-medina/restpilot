@@ -4,7 +4,7 @@ import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { VariableInput } from "./VariableInput";
 import { SecretInput } from "./SecretInput";
 import { normalizeRequestAuth } from "../../app/request-auth";
-import { getActiveRequest, getRequest, id, state } from "../../app/state";
+import { getActiveRequest, id, state } from "../../app/state";
 import { ingestUrlIntoRequest } from "../../lib/url-params";
 import { displayRequestUrl } from "../../lib/variables";
 import { HTTP_METHODS, isHttpMethod } from "../../lib/http-methods";

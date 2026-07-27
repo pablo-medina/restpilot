@@ -8,7 +8,7 @@ import { resolvedOutboundUrl } from "./request-auth";
 import { buildFormPayload, buildRequestHeaders, withContentType } from "./request-utils";
 import { state } from "./state";
 
-export function functionAsSavedRequest(func: AppFunction): SavedRequest {
+function functionAsSavedRequest(func: AppFunction): SavedRequest {
   return {
     id: func.id,
     kind: "request",

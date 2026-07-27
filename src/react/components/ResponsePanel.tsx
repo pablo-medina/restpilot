@@ -5,6 +5,7 @@ import { HeadersTable } from "./HeadersTable";
 import { scheduleSave } from "../../app/persistence";
 import { formatBytes, getRequest, setState, state } from "../../app/state";
 import { inputDialog } from "../../components/dialogs";
+import { pushToast } from "./index";
 import {
   getActiveResponse,
   getResponseBodyForDisplay,
@@ -88,6 +89,7 @@ function ResponseHead({
     request.savedResponses.push(savedItem);
     tab.selectedSavedResponseId = savedItem.id;
     scheduleSave();
+    pushToast(labels.saveResponseSuccess);
     refresh();
   };
 
@@ -247,13 +249,6 @@ export function ResponsePanel({ requestId, refresh }: Props) {
   const request = getRequest(requestId);
   const tab = ensureTab(requestId);
   const labels = t().request;
-
-  useLayoutEffect(() => {
-    return () => {
-      tab.responseBodyUnmount?.();
-      tab.responseBodyUnmount = undefined;
-    };
-  }, [requestId]);
 
   if (tab.loading && !tab.response) {
     return (

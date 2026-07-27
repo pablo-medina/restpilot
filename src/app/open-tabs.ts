@@ -1,6 +1,3 @@
-import { scheduleSave } from "./persistence";
-import { state } from "./state";
-
 export function computeReorderedTabs(
   tabs: string[],
   sourceId: string,
@@ -106,23 +103,3 @@ export function reorderTabsToInsertIndex(
   return next;
 }
 
-/** Reorder open request tabs (Chrome-style strip). Returns false when nothing changed. */
-export function reorderOpenTab(
-  sourceId: string,
-  targetId: string,
-  placement: "before" | "after"
-): boolean {
-  const next = computeReorderedTabs(state.openTabs, sourceId, targetId, placement);
-  if (!next) return false;
-  state.openTabs = next;
-  scheduleSave();
-  return true;
-}
-
-export function reorderOpenTabToIndex(sourceId: string, insertIndex: number): boolean {
-  const next = reorderTabsToInsertIndex(state.openTabs, sourceId, insertIndex);
-  if (!next) return false;
-  state.openTabs = next;
-  scheduleSave();
-  return true;
-}

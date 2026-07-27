@@ -37,7 +37,7 @@ export function collectVariableNamesFromRequest(request: SavedRequest): Set<stri
   return names;
 }
 
-export function collectVariableNamesInFolder(items: TreeItem[]): Set<string> {
+function collectVariableNamesInFolder(items: TreeItem[]): Set<string> {
   const names = new Set<string>();
   for (const item of items) {
     if (item.kind !== "request") continue;

@@ -180,8 +180,8 @@ export function ContextMenu() {
         {request && tab && (
           <>
             <MenuButton label={rl.copyBody} onClick={withClose(() => void copyResponseBody(request, tab))} />
-            <MenuButton label={rl.copyHeaders} onClick={withClose(() => void copyResponseHeaders(tab))} />
-            <MenuButton label={rl.copyStatus} onClick={withClose(() => void copyResponseStatus(tab))} />
+            <MenuButton label={rl.copyHeaders} onClick={withClose(() => void copyResponseHeaders(request, tab))} />
+            <MenuButton label={rl.copyStatus} onClick={withClose(() => void copyResponseStatus(request, tab))} />
           </>
         )}
       </>

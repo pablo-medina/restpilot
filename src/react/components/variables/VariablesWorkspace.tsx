@@ -1,4 +1,3 @@
-import { scheduleSave } from "../../../app/persistence";
 import { state } from "../../../app/state";
 import { DefaultEnvironmentPanel } from "./DefaultEnvironmentPanel";
 import { EnvironmentVariablesPanel } from "./EnvironmentVariablesPanel";

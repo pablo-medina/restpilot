@@ -1,5 +1,3 @@
-import type { RawType } from "../types";
-
 export type EditorRuntime = typeof import("../ui/large-text-editor");
 
 let runtime: EditorRuntime | null = null;

@@ -62,7 +62,7 @@ export function defaultRuntimeState(): Pick<
 
 
 /** Full factory defaults for persisted config (collections + settings). */
-export function defaultPersistedConfig(): AppConfig {
+function defaultPersistedConfig(): AppConfig {
   return defaultConfig();
 }
 

@@ -35,7 +35,6 @@ function closeActionMenu(event: { currentTarget: HTMLElement }) {
 function SidebarSearch({
   id,
   clearId,
-  submitId,
   label,
   placeholder,
   query,
@@ -44,7 +43,6 @@ function SidebarSearch({
 }: {
   id: string;
   clearId: string;
-  submitId: string;
   label: string;
   placeholder: string;
   query: string;
@@ -74,15 +72,9 @@ function SidebarSearch({
         >
           ×
         </button>
-        <button
-          className="mini-btn collection-search-submit"
-          id={submitId}
-          type="button"
-          title={label}
-          aria-label={label}
-        >
+        <span className="collection-search-icon" aria-hidden="true">
           <Icon html={iconSearch} />
-        </button>
+        </span>
       </div>
     </label>
   );
@@ -209,7 +201,6 @@ export function CollectionSidebar({ refresh }: Props) {
         <SidebarSearch
           id="collection-search"
           clearId="collection-search-clear"
-          submitId="collection-search-submit"
           label={labels.collection.search}
           placeholder={labels.collection.searchPlaceholder}
           query={collectionSearchQuery}
@@ -247,7 +238,6 @@ export function CollectionSidebar({ refresh }: Props) {
         <SidebarSearch
           id="function-search"
           clearId="function-search-clear"
-          submitId="function-search-submit"
           label={labels.functions.search}
           placeholder={labels.functions.searchPlaceholder}
           query={functionSearchQuery}

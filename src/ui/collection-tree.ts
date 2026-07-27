@@ -1,11 +1,5 @@
-import {
-  state,
-  childrenOf,
-  getItem,
-  collectChildren
-} from "../app/state";
+import { state, childrenOf } from "../app/state";
 import { collectionSearchVisibleIds, folderExpandedForSearch } from "../app/collection-search";
-import type { PointerReorderPlacement } from "../app/pointer-reorder";
 import { COLLECTION_ROOT_PARENT_ID } from "../app/collection-parent";
 import type { TreeItem } from "../types";
 
@@ -33,21 +27,3 @@ export function visibleTreeItems(): TreeItem[] {
   return result;
 }
 
-export function dropPlacementFor(row: HTMLElement, event: PointerEvent, sourceId: string): PointerReorderPlacement {
-  const item = getItem(row.dataset.treeId ?? "");
-  const source = getItem(sourceId);
-  if (!item || !source) return "after";
-
-  const rect = row.getBoundingClientRect();
-  const y = event.clientY - rect.top;
-  const third = rect.height / 3;
-
-  if (item.kind === "folder" && source.id !== item.id && !collectChildren(source.id).includes(item.id)) {
-    if (y < third) return "before";
-    if (y > rect.height - third) return "after";
-    return "inside";
-  }
-
-  if (y < rect.height / 2) return "before";
-  return "after";
-}

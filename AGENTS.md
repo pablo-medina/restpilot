@@ -23,7 +23,7 @@ Settings → **Clear all data** must restore **factory defaults** for everything
 | Collections, tabs, environments, globals | `defaultConfig()` in `src/types.ts` | `resetAppStateToDefaults()` in `src/app/reset-app-state.ts` |
 | User preferences (`AppConfig.settings`) | `defaultSettings()` in `src/types.ts` | same (included in `defaultConfig()`) |
 | Runtime UI only (`AppState` fields not in `AppConfig`) | `defaultRuntimeState()` in `src/app/reset-app-state.ts` | same |
-| Settings panel session (proxy URL reveal, last test result) | `resetSettingsSessionState()` in `src/settings.ts` | called from `clearAllData` in `src/app.ts` |
+| Settings panel session (proxy URL reveal, last test result) | `resetSettingsSessionState()` in `src/lib/settings.ts` | called from `clearAllData` in `src/react/components/SettingsPanel.tsx` |
 
 **When adding new persisted settings:** extend `UserSettings`, set the value in `defaultSettings()`, and ensure `normalizeConfig()` applies it. Clear all data picks it up automatically through `defaultConfig()`.
 
@@ -32,7 +32,7 @@ Settings → **Clear all data** must restore **factory defaults** for everything
 ## UI and theming
 
 - Respect the existing visual language in `src/styles.css` (zen palette, glass rail, folder/request icons).
-- Reuse existing patterns: full re-render in `main.ts`, string templates, CSS classes.
+- The UI is **React** (`src/react/`). Reuse existing components (`PairRow`, `CodeMirrorEditor`, `PopoverShell`, `AppDialog`) and CSS classes; do not add new string-template rendering.
 - New surfaces should support **light** (default) and **dark** themes via `[data-theme]` on `document.documentElement`.
 - **Palette tokens** (`--rp-*` in `src/styles.css`): shared names for light and dark. Light values live on `:root`; dark remaps the same tokens inside `[data-theme="dark"]`. Prefer `var(--rp-surface)`, `var(--rp-border)`, etc. in new rules. Legacy `--dark-*` aliases still exist for older selectors.
 - When adding sections, tabs, or panels: match existing spacing and typography. Reuse `.segmented` / `.tabs` patterns instead of inventing new tab markup. **Before finishing**, walk through [Flex and panel layout](#flex-and-panel-layout) below—most layout bugs come from skipping it.
@@ -53,7 +53,7 @@ The viewport height must flow top → bottom. Every flex child that should grow 
 
 Reference: `src/styles.css` — `#app.app-frame`, `.shell.shell--workspace-only .workspace`, `.request-editor`, `.editor-grid`, `.request-card`, `.request-tab-panel`.
 
-When adding a panel inside `.request-card`, it almost always mounts under **`.request-tab-panel`** (see `renderRequestTabPanel` in `src/app.ts`).
+When adding a panel inside `.request-card`, it almost always mounts under **`.request-tab-panel`** (see `RequestEditor` in `src/react/components/RequestEditor.tsx`).
 
 #### Panel insets (forms, lists, tab content)
 
@@ -107,16 +107,16 @@ RestPilot uses high-density Excel-style datagrids for Globals and Environment Va
 | Tab bars, toolbars, URL line stay fixed height | `flex-shrink: 0` on `.tabs`, `.request-line`, `.body-toolbar`, `.request-tab-toolbar` | Let toolbars shrink or grow with leftover space |
 | Short forms (auth, settings rows) stay **top-aligned** | On a `flex: 1` panel using **grid**: `align-content: start; align-items: start` (see `.request-tab-panel.request-auth-panel`) | Default grid/flex stretch—fields spread vertically with huge gaps |
 | Settings label + checkbox/toggle on one row | `.settings-toggle-row`: `inline-grid` + `grid-template-columns: auto auto` + `width: fit-content`. Parent rows (e.g. `.settings-network-general`) use `flex-wrap`, not `1fr` beside the control | `grid-template-columns: 1fr auto` on toggles, or a parent column `1fr` that stretches the label away from the checkbox |
-| Settings proxy URL / secret fields | `.settings-input-shell` + `.settings-input-trailing` (× then 👁 inside the input, right-aligned). Copy from `src/settings.ts` | External grid columns for × / 👁 beside the input |
+| Settings proxy URL / secret fields | `.settings-input-shell` + `.settings-input-trailing` (× then 👁 inside the input, right-aligned). Copy from `src/react/components/SettingsPanel.tsx` | External grid columns for × / 👁 beside the input |
 | Long lists (params, headers) | Wrapper with `flex: 1; min-height: 0; overflow: auto` (`.request-pairs-list`) | List without `min-height: 0`—parent won't scroll |
 | Two columns (request / response) | `.editor-grid` with `grid-template-rows: minmax(0, 1fr)` and cards `height: 100%` | Row height `auto` only—cards stay minimum height |
-| Hide one of several variants | `is-hidden` class + `display: none` in CSS; helpers in `src/ui/visibility.ts` | HTML `hidden` attribute alone (overridden by `display: grid`/`flex`); `visibility: hidden` when space must collapse |
+| Hide one of several variants | `is-hidden` class + `display: none` in CSS (append it in the JSX `className`) | HTML `hidden` attribute alone (overridden by `display: grid`/`flex`); `visibility: hidden` when space must collapse |
 
 #### Conditional sections (mutually exclusive blocks)
 
-- Markup: `class="block${hiddenClass(!visible)}"` — import `hiddenClass` / `setVisible` from `src/ui/visibility.ts`.
+- Markup: `className={`block${visible ? "" : " is-hidden"}`}`.
 - CSS: scoped rule, e.g. `.my-panel .my-block.is-hidden { display: none; }`.
-- Runtime: `element.classList.toggle("is-hidden", !visible)` (same as `setVisible(el, visible)`).
+- Runtime (non-React overlays only): `element.classList.toggle("is-hidden", !visible)`.
 - Example: `src/react/components/RequestEditor.tsx` + `.request-auth-panel .auth-fields.is-hidden`.
 
 #### Checklist for a new request-card tab panel
@@ -151,7 +151,7 @@ RestPilot uses high-density Excel-style datagrids for Globals and Environment Va
 
 ### Proxy (user settings)
 
-Settings UI: `src/settings.ts`. Persisted in `AppConfig.settings.proxy` via `proxyPayload()` in `src/app/persistence.ts`. Normalized in `normalizeProxySettings()` (`src/app/proxy-settings.ts`).
+Settings UI: `src/react/components/SettingsPanel.tsx`. Persisted in `AppConfig.settings.proxy` via `proxyPayload()` in `src/app/persistence.ts`. Normalized in `normalizeProxySettings()` (`src/app/proxy-settings.ts`).
 
 | Field | Meaning |
 |-------|---------|
@@ -224,14 +224,14 @@ Settings UI: `src/settings.ts`. Persisted in `AppConfig.settings.proxy` via `pro
 ## Source layout
 
 - `src/bootstrap.ts` — minimal entry: startup prefs, parallel config load, dynamic `import("./app")`.
-- `src/app.ts` — UI orchestration (render, bindings, panels). Still large; further splits belong in `src/ui/` when touched.
+- `src/app.ts` — startup sequence, context-menu handlers and a few app-level actions. React owns rendering (`src/react/App.tsx`).
 - `src/main.ts` — re-exports `bootstrap` (Vite entry compatibility).
 - `src/app/state.ts` — shared `state`, IDs, collection lookups, formatting helpers.
 - `src/app/persistence.ts` — config load/normalize/save (`scheduleSave`, `persistConfig`).
 - `src/app/collection-store.ts` — tree reorder inserts/moves (calls `render()` via `app/render.ts`).
 - `src/app/request-utils.ts` — blank request factory, content-type, form payload for HTTP.
 - `src/app/render.ts` — `render()` dispatcher so non-UI modules can request a re-render without importing `main.ts`.
-- `src/curl.ts`, `src/url-params.ts`, `src/variables.ts`, `src/content-display.ts` — pure helpers covered by unit tests.
+- `src/lib/curl.ts`, `src/lib/url-params.ts`, `src/lib/variables.ts`, `src/lib/content-display.ts` — pure helpers covered by unit tests.
 
 ## Tests
 

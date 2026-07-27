@@ -11,8 +11,9 @@ import { t } from "../../i18n";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { TreeItem } from "../../types";
 import { treeRowClassName } from "../../ui/collection-tree";
+import { buildSiblingNameConflict } from "../../app/collection-sibling-names";
 import { openRequestTab, openRequestTabAsPreview } from "../lib/tab-actions";
-import { deleteTreeItem } from "../lib/collection-tree-actions";
+import { deleteTreeItem, focusTreeSelection, showSiblingNameConflictDialog } from "../lib/collection-tree-actions";
 
 type TreeRowProps = {
   item: TreeItem;
@@ -59,8 +60,20 @@ function TreeRow({ item, depth, searchVisible, refresh, onSelect }: TreeRowProps
   };
 
   const commitRename = (value: string) => {
-    item.title = value.trim() || item.title;
+    const nextTitle = value.trim();
     setState(prev => ({ ...prev, editingTreeId: null }));
+
+    if (nextTitle && nextTitle !== item.title) {
+      const conflict = buildSiblingNameConflict(item.parentId, nextTitle, item.id);
+      if (conflict) {
+        void showSiblingNameConflictDialog(conflict);
+        refresh();
+        requestAnimationFrame(() => focusTreeSelection());
+        return;
+      }
+      item.title = nextTitle;
+    }
+
     scheduleSave();
     refresh();
   };
