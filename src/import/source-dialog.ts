@@ -6,6 +6,7 @@ import { parseCollectionExport } from "../app/collection-format";
 import { defaultSettings } from "../types";
 import type { Folder, SavedRequest, TreeItem } from "../types";
 import type { ImportParseResult, ImportSource, ImportTreeNode } from "./types";
+import { detectImportSource } from "./detect";
 import { parsePostmanCollection } from "./postman";
 import { parseOpenApiSpec } from "./openapi";
 
@@ -243,6 +244,60 @@ function parseNativeCollection(json: string): ImportParseResult {
   };
 }
 
+async function promptForImportText(): Promise<string | null> {
+  const labels = t().collection;
+  const html = `
+    <textarea data-import-text placeholder="${labels.importTextPlaceholder}" spellcheck="false"></textarea>
+    <p class="import-text-status" data-import-text-status>${labels.importTextEmpty}</p>
+  `;
+
+  const result = await applicationDialog({
+    title: labels.importTextTitle,
+    body: labels.importTextBody,
+    mode: "import-text",
+    previewHtml: html,
+    width: 560,
+    height: 360,
+    resizable: true
+  });
+
+  if (typeof result === "string" && result !== "import") return null;
+  if (typeof result === "object" && result.action !== "import") return null;
+
+  const data = typeof result === "object" ? result.data : undefined;
+  const text = (data?.text as string | undefined)?.trim() ?? "";
+  return text || null;
+}
+
+/** Parses raw content for a known source, wrapping thrown errors into the same
+ * `importParseError` message used across every source (cURL has its own message). */
+function parseBySource(source: ImportSource, rawContent: string): ImportParseResult | { error: string } {
+  if (source === "curl") return tryParseCurl(rawContent);
+  try {
+    if (source === "restpilot") return parseNativeCollection(rawContent);
+    if (source === "postman") return parsePostmanCollection(rawContent);
+    if (source === "openapi") return parseOpenApiSpec(rawContent);
+    return { error: t().collection.importInvalidFile };
+  } catch (err) {
+    return { error: t().collection.importParseError.replace("{error}", String(err)) };
+  }
+}
+
+async function finishImport(
+  parseResult: ImportParseResult,
+  existingFolders: Folder[]
+): Promise<(ImportParseResult & { selectedIds: string[]; targetFolderId: string }) | null> {
+  if (parseResult.requests.length === 0 && parseResult.folders.length === 0) {
+    await messageDialog("warning", t().collection.importFailedTitle, t().collection.importPreviewNoItems);
+    return null;
+  }
+
+  const preview = await showPreviewDialog(parseResult, existingFolders);
+  if (!preview) return null;
+
+  return { ...parseResult, selectedIds: preview.selectedIds, targetFolderId: preview.targetFolderId };
+}
+
 function tryParseCurl(text: string): ImportParseResult | { error: string } {
   const parsed = parseCurl(text, () => crypto.randomUUID());
   if (!parsed) return { error: t().messages.importCurlFailed };
@@ -277,7 +332,7 @@ function tryParseCurl(text: string): ImportParseResult | { error: string } {
 
 export async function showImportDialog(
   existingFolders: Folder[]
-): Promise<ImportParseResult & { selectedIds: string[]; targetFolderId: string } | null> {
+): Promise<(ImportParseResult & { selectedIds: string[]; targetFolderId: string }) | null> {
   const sourceInfo = await showSourceSelection();
   if (!sourceInfo) return null;
 
@@ -296,41 +351,34 @@ export async function showImportDialog(
     if (!rawContent) return null;
   }
 
-  let parseResult: ImportParseResult;
-  try {
-    if (sourceInfo.source === "restpilot") {
-      parseResult = parseNativeCollection(rawContent);
-    } else if (sourceInfo.source === "postman") {
-      parseResult = parsePostmanCollection(rawContent);
-    } else if (sourceInfo.source === "openapi") {
-      parseResult = parseOpenApiSpec(rawContent);
-    } else if (sourceInfo.source === "curl") {
-      const curlResult = tryParseCurl(rawContent);
-      if ("error" in curlResult) {
-        await messageDialog("error", t().collection.importFailedTitle, curlResult.error);
-        return null;
-      }
-      parseResult = curlResult;
-    } else {
-      await messageDialog("error", t().collection.importFailedTitle, t().collection.importInvalidFile);
-      return null;
-    }
-  } catch (err) {
-    await messageDialog(
-      "error",
-      t().collection.importFailedTitle,
-      t().collection.importParseError.replace("{error}", String(err))
-    );
+  const parseResult = parseBySource(sourceInfo.source, rawContent);
+  if ("error" in parseResult) {
+    await messageDialog("error", t().collection.importFailedTitle, parseResult.error);
     return null;
   }
 
-  if (parseResult.requests.length === 0 && parseResult.folders.length === 0) {
-    await messageDialog("warning", t().collection.importFailedTitle, t().collection.importPreviewNoItems);
+  return finishImport(parseResult, existingFolders);
+}
+
+/** Same flow as {@link showImportDialog}, but the source format is sniffed from
+ * pasted text (see `detectImportSource`) instead of being picked up front. */
+export async function showImportFromTextDialog(
+  existingFolders: Folder[]
+): Promise<(ImportParseResult & { selectedIds: string[]; targetFolderId: string }) | null> {
+  const text = await promptForImportText();
+  if (!text) return null;
+
+  const detected = detectImportSource(text);
+  if (!detected) {
+    await messageDialog("warning", t().collection.importTextTitle, t().collection.importTextUnrecognized);
     return null;
   }
 
-  const preview = await showPreviewDialog(parseResult, existingFolders);
-  if (!preview) return null;
+  const parseResult = parseBySource(detected, text);
+  if ("error" in parseResult) {
+    await messageDialog("error", t().collection.importFailedTitle, parseResult.error);
+    return null;
+  }
 
-  return { ...parseResult, selectedIds: preview.selectedIds, targetFolderId: preview.targetFolderId };
+  return finishImport(parseResult, existingFolders);
 }

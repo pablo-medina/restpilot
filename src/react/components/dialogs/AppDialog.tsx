@@ -21,6 +21,7 @@ function bodyClassName(mode: string, hasPreview: boolean): string {
   if (mode === "curl-preview") classes.push("dialog-body-curl");
   if (mode === "proxy-test-log") classes.push("dialog-body-proxy-test");
   if (mode === "import-source") classes.push("dialog-body-import-source");
+  if (mode === "import-text") classes.push("dialog-body-import-text");
   if (mode === "import-preview") classes.push("dialog-body-import-preview");
   if (hasPreview) classes.push("dialog-body-rich");
   return classes.join(" ");

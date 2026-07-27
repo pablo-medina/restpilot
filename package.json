@@ -26,7 +26,8 @@
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0",

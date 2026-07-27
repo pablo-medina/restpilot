@@ -11,6 +11,7 @@
 ## Persistence
 
 - All durable state is stored in **`config.json`** via Tauri commands (`load_app_config` / `save_app_config`).
+- **Response history** (`SavedRequest.lastResponse` / `lastError` / `savedResponses`) lives in a **separate file**, `responses.json`, next to `config.json` (Tauri commands `load_response_cache` / `save_response_cache`). This keeps large saved response bodies out of the settings file that gets rewritten on every collection edit. `src/app/persistence.ts`: `persistConfig()` strips those fields before calling `save_app_config` and writes them via `buildResponseCache()`/`save_response_cache`; `loadStoredConfig()` merges `load_response_cache()` back onto the normalized items by request id. Old configs that still embed response data inline are merged in and migrated to the split layout on the next save.
 - **Do not use `localStorage` or `sessionStorage`.**
 - Do not add migration fallbacks from removed storage mechanisms.
 
@@ -210,6 +211,36 @@ Settings UI: `src/react/components/SettingsPanel.tsx`. Persisted in `AppConfig.s
 
 - Requests are sent through Tauri/Rust (`send_request`). Pass `proxy` from frontend settings (`proxyPayload` in `src/app/persistence.ts`).
 - Proxy test and sends share libcurl vs reqwest rules above.
+
+### Headers and response body
+
+- **Headers are ordered `[name, value]` pairs (`HeaderPair[]` in TS, `Vec<(String, String)>` in Rust), never a map/object.** A `HashMap`/`Record` silently collapses repeated header names (multiple `Set-Cookie`, a request sending two `Accept` values); this was a real bug and must not come back. When building outbound headers, use `HeaderMap::append` in Rust (not `insert`), and array `.filter()`/`.push()` in TS (see `src/app/request-auth.ts`, `src/app/request-utils.ts`, `src/lib/curl.ts`) — never `Object.fromEntries`/`Object.entries` on headers.
+- Extractor scripts (Functions feature, `src/app/function-http.ts`) get a **derived** case-insensitive lookup object (`headerLookupObject`) built from the pairs, so `response.headers["content-type"]` keeps working for user scripts — that object is a read-only view, not the source of truth.
+- **Response bodies are binary-safe.** `ApiResponse.body` is UTF-8 text when the response decodes as valid UTF-8; otherwise it's base64 and `body_is_base64` is `true` (`decode_response_body()` in `src-tauri/src/lib.rs`). Never assume `body` is always text-displayable — check `body_is_base64` before formatting/highlighting/pretty-printing it (see `ResponsePanel.tsx`'s `BinaryBodyPlaceholder`).
+- **`body_size` is the real byte count**, independent of `body`'s encoding. Use it for any displayed size (`formatBytes(response.body_size)`) instead of `body.length`, which is wrong for base64 (inflated) and for multi-byte UTF-8 text (undercounts).
+- Streaming responses (`stream: true`) are always decoded as lossy UTF-8 chunk-by-chunk — binary-safe decoding only applies to the buffered, non-streaming path. This is a documented limitation, not a bug to fix reflexively.
+- `config-normalize.ts` exports `normalizeApiResponse` / `normalizeSavedResponseHistoryItem`, which tolerate the legacy `Record<string,string>` header shape and missing `body_is_base64`/`body_size` from configs saved before this model existed. Reuse them for any new place that reads a stored `ApiResponse` — don't re-implement normalization inline.
+
+## Dialogs
+
+- Two dialog systems coexist: **`applicationDialog`/`messageDialog`** (`src/components/dialogs.ts`, imperative HTML string templates rendered into `AppDialog.tsx`) for anything historically ported from the vanilla-JS app, and plain **React components** for everything newer. Prefer extending an existing `applicationDialog` mode over inventing a third pattern; don't rewrite an existing mode into React as a drive-by.
+- **Adding a new `applicationDialog` mode** (e.g. a new import source, a new export option) touches all of these — missing one leaves the dialog partially wired:
+  1. Add the mode string to `DialogMode` in `src/components/dialogs.ts`.
+  2. Build the `previewHtml` string template where the dialog is opened (see `src/import/source-dialog.ts` for the pattern) and pass it via `applicationDialog({ mode, previewHtml, ... })`.
+  3. If the dialog has live behavior (toggling sections, validating input as the user types) add it to `bindDialogPreviewContent()` — this runs once after the preview HTML mounts and on every re-render.
+  4. If the dialog's result needs custom fields beyond the default action id, add a branch to `captureDialogForm()` reading from `root.querySelector(...)`, and add the mode to the list in `closeDialog()` that resolves `{ action, data }` instead of a bare string.
+  5. If the mode needs dedicated layout/spacing, add a `mode === "..."` branch in `bodyClassName()` in `src/react/components/dialogs/AppDialog.tsx` and scope new CSS under that class in `src/styles.css`.
+  6. All copy goes through `t().collection` (or the relevant namespace) in `src/i18n/en.ts` **and** `src/i18n/es.ts` — never hardcode strings in the template.
+
+## Import
+
+- Import sources: RestPilot's own export (JSON), Postman v2.1 (JSON), OpenAPI 3.x/Swagger 2.0 (**JSON or YAML** — `parseSpecDocument()` in `src/import/openapi.ts` tries `JSON.parse` then falls back to the `yaml` package), and raw cURL. Each parser (`src/import/postman.ts`, `src/import/openapi.ts`, `parseCollectionExport` in `src/app/collection-format.ts`, `parseCurl` in `src/lib/curl.ts`) produces the shared `ImportParseResult` (`src/import/types.ts`): `{ folders, requests, tree, name, description }`.
+- **OpenAPI `$ref` resolution** lives in `src/import/openapi-ref.ts` (`dereference()` for JSON Pointers into the document root, `synthesizeExample()` for turning a — possibly `$ref`'d — JSON Schema into a plausible example value). Both are bounded: `dereference` guards against ref cycles (A → B → A), `synthesizeExample` stops after `MAX_SCHEMA_DEPTH` levels so a self-referencing schema (a `Node` with `children: Node[]`, common for trees/threads) terminates instead of recursing forever. Any new field read off an operation/parameter/schema in `src/import/openapi.ts` that *could* be a `$ref` per the OpenAPI spec (parameters, `requestBody`, any `schema`) must go through `dereference()` first — reading `.in`/`.name`/`.properties` etc. straight off a `$ref` object silently returns `undefined` instead of erroring, which is an easy way to reintroduce "real specs import empty."
+- Two entry points share the same parse → preview → apply pipeline (`src/import/source-dialog.ts`, `src/import/index.ts`):
+  - **Import collection** (`startImport`): pick a source, then a file (or paste for cURL).
+  - **Import from text** (`startImportFromText`): paste anything into one textarea; `detectImportSource()` (`src/import/detect.ts`) sniffs the format live as the user types and the same parser runs once they continue. Cheap sniffing only (curl prefix, then JSON with a `format`/`openapi`/`swagger`/`item`+`info` shape check) — it must stay fast enough to run on every keystroke.
+  - Both funnel through `parseBySource()` and `finishImport()` in `source-dialog.ts` (shared error handling + the selection/target-folder preview dialog). Add new sources there, not by duplicating the dialog flow.
+- **Adding a new import source:** add the value to `ImportSource` (`src/import/types.ts`), write a `parseXxx(raw: string): ImportParseResult` module, add a detection branch in `detectImportSource()`, wire it into `parseBySource()`, and add `importSourceXxx`/`importSourceXxxDesc` labels to both i18n files (reused as the "Detected format: {format}" text in the text-import dialog too).
 
 ## Collection tree
 

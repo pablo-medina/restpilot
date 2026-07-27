@@ -1,8 +1,27 @@
+import { parse as parseYaml } from "yaml";
+import { dereference, synthesizeExample } from "./openapi-ref";
 import type { Folder, Pair, SavedRequest } from "../types";
 import type { ImportParseResult, ImportTreeNode } from "./types";
 
 function id(): string {
   return crypto.randomUUID();
+}
+
+/** OpenAPI/Swagger documents ship as either JSON or YAML — try JSON first (exact, fast),
+ * fall back to YAML (JSON is already valid YAML, so this also covers JSON with a parse
+ * quirk the stricter `JSON.parse` rejects, though that's not the primary intent). */
+function parseSpecDocument(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch (jsonError) {
+    try {
+      return parseYaml(text);
+    } catch {
+      throw new Error(
+        `Invalid OpenAPI spec: not valid JSON or YAML (${jsonError instanceof Error ? jsonError.message : String(jsonError)})`
+      );
+    }
+  }
 }
 
 function parseOpenApiUrl(urlStr: string, serverUrl: string | undefined): string {
@@ -14,34 +33,43 @@ function parseOpenApiUrl(urlStr: string, serverUrl: string | undefined): string 
   return urlStr;
 }
 
-/** Parameters declared for `location` (`query`, `header` or `path`) as editable pairs. */
-function extractParams(params: unknown, location: "query" | "header" | "path"): Pair[] {
+/** Parameters declared for `location` (`query`, `header` or `path`) as editable pairs.
+ * Each entry (and its `schema`) may be a `$ref` into `components/parameters` — dereference
+ * before reading `in`/`name`/`schema`, since a `$ref` object has none of those itself. */
+function extractParams(doc: Record<string, unknown>, params: unknown, location: "query" | "header" | "path"): Pair[] {
   if (!Array.isArray(params)) return [];
   return params
-    .filter((p: unknown) => p && typeof p === "object" && (p as Record<string, unknown>).in === location)
-    .map((p: unknown) => {
-      const item = p as Record<string, unknown>;
+    .map((p) => dereference(doc, p))
+    .filter((p): p is Record<string, unknown> => Boolean(p) && typeof p === "object" && (p as Record<string, unknown>).in === location)
+    .map((item) => {
+      const example = item.example ?? synthesizeExample(doc, item.schema);
       return {
         id: id(),
         key: String(item.name ?? ""),
-        value: String((item.schema as Record<string, unknown> | undefined)?.default ?? item.example ?? ""),
+        value: example === undefined ? "" : String(example),
         enabled: true
       };
     });
 }
 
-function oasBodyToForm(schema: Record<string, unknown>): Pair[] {
+function oasBodyToForm(doc: Record<string, unknown>, schema: Record<string, unknown>): Pair[] {
   if (!schema.properties || typeof schema.properties !== "object") return [];
   const props = schema.properties as Record<string, unknown>;
-  return Object.entries(props).map(([key, val]) => ({
-    id: id(),
-    key,
-    value: String((val as Record<string, unknown>)?.default ?? (val as Record<string, unknown>)?.example ?? ""),
-    enabled: true
-  }));
+  return Object.entries(props).map(([key, propSchema]) => {
+    const example = synthesizeExample(doc, propSchema);
+    return {
+      id: id(),
+      key,
+      value: example === undefined ? "" : String(example),
+      enabled: true
+    };
+  });
 }
 
-function oasContentToBody(content: unknown): {
+function oasContentToBody(
+  doc: Record<string, unknown>,
+  content: unknown
+): {
   bodyMode: "raw" | "form" | "none" | "multipart";
   body: string;
   form: Pair[];
@@ -52,16 +80,16 @@ function oasContentToBody(content: unknown): {
 
   const [mimeType, mediaType] = entries[0];
   const mt = mediaType as Record<string, unknown> | undefined;
-  const schema = mt?.schema as Record<string, unknown> | undefined;
+  const schema = dereference(doc, mt?.schema) as Record<string, unknown> | undefined;
 
   if (mimeType === "application/x-www-form-urlencoded" && schema) {
-    return { bodyMode: "form", body: "", form: oasBodyToForm(schema) };
+    return { bodyMode: "form", body: "", form: oasBodyToForm(doc, schema) };
   }
   if (mimeType.startsWith("multipart/") && schema) {
     return {
       bodyMode: "multipart",
       body: "",
-      form: oasBodyToForm(schema).map((f) => ({ ...f, partType: "text" as const }))
+      form: oasBodyToForm(doc, schema).map((f) => ({ ...f, partType: "text" as const }))
     };
   }
 
@@ -69,7 +97,8 @@ function oasContentToBody(content: unknown): {
   if (mt?.example) {
     example = typeof mt.example === "string" ? mt.example : JSON.stringify(mt.example, null, 2);
   } else if (schema) {
-    example = JSON.stringify(schema.example ?? schema.default ?? "", null, 2);
+    const value = synthesizeExample(doc, schema);
+    example = value === undefined ? "" : JSON.stringify(value, null, 2);
   } else if (typeof mt === "object" && mt !== null) {
     example = JSON.stringify(mt, null, 2);
   }
@@ -84,6 +113,7 @@ function inferRawType(contentType: string): "json" | "text" | "xml" {
 }
 
 function parseOperation(
+  doc: Record<string, unknown>,
   path: string,
   method: string,
   op: Record<string, unknown>,
@@ -96,9 +126,9 @@ function parseOperation(
   const summary = String(op.summary ?? op.operationId ?? `${method.toUpperCase()} ${path}`);
   const description = typeof op.description === "string" ? op.description : undefined;
 
-  const queryParams = extractParams(op.parameters, "query");
-  const headerParams = extractParams(op.parameters, "header");
-  const pathParams = extractParams(op.parameters, "path");
+  const queryParams = extractParams(doc, op.parameters, "query");
+  const headerParams = extractParams(doc, op.parameters, "header");
+  const pathParams = extractParams(doc, op.parameters, "path");
   const resolvedUrl = parseOpenApiUrl(path, serverUrl);
 
   let body = "";
@@ -106,9 +136,10 @@ function parseOperation(
   let bodyMode: "raw" | "form" | "none" | "multipart" = "none";
   let rawType: "json" | "text" | "xml" = "text";
 
-  const rb = op.requestBody as Record<string, unknown> | undefined;
+  // requestBody itself may be `{ "$ref": "#/components/requestBodies/X" }`.
+  const rb = dereference(doc, op.requestBody) as Record<string, unknown> | undefined;
   if (rb?.content) {
-    const result = oasContentToBody(rb.content);
+    const result = oasContentToBody(doc, rb.content);
     bodyMode = result.bodyMode;
     body = result.body;
     form = result.form;
@@ -150,8 +181,8 @@ function parseOperation(
   });
 }
 
-export function parseOpenApiSpec(json: string): ImportParseResult {
-  const raw = JSON.parse(json);
+export function parseOpenApiSpec(text: string): ImportParseResult {
+  const raw = parseSpecDocument(text);
   if (!raw || typeof raw !== "object") throw new Error("Invalid OpenAPI spec: not an object");
 
   const version = String(raw.openapi ?? raw.swagger ?? "");
@@ -187,6 +218,10 @@ export function parseOpenApiSpec(json: string): ImportParseResult {
     let pathFolderId = groupFolderId;
     let pathChildren = groupChildren;
 
+    // A path with more than one operation gets its own subfolder; a single-operation
+    // path stays flat under the group folder (pathFolderId/pathChildren already default
+    // to it above) — otherwise the checkbox tree gets a folder node whose `children` is
+    // the very array it lives in, an infinite loop for `flattenTreeForCheckbox` to walk.
     const hasMultipleOps = methods.filter((m) => pi[m] && typeof pi[m] === "object").length > 1;
     if (hasMultipleOps) {
       pathFolderId = id();
@@ -205,23 +240,12 @@ export function parseOpenApiSpec(json: string): ImportParseResult {
         selected: true,
         children: pathChildren
       });
-    } else {
-      const singleOp = methods.find((m) => pi[m] && typeof pi[m] === "object");
-      if (singleOp) {
-        groupChildren.push({
-          id: id(),
-          title: pathSummary ?? path,
-          kind: "folder",
-          selected: true,
-          children: pathChildren
-        });
-      }
     }
 
     for (const method of methods) {
       const op = pi[method] as Record<string, unknown> | undefined;
       if (!op) continue;
-      parseOperation(path, method, op, serverUrl, pathFolderId, requests, pathChildren);
+      parseOperation(raw, path, method, op, serverUrl, pathFolderId, requests, pathChildren);
     }
   }
 

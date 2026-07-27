@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import { exportCollection } from "../../app/collection-io";
 import { scheduleSave } from "../../app/persistence";
 import { setState } from "../../app/state";
-import { startImport } from "../../import/index";
+import { startImport, startImportFromText } from "../../import/index";
 import { useStore } from "../../store/app-store";
 import {
+  iconClipboard,
   iconExport,
   iconFolderAdd,
   iconFunction,
@@ -184,6 +185,15 @@ export function CollectionSidebar({ refresh }: Props) {
                 >
                   <span dangerouslySetInnerHTML={{ __html: iconImport }} />
                   <span>{labels.collection.importCollection}</span>
+                </button>
+                <button
+                  id="import-from-text"
+                  type="button"
+                  data-tauri-drag-region="false"
+                  onClick={(event) => { closeActionMenu(event); void startImportFromText(); }}
+                >
+                  <span dangerouslySetInnerHTML={{ __html: iconClipboard }} />
+                  <span>{labels.collection.importTextAction}</span>
                 </button>
                 <button
                   id="export-collection"

@@ -5492,6 +5492,42 @@ select,
   font-size: 12px;
 }
 
+/* ── Import from text dialog ── */
+.dialog-body-import-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialog-body-import-text textarea {
+  flex: 1;
+  min-height: 180px;
+  padding: 8px;
+  resize: vertical;
+  font-family: var(--font-mono, "Cascadia Code", "Consolas", monospace);
+  font-size: 12px;
+}
+
+.import-text-status {
+  margin: 0;
+  min-height: 1.4em;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--rp-text-muted);
+}
+
+.import-text-status--ok {
+  color: var(--rp-success, #2f6f4d);
+}
+
+.import-text-status--bad {
+  color: var(--field-remove-color, #b54a3a);
+}
+
+[data-theme="dark"] .import-text-status--ok {
+  color: #7eb8a8;
+}
+
 /* ── Import preview dialog ── */
 .dialog-body-import-preview > .import-preview-summary {
   flex-shrink: 0;

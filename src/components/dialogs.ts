@@ -1,4 +1,6 @@
 import { t } from "../i18n";
+import { detectImportSource } from "../import/detect";
+import type { ImportSource } from "../import/types";
 import type { DialogKind } from "../types";
 
 export type DialogAction = { id: string; label: string; role?: "primary" | "danger" };
@@ -10,6 +12,7 @@ export type DialogMode =
   | "collection-export"
   | "collection-import"
   | "import-source"
+  | "import-text"
   | "import-preview"
   | "html-export"
   | "function-result"
@@ -277,6 +280,12 @@ function captureDialogForm(dialog: DialogState, root: HTMLElement) {
       curlText: root.querySelector<HTMLTextAreaElement>('[data-import-curl-text]')?.value ?? ""
     };
   }
+  if (mode === "import-text") {
+    dialog.data = {
+      ...dialog.data,
+      text: root.querySelector<HTMLTextAreaElement>("[data-import-text]")?.value ?? ""
+    };
+  }
   if (mode === "import-preview") {
     const checked: string[] = [];
     root.querySelectorAll<HTMLInputElement>('[data-import-item-id]:checked').forEach((el) => checked.push(el.value));
@@ -306,6 +315,7 @@ function closeDialog(dialogId: string, action: string) {
       dialog.data?.mode === "html-export" ||
       dialog.data?.mode === "proxy-test-log" ||
       dialog.data?.mode === "import-source" ||
+      dialog.data?.mode === "import-text" ||
       dialog.data?.mode === "import-preview")
   ) {
     result = { action, data: { ...dialog.data } };
@@ -456,6 +466,14 @@ export function submitDialogAction(dialogId: string, actionId: string, root?: HT
   closeDialog(dialogId, actionId);
 }
 
+function importSourceLabel(source: ImportSource): string {
+  const labels = t().collection;
+  if (source === "curl") return labels.importSourceCurl;
+  if (source === "openapi") return labels.importSourceOpenapi;
+  if (source === "postman") return labels.importSourcePostman;
+  return labels.importSourceRestpilot;
+}
+
 export function bindDialogPreviewContent(root: HTMLElement, dialog: DialogState) {
   if (dialog.data?.mode === "collection-import") {
     const syncConflictVisibility = () => {
@@ -479,6 +497,36 @@ export function bindDialogPreviewContent(root: HTMLElement, dialog: DialogState)
       radio.addEventListener("change", syncCurlArea);
     });
     syncCurlArea();
+  }
+
+  if (dialog.data?.mode === "import-text") {
+    const textarea = root.querySelector<HTMLTextAreaElement>("[data-import-text]");
+    const status = root.querySelector<HTMLElement>("[data-import-text-status]");
+    const syncStatus = () => {
+      if (!textarea || !status) return;
+      const labels = t().collection;
+      status.classList.remove("import-text-status--ok", "import-text-status--bad");
+      if (!textarea.value.trim()) {
+        status.textContent = labels.importTextEmpty;
+        return;
+      }
+      const detected = detectImportSource(textarea.value);
+      if (detected) {
+        status.textContent = labels.importTextDetected.replace("{format}", importSourceLabel(detected));
+        status.classList.add("import-text-status--ok");
+      } else {
+        status.textContent = labels.importTextUnrecognized;
+        status.classList.add("import-text-status--bad");
+      }
+    };
+    // Debounced: a pasted OpenAPI YAML document can be large, and unlike JSON.parse a
+    // failed JSON.parse here always falls through to a YAML parse attempt (see detectImportSource).
+    let debounceTimer: number | undefined;
+    textarea?.addEventListener("input", () => {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(syncStatus, 150);
+    });
+    syncStatus();
   }
 
   const importSelectAll = root.querySelector<HTMLInputElement>("#import-select-all");

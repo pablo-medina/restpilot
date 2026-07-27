@@ -6,7 +6,7 @@ import { scheduleSave } from "../app/persistence";
 import { render } from "../app/render";
 import type { Folder, SavedRequest, TreeItem } from "../types";
 import { COLLECTION_ROOT_PARENT_ID } from "../app/collection-parent";
-import { showImportDialog } from "./source-dialog";
+import { showImportDialog, showImportFromTextDialog } from "./source-dialog";
 import type { ImportParseResult } from "./types";
 
 function getExistingFolders(): Folder[] {
@@ -48,12 +48,14 @@ function applyImport(result: ImportParseResult & { selectedIds: string[]; target
   render();
 }
 
-export async function startImport(): Promise<void> {
+async function runImportFlow(
+  openDialog: (existingFolders: ReturnType<typeof getExistingFolders>) => ReturnType<typeof showImportDialog>
+): Promise<void> {
   const labels = t().collection;
 
   try {
     const existingFolders = getExistingFolders();
-    const result = await showImportDialog(existingFolders);
+    const result = await openDialog(existingFolders);
     if (!result) return;
 
     applyImport(result);
@@ -66,4 +68,12 @@ export async function startImport(): Promise<void> {
       labels.importApplyFailed.replace("{error}", err instanceof Error ? err.message : String(err))
     );
   }
+}
+
+export async function startImport(): Promise<void> {
+  return runImportFlow(showImportDialog);
+}
+
+export async function startImportFromText(): Promise<void> {
+  return runImportFlow(showImportFromTextDialog);
 }
