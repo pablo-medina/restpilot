@@ -26,6 +26,11 @@ Goal: make future features safe to ship.
 | 0.6 | **Tests for `app.ts` bindings** — cover critical rendering/binding paths (URL input, auth panel, pairs, send flow) | `src/app.ts` + test setup | planned |
 | 0.7 | **Split `src/styles.css`** (~6200 lines) into per-module/component CSS files | `src/styles/` with `variables.css`, `layout.css`, `components/` | planned |
 | 0.8 | **E2E tests** — Playwright/WebDriver + Tauri for full flows (create → send → view response) | `tests/e2e/` | planned |
+| 0.9 | **Unify response body rendering** — always readonly CodeMirror; drop the regex-based `<pre>` highlighter used today for bodies under 48 KB | Removes `highlightResponse`/`highlightJson`/`highlightXml` + cache in `src/lib/content-display.ts`; makes line numbers/search/folding (0.9-adjacent, see 1.12) apply to every response size, not just large ones | planned |
+| 0.10 | **Regroup `src/ui/` by what it actually does** — pure helpers with no DOM access (`response-panel.ts`, `collection-tree.ts`) move to `src/lib/`; `src/ui/` keeps only code that touches the DOM outside React (`window-chrome.ts`, `request-popovers.ts`, `large-text-editor.ts`) | `src/ui/*` → `src/lib/*` | planned |
+| 0.11 | **Replace ad-hoc inline `style={{...}}` blocks** in `RequestEditor` (binary/GraphQL panels), `ResponsePanel` (saved-response dropdown), and `VariablesSidebar` with CSS classes using `--rp-*` tokens — inline styles don't consistently follow the dark theme | `src/styles.css` | planned |
+| 0.12 | **Separate UI state from data in the save path** — every keystroke schedules a full `persistConfig()`; split so typing doesn't re-serialize the whole config on each debounce tick | `src/app/persistence.ts` | planned |
+| 0.13 | **Finish moving window chrome off imperative DOM writes** — `syncMaximizeControl()` still sets `innerHTML` directly on a node React owns (mitigated to target an inner `<span>`, but not the real fix); replace with React state fed by `getCurrentWindow().onResized()` | `src/ui/window-chrome.ts`, `TitleBar.tsx` | planned |
 
 **Exit criteria (adjusted):** critical paths covered by tests (`npm test`); persistence and collection logic live outside `main.ts`; CSS split into manageable modules.
 
@@ -49,7 +54,15 @@ Goal: faster iteration for power users without new concepts.
 | 1.8 | **Code generation** — export request as code (JS fetch, Python requests, Go, cURL) | `src/codegen/` — new module, reuse existing curl.ts patterns | planned |
 | 1.9 | **Global request history** — last N sends across all requests (ephemeral, capped) | `AppState.requestHistory` — separate from per-request savedResponses | planned |
 | 1.10 | **More keyboard shortcuts** — `Ctrl+N` new request, `Ctrl+S` save (visual feedback), `Ctrl+D` duplicate, `Escape` close sidebar | `src/shortcuts.ts` + bindings | planned |
-| 1.11 | **Response time breakdown** — DNS, TCP, TLS, first byte, total | Rust timing in `send_request` + frontend display | planned |
+| 1.11 | **Response time breakdown** — DNS, TCP, TLS, first byte, total, plus the redirect chain with the final URL (today `followRedirects` is on by default and the user never sees that a redirect happened) | Rust timing via libcurl `CURLINFO_*` (already used for proxy) + frontend display | planned |
+| 1.12 | **Enrich the CodeMirror body editor** — line numbers, code folding, in-editor search (`Ctrl+F`), bracket matching/auto-close, a JSON linter that flags syntax errors before sending | `src/ui/large-text-editor.ts` `baseExtensions()` — all official CodeMirror extensions already in the dependency tree, no new deps | planned |
+| 1.13 | **Visible "Format" button** for the body editor (JSON/XML) | Body toolbar, next to the format selector; `Ctrl+Shift+F` already does this but is undiscoverable | planned |
+| 1.14 | **Configurable line-wrap toggle** — shared between the request body editor and the response viewer, persisted in settings | `UserSettings` + `large-text-editor.ts` | planned |
+| 1.15 | **Response body toolbar** — Pretty/Raw toggle (today formatting is always forced, no way to see the raw body), search, wrap on/off, direct Copy and Save-to-file (no context menu detour) | `ResponsePanel.tsx` | planned |
+| 1.16 | **Actionable error states** — short title + detail + a concrete next step (timeout → raise the Settings timeout; DNS failure → check the URL; 407 → configure the proxy) plus a **Retry** button, instead of the raw error string | `ResponsePanel.tsx` | planned |
+| 1.17 | **Tab item counters** — `Params (3)`, `Headers (8)`, and a dot on **Auth**/**Body** when configured (auth ≠ none, body ≠ none); counts enabled items only | `RequestEditor.tsx` tab bar | planned |
+| 1.18 | **Persistent stream-response toggle + "Copy as cURL" in the copy menu** — move "stream response" out of the context-menu-only spot into a visible toggle on the body toolbar (it changes how the response renders, so it deserves to be visible) | `RequestEditor.tsx`, `ContextMenu.tsx` | planned |
+| 1.19 | **Resolved-URL tooltip on Send** — when variables are active, the sent URL can differ from the displayed one; show the fully-resolved URL (secrets masked) on hover | `RequestEditor.tsx` | planned |
 
 **Exit criteria:** Common flows doable without mouse; URL/query editing matches header table ergonomics.
 
@@ -74,6 +87,10 @@ Goal: real projects with dev/staging/prod and portable data.
 | 2.11 | **Collection-level metadata** — name, description, icon/color for the root folder | Extend `AppConfig` with `collectionMeta` | planned |
 | 2.12 | **Bulk operations** — multi-select items for batch delete, export, move | Tree multi-select + action bar | planned |
 | 2.13 | **Persist multipart file selections** — store file paths (not base64) so uploads survive restart | Replace base64 with file path in `Pair.fileName`; read on send | planned |
+| 2.14 | **More productive params/headers rows** — optional **Description** column (useful for documentation and HTML export); bulk edit (toggle between the table and a `key: value` per-line textarea, the thing most missed when pasting headers from devtools); IANA standard header-name autocomplete (offline, bundled list); visually mark headers RestPilot adds automatically (`Content-Type` derived from body mode, auth) so it's clear where they came from | `PairRow.tsx`, `HeadersTable.tsx` | planned |
+| 2.15 | **Path variables** — recognize `:id` / `{id}` in the URL and offer a "Path variables" sub-section under Params, resolved at send time | `RequestEditor.tsx`, `lib/url-params.ts` — pairs well with the OpenAPI importer's path params (2.9) | planned |
+| 2.16 | **Redact secrets on export** — a toggle in the export dialog to strip auth values (bearer/basic/API key) from the exported file instead of writing them in plain text | `src/export/*` | planned |
+| 2.17 | **Configurable response-history limits** — max saved responses per request, max body size to save, and an option to skip saving bodies over N MB | `responses.json` already keeps this out of `config.json` (see Persistence in `AGENTS.md`); this adds the size/count caps on top | planned |
 
 **Exit criteria:** Switch environment and re-run suite; backup/restore collection on another machine without hand-editing `config.json`; import from at least Postman.
 
@@ -99,6 +116,8 @@ Goal: deeper workflows for teams and debugging — still local-first.
 | 3.12 | **Cookie management** — cookie jar UI, view response cookies, manual cookie editing | `src/cookies/` — cookie store + editor panel | planned |
 | 3.13 | **Auth: Digest** — HTTP Digest authentication | Extend `RequestAuthType` + Rust `send_request` | planned |
 | 3.14 | **Auth: OAuth 2.0 client credentials** — token fetch + auto-refresh (no browser redirect) | New auth type + Rust token client | planned |
+| 3.15 | **Response Preview tab** — the most visible gap versus Postman/Insomnia: render by `Content-Type` — `text/html` in a sandboxed iframe (no scripts, no network), `image/*` as a data URL, `application/pdf` as a "Save as…" prompt (no embedded viewer), everything else disabled with a tooltip explaining why | `ResponsePanel.tsx` | planned |
+| 3.16 | **Cookies tab** — parse `Set-Cookie` response headers into a table (name, value, domain, path, expires, `HttpOnly`/`Secure`/`SameSite` flags) | `ResponsePanel.tsx` — needs multi-value headers, already in place | planned |
 
 **Exit criteria:** Debug session without re-typing; folder smoke test in one action; scripting for dynamic workflows.
 
@@ -122,6 +141,8 @@ Goal: refined experience across all surfaces — search, navigation, context men
 | 4.10 | **Collapse all / Expand all** in collection tree | Tree toolbar buttons | planned |
 | 4.11 | **Drag ghost improvement** — show request title/method in drag ghost; touch support | `src/app/pointer-reorder.ts` | planned |
 | 4.12 | **Improve multipart file UX** — warn before close that file parts will be lost on restart | Save guard + UI hint in request tab | planned |
+| 4.13 | **Draggable splitter between request and response panes** — `.editor-grid` is fixed at `minmax(420px, 0.95fr) / minmax(420px, 1.05fr)`; add a draggable divider plus a layout toggle (side-by-side / stacked), position persisted in settings | `UserSettings` (`editorSplitRatio`, `editorLayout`) + `styles.css` — also fixes cramped cards below ~1180px width | planned |
+| 4.14 | **Inline collapsible request description** — `SavedRequest.description` today is only editable from a context-menu popover and never shown in the editor; add a "+ Add description" collapsible line under the URL (Insomnia-style) | `RequestEditor.tsx` | planned |
 
 **Exit criteria:** All surfaces searchable; tab management feels complete; visual feedback on all async operations.
 
@@ -152,6 +173,9 @@ These conflict with "lightweight / local-first" unless requirements change:
 - Full Postman feature parity (scripts engine, mocks, public documentation)
 - GraphQL IDE, WebSocket client, gRPC (separate products or major version)
 - OAuth 2.0 authorization-code flow with built-in browser (large surface; consider later as plugin-style feature)
+- Scheduled/monitored runs (uptime-style monitors, cron-triggered collection runs)
+- A dedicated collection runner with historical pass/fail reports — basic sequential "Run folder" (3.3) stays in scope, a full runner UI does not
+- Per-request assertions/tests as a first-class feature — covered well enough today by the existing **Functions** feature (custom extractor scripts)
 
 ---
 
@@ -175,6 +199,7 @@ These conflict with "lightweight / local-first" unless requirements change:
 | **v0.3 — Real projects** | 1.4–1.6 + 2.1–2.4 | "Environments and portable collections" |
 | **v0.4 — Team-ready local** | 2.5–2.7 + 3.1–3.3 | "Search, auth, history, batch run" |
 | **v0.5 — Code & history** | 1.8–1.11 + 2.8–2.10 | "Code generation, imports, request history" |
+| **v0.55 — Editor & response depth** | 1.12–1.19 + 2.14–2.16 + 3.15–3.16 + 4.13–4.14 | "CodeMirror upgrades, response toolbar, Preview & Cookies tabs" |
 | **v0.6 — UX depth** | 4.1–4.12 | "Polish, search everywhere, better tabs" |
 | **v0.7+ — Enterprise edge** | 3.4–3.6 + 5.1–5.9 | "TLS, certificates, scripting, and integrations" |
 
@@ -201,6 +226,6 @@ Versions are indicative; ship when exit criteria for the theme are met.
 3. Keep PRs scoped to one roadmap row when possible.
 4. Revisit **Out of scope** each major version if user demand shifts.
 
-_Last updated: 2026-07-27 — Corrected statuses left stale by the React migration (2.8, 2.9, 4.1, 4.8 → done; T1 resolved, T2 rewritten to describe the current state-mutation pattern instead of the pre-React `innerHTML` one). 2.9 (OpenAPI import) now also handles YAML and resolves `$ref`. Not a full re-audit — other rows may still be stale; verify against the code before trusting an old "planned" label._
+_Last updated: 2026-07-27 — Corrected statuses left stale by the React migration (2.8, 2.9, 4.1, 4.8 → done; T1 resolved, T2 rewritten to describe the current state-mutation pattern instead of the pre-React `innerHTML` one). 2.9 (OpenAPI import) now also handles YAML and resolves `$ref`. Not a full re-audit — other rows may still be stale; verify against the code before trusting an old "planned" label. Later the same day: merged in a separate request/response editor review (UX gaps found by comparing against Postman/Insomnia) as new items 0.9–0.13, 1.11 (extended)–1.19, 2.14–2.17, 3.15–3.16, 4.13–4.14, plus three "out of scope" clarifications. Its bug-fix findings (multi-value headers, binary-safe response bodies, response history moved out of `config.json`, delete-environment UI, missing settings hints) were already applied to the code before this merge and are not re-listed here as roadmap items — see `AGENTS.md` for the resulting HTTP/persistence/dialog conventions._
 
 _Prior update: 2026-05-21 — Comprehensive gap analysis completed. Added Phases 4-5, expanded Phases 1-3, added tech debt section, and updated release themes._
