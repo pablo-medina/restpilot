@@ -68,8 +68,8 @@ Goal: real projects with dev/staging/prod and portable data.
 | 2.5 | **Collection search** — filter tree by title, URL fragment, method | Explorer tree | done |
 | 2.6 | **Auth helpers** — Bearer, Basic, API key (header/query); maps to headers | Auth section on request; no OAuth server yet | done |
 | 2.7 | **Secret variables** — mask in UI; exclude from cURL copy unless confirmed | Variable flag `secret?: boolean` | done |
-| 2.8 | **Import from Postman** — convert Postman collection v2.1 to native format | `src/import/postman.ts` — new module | planned |
-| 2.9 | **Import OpenAPI/Swagger** — convert OpenAPI 3.x spec to collection | `src/import/openapi.ts` — new module | planned |
+| 2.8 | **Import from Postman** — convert Postman collection v2.1 to native format | `src/import/postman.ts` | done |
+| 2.9 | **Import OpenAPI/Swagger** — convert OpenAPI 3.x spec to collection | `src/import/openapi.ts` + `openapi-ref.ts` — JSON or YAML, resolves `$ref` into `components/*` | done |
 | 2.10 | **Import HAR** — HTTP Archive format to request collection | `src/import/har.ts` — new module | planned |
 | 2.11 | **Collection-level metadata** — name, description, icon/color for the root folder | Extend `AppConfig` with `collectionMeta` | planned |
 | 2.12 | **Bulk operations** — multi-select items for batch delete, export, move | Tree multi-select + action bar | planned |
@@ -110,14 +110,14 @@ Goal: refined experience across all surfaces — search, navigation, context men
 
 | # | Item | Scope | Status |
 |---|------|--------|--------|
-| 4.1 | **Tab context menu** — right-click tab for Close, Close Others, Close to Right, Close All | `src/app/context-menu.ts` — `request-tab` kind is typed but not rendered | planned |
+| 4.1 | **Tab context menu** — right-click tab for Close, Close Others, Close All | `ContextMenu.tsx` (`request-tab` kind) | done (no "Close to Right") |
 | 4.2 | **Context menu keyboard navigation** — Arrow/Tab/Enter within menus | `src/app/context-menu.ts` | planned |
 | 4.3 | **Tree virtual scrolling** — virtualized collection tree for large collections | New virtual-list module (legacy `virtual-list.ts` removed) | planned |
 | 4.4 | **Search in responses** — filter response body text (case-insensitive, highlight) | Response panel search bar | planned |
 | 4.5 | **Search in variables** — filter global/env variable tables | Variables workspace search | planned |
 | 4.6 | **Search highlighting** — bold/color matched text in tree items and variable rows | Collection tree + variable panels | planned |
 | 4.7 | **Pinned tabs** — pin requests to stay open (VS Code style) | Tab state `pinned: boolean` | planned |
-| 4.8 | **Toast notification system** — non-blocking success/error/info toasts | `src/components/toast.ts` — reusable, auto-dismiss | planned |
+| 4.8 | **Toast notification system** — non-blocking success/error/info toasts | `src/react/components/Toast.tsx` | done |
 | 4.9 | **Loading/skeleton states** — skeleton placeholders during config load and request send | `.skeleton` CSS + HTML placeholders | planned |
 | 4.10 | **Collapse all / Expand all** in collection tree | Tree toolbar buttons | planned |
 | 4.11 | **Drag ghost improvement** — show request title/method in drag ghost; touch support | `src/app/pointer-reorder.ts` | planned |
@@ -159,8 +159,8 @@ These conflict with "lightweight / local-first" unless requirements change:
 
 | # | Issue | Impact | Suggested approach |
 |---|-------|--------|--------------------|
-| T1 | **`src/app.ts` ~4600 lines** — monolithic, hard to test | Every change risks regression; new contributors overwhelmed | Continue extracting to `src/ui/` and `src/app/` modules |
-| T2 | **Full re-render pattern** — `innerHTML +=` on every change | Fragile; one bad template breaks entire panel; loses DOM state (scroll, focus) | Selective re-render: only update changed sections |
+| T1 | ~~`src/app.ts` ~4600 lines~~ — resolved by the React migration; `app.ts` is now ~320 lines (startup + context-menu wiring only) | — | done |
+| T2 | **Direct state mutation + coarse re-render** — most handlers mutate `state`/`item` fields in place and call `bumpRenderGeneration()` (a global counter bump) instead of React `setState`, so most UI changes re-render a large subtree instead of just the changed component | Works, but caps how much granular reactivity (`useStore` selectors) can help; a hot path (typing in a large body, big header lists) re-renders more than it needs to | Migrate hot-path components to immutable `setState` + `useStore` selectors incrementally, starting with the request/response editors |
 | T3 | **No CI pipeline** — no automated checks on push | Broken code can land without detection | Add `.github/workflows/test.yml` with `npm test` + `tsc` |
 | T4 | **Sanitize on save loses file parts** — `sanitizeItemsForSave()` clears multipart file values | Users lose file uploads after restart | Store file path instead of base64 content; read on send (see 2.13) |
 | T6 | **No E2E tests** — only unit tests | Full-flow regressions undetected | Add Playwright/Tauri E2E (see 0.8) |
@@ -201,4 +201,6 @@ Versions are indicative; ship when exit criteria for the theme are met.
 3. Keep PRs scoped to one roadmap row when possible.
 4. Revisit **Out of scope** each major version if user demand shifts.
 
-_Last updated: 2026-05-21 — Comprehensive gap analysis completed. Added Phases 4-5, expanded Phases 1-3, added tech debt section, and updated release themes._
+_Last updated: 2026-07-27 — Corrected statuses left stale by the React migration (2.8, 2.9, 4.1, 4.8 → done; T1 resolved, T2 rewritten to describe the current state-mutation pattern instead of the pre-React `innerHTML` one). 2.9 (OpenAPI import) now also handles YAML and resolves `$ref`. Not a full re-audit — other rows may still be stale; verify against the code before trusting an old "planned" label._
+
+_Prior update: 2026-05-21 — Comprehensive gap analysis completed. Added Phases 4-5, expanded Phases 1-3, added tech debt section, and updated release themes._
