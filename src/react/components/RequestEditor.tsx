@@ -3,10 +3,12 @@ import { scheduleSave } from "../../app/persistence";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { VariableInput } from "./VariableInput";
 import { SecretInput } from "./SecretInput";
-import { normalizeRequestAuth } from "../../app/request-auth";
+import { normalizeRequestAuth, resolvedBasicCredentials } from "../../app/request-auth";
+import { getEffectiveVariables } from "../../app/environments";
+import { compactBase64, decodeBasicCredentials } from "../../lib/basic-auth";
 import { getActiveRequest, id, state } from "../../app/state";
 import { ingestUrlIntoRequest } from "../../lib/url-params";
-import { displayRequestUrl } from "../../lib/variables";
+import { applyVariables, displayRequestUrl } from "../../lib/variables";
 import { HTTP_METHODS, isHttpMethod } from "../../lib/http-methods";
 import { t } from "../../i18n";
 import type { BodyMode, FormPartType, Pair, RawType, RequestAuth, RequestTab } from "../../types";
@@ -24,6 +26,47 @@ function ensureFormRow(request: NonNullable<ReturnType<typeof getActiveRequest>>
   if (request.bodyMode === "form" && request.form.length === 0) {
     request.form.push({ id: id(), key: "", value: "", enabled: true, partType: "text" });
   }
+}
+
+const VARIABLE_TEMPLATE = /\$\{[^}]+\}/;
+
+/**
+ * Shows what actually goes on the wire: the encoded value in credential mode, and what a
+ * pasted token decodes to in token mode (username only — the password stays hidden).
+ */
+function BasicAuthPreview({ auth }: { auth: RequestAuth }) {
+  const labels = t().request.auth;
+  const variables = getEffectiveVariables();
+
+  if (auth.basicMode === "token") {
+    const resolved = compactBase64(applyVariables(auth.basicToken ?? "", variables));
+    if (!resolved) return null;
+    const decoded = decodeBasicCredentials(resolved);
+    if (decoded) {
+      return <p className="auth-hint auth-basic-preview">{labels.basicTokenDecoded.replace("{username}", decoded.username)}</p>;
+    }
+    if (VARIABLE_TEMPLATE.test(resolved)) {
+      return <p className="auth-hint auth-basic-preview">{labels.basicTokenVariable}</p>;
+    }
+    return <p className="auth-hint auth-basic-preview is-warning">{labels.basicTokenInvalid}</p>;
+  }
+
+  const encoded = resolvedBasicCredentials(auth, variables);
+  if (!encoded) return null;
+  return (
+    <p className="auth-hint auth-basic-preview">
+      <span className="auth-basic-preview-text">{labels.basicEncodedPreview.replace("{token}", encoded)}</span>
+      <button
+        type="button"
+        className="mini-btn"
+        title={labels.copyEncoded}
+        aria-label={labels.copyEncoded}
+        onClick={() => void navigator.clipboard.writeText(encoded)}
+      >
+        {labels.copyEncodedShort}
+      </button>
+    </p>
+  );
 }
 
 function AuthPanel({
@@ -89,40 +132,90 @@ function AuthPanel({
       </div>
 
       <div className={`auth-fields${auth.type !== "basic" ? " is-hidden" : ""}`} data-auth-panel="basic">
-        <label className="auth-field">
-          <span className="auth-field-label">{labels.basicUsername}</span>
-          <VariableInput
-            id="auth-basic-username"
-            value={auth.basicUsername ?? ""}
-            placeholder={labels.basicUsernamePlaceholder}
-            spellCheck={false}
-            autoComplete="username"
-            onValueChange={(value) =>
-              persistAuth({
-                type: "basic",
-                basicUsername: value,
-                basicPassword: auth.basicPassword ?? ""
-              })
-            }
-          />
-        </label>
-        <label className="auth-field">
-          <span className="auth-field-label">{labels.basicPassword}</span>
-          <SecretInput
-            id="auth-basic-password"
-            value={auth.basicPassword ?? ""}
-            placeholder={labels.basicPasswordPlaceholder}
-            autoComplete="current-password"
-            onChange={(value) =>
-              persistAuth({
-                type: "basic",
-                basicUsername: auth.basicUsername ?? "",
-                basicPassword: value
-              })
-            }
-            useVariableInput
-          />
-        </label>
+        <div className="auth-field">
+          <span className="auth-field-label">{labels.basicMode}</span>
+          <div className="segmented auth-basic-mode">
+            <button
+              type="button"
+              className={auth.basicMode !== "token" ? "active" : ""}
+              onClick={() => persistAuth({ ...auth, type: "basic", basicMode: "credentials" })}
+            >
+              {labels.basicModeFields}
+            </button>
+            <button
+              type="button"
+              className={auth.basicMode === "token" ? "active" : ""}
+              onClick={() =>
+                persistAuth({
+                  ...auth,
+                  type: "basic",
+                  basicMode: "token",
+                  // Carry the fields over so switching modes is not destructive.
+                  basicToken: auth.basicToken || resolvedBasicCredentials({ ...auth, basicMode: "credentials" }, [])
+                })
+              }
+            >
+              {labels.basicModeToken}
+            </button>
+          </div>
+        </div>
+
+        <div className={`auth-fields${auth.basicMode === "token" ? " is-hidden" : ""}`}>
+          <label className="auth-field">
+            <span className="auth-field-label">{labels.basicUsername}</span>
+            <VariableInput
+              id="auth-basic-username"
+              value={auth.basicUsername ?? ""}
+              placeholder={labels.basicUsernamePlaceholder}
+              spellCheck={false}
+              autoComplete="username"
+              onValueChange={(value) =>
+                persistAuth({
+                  ...auth,
+                  type: "basic",
+                  basicMode: "credentials",
+                  basicUsername: value
+                })
+              }
+            />
+          </label>
+          <label className="auth-field">
+            <span className="auth-field-label">{labels.basicPassword}</span>
+            <SecretInput
+              id="auth-basic-password"
+              value={auth.basicPassword ?? ""}
+              placeholder={labels.basicPasswordPlaceholder}
+              autoComplete="current-password"
+              onChange={(value) =>
+                persistAuth({
+                  ...auth,
+                  type: "basic",
+                  basicMode: "credentials",
+                  basicPassword: value
+                })
+              }
+              useVariableInput
+            />
+          </label>
+        </div>
+
+        <div className={`auth-fields${auth.basicMode === "token" ? "" : " is-hidden"}`}>
+          <label className="auth-field">
+            <span className="auth-field-label">{labels.basicToken}</span>
+            <SecretInput
+              id="auth-basic-token"
+              value={auth.basicToken ?? ""}
+              placeholder={labels.basicTokenPlaceholder}
+              autoComplete="off"
+              onChange={(value) =>
+                persistAuth({ ...auth, type: "basic", basicMode: "token", basicToken: value })
+              }
+              useVariableInput
+            />
+          </label>
+        </div>
+
+        <BasicAuthPreview auth={auth} />
       </div>
 
       <div className={`auth-fields${auth.type !== "apikey" ? " is-hidden" : ""}`} data-auth-panel="apikey">

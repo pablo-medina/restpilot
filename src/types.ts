@@ -14,11 +14,17 @@ export type RequestTab = "params" | "auth" | "headers" | "body";
 
 export type RequestAuthType = "none" | "bearer" | "basic" | "apikey";
 
+/** How Basic auth credentials are entered: separate fields, or a pre-encoded base64 token. */
+export type BasicAuthMode = "credentials" | "token";
+
 export type RequestAuth = {
   type: RequestAuthType;
   bearerToken?: string;
+  basicMode?: BasicAuthMode;
   basicUsername?: string;
   basicPassword?: string;
+  /** Base64 `user:password` used verbatim when `basicMode === "token"`. */
+  basicToken?: string;
   apiKeyName?: string;
   apiKeyValue?: string;
   apiKeyIn?: "header" | "query";

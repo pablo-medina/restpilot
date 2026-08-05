@@ -419,6 +419,20 @@ const HTML_SCRIPT = `
     return url;
   }
 
+  // btoa is latin1-only, so encode through UTF-8 bytes (same as the app and curl).
+  function basicCredentials(auth, vars) {
+    if (auth.basicMode === "token") {
+      return applyVars(auth.basicToken || "", vars).replace(/\\s+/g, "");
+    }
+    const user = applyVars(auth.basicUsername || "", vars);
+    const pass = applyVars(auth.basicPassword || "", vars);
+    if (!user && !pass) return "";
+    const bytes = new TextEncoder().encode(user + ":" + pass);
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  }
+
   function buildHeaders(request, vars) {
     const headers = {};
     for (const header of request.headers || []) {
@@ -432,9 +446,8 @@ const HTML_SCRIPT = `
       const token = applyVars(auth.bearerToken || "", vars).trim();
       if (token) headers.Authorization = "Bearer " + token;
     } else if (auth.type === "basic") {
-      const user = applyVars(auth.basicUsername || "", vars);
-      const pass = applyVars(auth.basicPassword || "", vars);
-      if (user || pass) headers.Authorization = "Basic " + btoa(user + ":" + pass);
+      const credentials = basicCredentials(auth, vars);
+      if (credentials) headers.Authorization = "Basic " + credentials;
     } else if (auth.type === "apikey" && auth.apiKeyIn !== "query") {
       const name = applyVars(auth.apiKeyName || "", vars).trim();
       if (name) headers[name] = applyVars(auth.apiKeyValue || "", vars);

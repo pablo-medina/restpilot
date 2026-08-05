@@ -1,5 +1,6 @@
 import type { Pair, RequestAuth, SavedRequest, TreeItem } from "../types";
 import { COLLECTION_ROOT_PARENT_ID } from "../app/collection-parent";
+import { compactBase64, decodeBasicCredentials } from "../lib/basic-auth";
 
 function toPostmanVar(value: string): string {
   return value.replace(/\$\{([^}]+)\}/g, "{{$1}}");
@@ -14,11 +15,19 @@ function postmanAuth(auth: RequestAuth): Record<string, unknown> | undefined {
     };
   }
   if (auth.type === "basic") {
+    // Postman's basic auth block only carries username/password, so a base64 token is
+    // decoded back into the pair. Tokens that can't be decoded fall back to a raw header
+    // (see `postmanBasicHeader`).
+    const credentials =
+      auth.basicMode === "token"
+        ? decodeBasicCredentials(auth.basicToken ?? "")
+        : { username: auth.basicUsername ?? "", password: auth.basicPassword ?? "" };
+    if (!credentials) return undefined;
     return {
       type: "basic",
       basic: [
-        { key: "username", value: toPostmanVar(auth.basicUsername ?? ""), type: "string" },
-        { key: "password", value: toPostmanVar(auth.basicPassword ?? ""), type: "string" }
+        { key: "username", value: toPostmanVar(credentials.username), type: "string" },
+        { key: "password", value: toPostmanVar(credentials.password), type: "string" }
       ]
     };
   }
@@ -109,12 +118,24 @@ function postmanBody(request: SavedRequest): Record<string, unknown> | undefined
   return undefined;
 }
 
+/** Opaque base64 token that Postman's basic auth block can't represent — export it as a header. */
+function postmanBasicHeader(auth: RequestAuth): Record<string, unknown> | undefined {
+  if (auth.type !== "basic" || auth.basicMode !== "token") return undefined;
+  if (decodeBasicCredentials(auth.basicToken ?? "")) return undefined;
+  const token = compactBase64(auth.basicToken ?? "");
+  if (!token) return undefined;
+  return { key: "Authorization", value: `Basic ${toPostmanVar(token)}`, type: "text" };
+}
+
 function postmanRequest(request: SavedRequest): Record<string, unknown> {
   const auth = postmanAuth(request.auth);
+  const basicHeader = postmanBasicHeader(request.auth);
+  const headers = postmanHeaders(request.headers);
+  if (basicHeader) headers.push(basicHeader);
   const body = postmanBody(request);
   const result: Record<string, unknown> = {
     method: request.method.toUpperCase(),
-    header: postmanHeaders(request.headers),
+    header: headers,
     url: toPostmanVar(request.url.trim()),
     description: request.description ?? ""
   };

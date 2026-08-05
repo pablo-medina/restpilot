@@ -1,5 +1,6 @@
 import { applyVariables } from "../lib/variables";
 import { buildRequestUrl } from "../lib/url-params";
+import { compactBase64, decodeBasicCredentials, encodeBasicCredentials } from "../lib/basic-auth";
 import type { HeaderPair, Pair, RequestAuth, SavedRequest, Variable } from "../types";
 
 export const AUTH_HEADER_NAME = "authorization";
@@ -16,8 +17,10 @@ export function normalizeRequestAuth(auth: Partial<RequestAuth> | undefined): Re
   if (type === "basic") {
     return {
       type: "basic",
+      basicMode: auth?.basicMode === "token" ? "token" : "credentials",
       basicUsername: auth?.basicUsername ?? "",
-      basicPassword: auth?.basicPassword ?? ""
+      basicPassword: auth?.basicPassword ?? "",
+      basicToken: auth?.basicToken ?? ""
     };
   }
   if (type === "apikey") {
@@ -52,15 +55,25 @@ export function parseAuthFromHeaders(headers: Pair[]): { auth: RequestAuth; head
 
   const basicMatch = /^basic\s+(.+)$/i.exec(value);
   if (basicMatch) {
-    try {
-      const decoded = atob(basicMatch[1]!.trim());
-      const colon = decoded.indexOf(":");
-      const basicUsername = colon >= 0 ? decoded.slice(0, colon) : decoded;
-      const basicPassword = colon >= 0 ? decoded.slice(colon + 1) : "";
-      return { auth: { type: "basic", basicUsername, basicPassword }, headers: remaining };
-    } catch {
-      return { auth: defaultRequestAuth(), headers: remaining };
+    const token = compactBase64(basicMatch[1]!);
+    const decoded = decodeBasicCredentials(token);
+    if (decoded) {
+      return {
+        auth: {
+          type: "basic",
+          basicMode: "credentials",
+          basicUsername: decoded.username,
+          basicPassword: decoded.password,
+          basicToken: token
+        },
+        headers: remaining
+      };
     }
+    // Not decodable as `user:password` (opaque or variable-driven) — keep it verbatim.
+    return {
+      auth: { type: "basic", basicMode: "token", basicUsername: "", basicPassword: "", basicToken: token },
+      headers: remaining
+    };
   }
 
   return { auth: defaultRequestAuth(), headers: remaining };
@@ -81,6 +94,20 @@ function withoutHeaderNamed(headers: HeaderPair[], name: string): HeaderPair[] {
   return headers.filter(([key]) => key.toLowerCase() !== needle);
 }
 
+/**
+ * Base64 credentials for `Authorization: Basic …`, whatever the input mode.
+ * Token mode is passed through verbatim (already encoded); credential mode is encoded here.
+ */
+export function resolvedBasicCredentials(auth: RequestAuth, variables: Variable[]): string {
+  if (auth.basicMode === "token") {
+    return compactBase64(applyVariables(auth.basicToken ?? "", variables));
+  }
+  const username = applyVariables(auth.basicUsername ?? "", variables);
+  const password = applyVariables(auth.basicPassword ?? "", variables);
+  if (!username && !password) return "";
+  return encodeBasicCredentials(username, password);
+}
+
 export function applyAuthHeaders(
   headers: HeaderPair[],
   auth: RequestAuth,
@@ -95,11 +122,8 @@ export function applyAuthHeaders(
   }
 
   if (auth.type === "basic") {
-    const username = applyVariables(auth.basicUsername ?? "", variables);
-    const password = applyVariables(auth.basicPassword ?? "", variables);
-    if (username || password) {
-      next.push(["Authorization", `Basic ${btoa(`${username}:${password}`)}`]);
-    }
+    const credentials = resolvedBasicCredentials(auth, variables);
+    if (credentials) next.push(["Authorization", `Basic ${credentials}`]);
     return next;
   }
 
@@ -148,7 +172,10 @@ export function buildOutboundQueryParams(request: SavedRequest, variables: Varia
 export function requestAuthTextFields(request: SavedRequest): string[] {
   const auth = normalizeRequestAuth(request.auth);
   if (auth.type === "bearer") return [auth.bearerToken ?? ""];
-  if (auth.type === "basic") return [auth.basicUsername ?? "", auth.basicPassword ?? ""];
+  if (auth.type === "basic") {
+    if (auth.basicMode === "token") return [auth.basicToken ?? ""];
+    return [auth.basicUsername ?? "", auth.basicPassword ?? ""];
+  }
   if (auth.type === "apikey") return [auth.apiKeyName ?? "", auth.apiKeyValue ?? ""];
   return [];
 }

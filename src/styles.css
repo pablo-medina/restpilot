@@ -2327,8 +2327,27 @@ select,
   line-height: 1.5;
 }
 
-.request-auth-panel .auth-key-location {
+.request-auth-panel .auth-key-location,
+.request-auth-panel .auth-basic-mode {
   width: fit-content;
+}
+
+.request-auth-panel .auth-basic-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono, "Cascadia Code", "Consolas", monospace);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.request-auth-panel .auth-basic-preview.is-warning {
+  color: var(--field-remove-color);
+}
+
+.request-auth-panel .auth-basic-preview-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .variables-table-head {

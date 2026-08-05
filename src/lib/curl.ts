@@ -5,6 +5,7 @@ import {
   normalizeRequestAuth
 } from "../app/request-auth";
 import { applyVariables } from "./variables";
+import { encodeBasicCredentials } from "./basic-auth";
 import type { BodyMode, HeaderPair, Pair, RawType, SavedRequest, Variable } from "../types";
 import { buildRequestUrl, migrateRequestQuery } from "./url-params";
 
@@ -164,7 +165,12 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     }
 
     if (token === "-u" || lower === "--user") {
-      const encoded = btoa(stripQuotes(next));
+      const credentials = stripQuotes(next);
+      const colon = credentials.indexOf(":");
+      const encoded = encodeBasicCredentials(
+        colon >= 0 ? credentials.slice(0, colon) : credentials,
+        colon >= 0 ? credentials.slice(colon + 1) : ""
+      );
       upsertHeader(request.headers, "Authorization", `Basic ${encoded}`, id);
       index += 1;
       continue;

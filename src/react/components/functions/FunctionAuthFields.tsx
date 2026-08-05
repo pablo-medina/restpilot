@@ -1,5 +1,5 @@
 import { scheduleSave } from "../../../app/persistence";
-import { normalizeRequestAuth } from "../../../app/request-auth";
+import { normalizeRequestAuth, resolvedBasicCredentials } from "../../../app/request-auth";
 import { t } from "../../../i18n";
 import type { AppFunction, RequestAuth } from "../../../types";
 import { SecretInput } from "../SecretInput";
@@ -79,43 +79,93 @@ export function FunctionAuthFields({ func, onChange }: Props) {
 
       {auth.type === "basic" ? (
         <>
-          <label className="auth-field" style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+          <div className="auth-field" style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
             <span className="auth-field-label" style={{ fontSize: 12, fontWeight: 600, color: "var(--rp-text-muted)" }}>
-              {labels.basicUsername}
+              {labels.basicMode}
             </span>
-            <input
-              value={auth.basicUsername ?? ""}
-              placeholder={labels.basicUsernamePlaceholder}
-              spellCheck={false}
-              autoComplete="username"
-              className="url-send-input"
-              style={{ padding: "6px 12px" }}
-              onChange={(event) =>
-                persistAuth({
-                  type: "basic",
-                  basicUsername: event.target.value,
-                  basicPassword: auth.basicPassword ?? ""
-                })
-              }
-            />
-          </label>
-          <label className="auth-field" style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
-            <span className="auth-field-label" style={{ fontSize: 12, fontWeight: 600, color: "var(--rp-text-muted)" }}>
-              {labels.basicPassword}
-            </span>
-            <SecretInput
-              value={auth.basicPassword ?? ""}
-              placeholder={labels.basicPasswordPlaceholder}
-              autoComplete="current-password"
-              onChange={(value) =>
-                persistAuth({
-                  type: "basic",
-                  basicUsername: auth.basicUsername ?? "",
-                  basicPassword: value
-                })
-              }
-            />
-          </label>
+            <div className="segmented auth-basic-mode" style={{ width: "fit-content" }}>
+              <button
+                type="button"
+                className={auth.basicMode !== "token" ? "active" : ""}
+                onClick={() => persistAuth({ ...auth, type: "basic", basicMode: "credentials" })}
+              >
+                {labels.basicModeFields}
+              </button>
+              <button
+                type="button"
+                className={auth.basicMode === "token" ? "active" : ""}
+                onClick={() =>
+                  persistAuth({
+                    ...auth,
+                    type: "basic",
+                    basicMode: "token",
+                    basicToken:
+                      auth.basicToken || resolvedBasicCredentials({ ...auth, basicMode: "credentials" }, [])
+                  })
+                }
+              >
+                {labels.basicModeToken}
+              </button>
+            </div>
+          </div>
+
+          {auth.basicMode === "token" ? (
+            <label className="auth-field" style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+              <span className="auth-field-label" style={{ fontSize: 12, fontWeight: 600, color: "var(--rp-text-muted)" }}>
+                {labels.basicToken}
+              </span>
+              <SecretInput
+                value={auth.basicToken ?? ""}
+                placeholder={labels.basicTokenPlaceholder}
+                autoComplete="off"
+                onChange={(value) =>
+                  persistAuth({ ...auth, type: "basic", basicMode: "token", basicToken: value })
+                }
+              />
+            </label>
+          ) : (
+            <>
+              <label className="auth-field" style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+                <span className="auth-field-label" style={{ fontSize: 12, fontWeight: 600, color: "var(--rp-text-muted)" }}>
+                  {labels.basicUsername}
+                </span>
+                <input
+                  value={auth.basicUsername ?? ""}
+                  placeholder={labels.basicUsernamePlaceholder}
+                  spellCheck={false}
+                  autoComplete="username"
+                  className="url-send-input"
+                  style={{ padding: "6px 12px" }}
+                  onChange={(event) =>
+                    persistAuth({
+                      ...auth,
+                      type: "basic",
+                      basicMode: "credentials",
+                      basicUsername: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="auth-field" style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%" }}>
+                <span className="auth-field-label" style={{ fontSize: 12, fontWeight: 600, color: "var(--rp-text-muted)" }}>
+                  {labels.basicPassword}
+                </span>
+                <SecretInput
+                  value={auth.basicPassword ?? ""}
+                  placeholder={labels.basicPasswordPlaceholder}
+                  autoComplete="current-password"
+                  onChange={(value) =>
+                    persistAuth({
+                      ...auth,
+                      type: "basic",
+                      basicMode: "credentials",
+                      basicPassword: value
+                    })
+                  }
+                />
+              </label>
+            </>
+          )}
         </>
       ) : null}
 
