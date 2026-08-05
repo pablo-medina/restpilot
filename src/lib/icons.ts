@@ -51,3 +51,16 @@ export const iconBookmark = strokeIcon('<path d="M4 2.5h8v11l-4-2.75L4 13.5z"/>'
 export const iconOpenExternal = strokeIcon('<path d="M9.25 2.75h4v4M8 8l5.25-5.25"/><path d="M12 9.25v4H2.75V4h4"/>', 14);
 
 export const iconCross = strokeIcon('<path d="m4 4 8 8M12 4l-8 8"/>', 14);
+
+/** Window chrome controls, on a 12 × 12 grid — shared by the title bar and dialog headers. */
+function windowIcon(body: string): string {
+  return `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+export const iconWindowMinimize = windowIcon('<path d="M2 6h8"/>');
+
+export const iconWindowMaximize = windowIcon('<rect x="2.5" y="2.5" width="7" height="7" rx="1"/>');
+
+export const iconWindowRestore = windowIcon('<path d="M4 4.5V3.5a1 1 0 0 1 1-1h4.5a1 1 0 0 1 1 1V8a1 1 0 0 1-1 1h-1"/><rect x="1.5" y="4.5" width="7" height="6" rx="1"/>');
+
+export const iconWindowClose = windowIcon('<path d="m3 3 6 6M9 3l-6 6"/>');

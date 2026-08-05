@@ -9,16 +9,19 @@ import {
   initWindowChrome,
   syncMaximizeControl
 } from "../../ui/window-chrome";
-import { iconFunction, iconSettings, iconSidebar } from "../../lib/icons";
+import {
+  iconFunction,
+  iconSettings,
+  iconSidebar,
+  iconWindowClose,
+  iconWindowMaximize,
+  iconWindowMinimize
+} from "../../lib/icons";
 import { useRenderGeneration } from "../hooks/useRenderGeneration";
 import { openSettingsDialog } from "../lib/settings-dialog";
 import { toggleSidebar } from "../lib/sync-app-frame";
 import { FunctionsPopover } from "./functions/FunctionsPopover";
 import { TabBar } from "./TabBar";
-
-const iconMinimize = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M2 6.5h8v-1H2z"/></svg>`;
-const iconMaximize = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.1" d="M2.5 2.5h7v7h-7z"/></svg>`;
-const iconClose = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" d="M3 3l6 6M9 3 3 9"/></svg>`;
 
 type Props = {
   refresh: () => void;
@@ -73,7 +76,7 @@ export function TitleBar({ refresh }: Props) {
         aria-label={labels.minimize}
         onClick={() => void runWindowAction("minimize")}
       >
-        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconMinimize }} />
+        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconWindowMinimize }} />
       </button>
       <button
         type="button"
@@ -83,7 +86,7 @@ export function TitleBar({ refresh }: Props) {
         aria-label={labels.maximize}
         onClick={() => void runWindowAction("maximize")}
       >
-        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconMaximize }} />
+        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconWindowMaximize }} />
       </button>
       <button
         type="button"
@@ -93,7 +96,7 @@ export function TitleBar({ refresh }: Props) {
         aria-label={labels.close}
         onClick={() => void runWindowAction("close")}
       >
-        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconClose }} />
+        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconWindowClose }} />
       </button>
     </div>
   ) : null;

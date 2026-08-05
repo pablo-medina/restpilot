@@ -42,6 +42,13 @@
   --field-remove-color-hover: #963d32;
   --field-remove-tint: rgba(181, 74, 58, 0.14);
   --field-remove-size: 28px;
+  /* Filled dialog buttons. Remapped in [data-theme="dark"] — a flat accent that reads on the
+     dark surface, with dark text for contrast. */
+  --dialog-primary-bg: #3d7f6f;
+  --dialog-primary-bg-hover: #346d5f;
+  --dialog-primary-fg: #ffffff;
+  --dialog-danger-bg: #a64032;
+  --dialog-danger-fg: #ffffff;
   --field-remove-font-size: 17px;
   --http-method-get: #22c55e;
   --http-method-post: #3b82f6;
@@ -1411,6 +1418,13 @@ button {
   overflow: hidden;
 }
 
+/* The preview HTML is injected into a wrapper div. Without this the wrapper is an ordinary
+   flex item that never grows, so preview roots using `flex: 1` (.curl-preview and friends)
+   stay at their natural height and the dialog shows a large empty band when resized. */
+.dialog-preview-host {
+  display: contents;
+}
+
 .app-dialog[data-dialog-mode="settings"] .dialog-body {
   padding: 0;
   overflow: hidden;
@@ -2744,18 +2758,38 @@ select,
   cursor: move;
 }
 
+.dialog-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .dialog-title .mini-btn,
 .dialog-window-btn {
   width: 28px;
-  height: 28px;
+  height: 26px;
   min-width: 28px;
-  min-height: 28px;
-  font-size: 20px;
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--rp-text-muted);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.app-dialog .dialog-window-btn:hover {
+  background: var(--rp-hover);
+  color: var(--rp-text);
+}
+
+.app-dialog .dialog-window-btn--close:hover {
+  background: var(--field-remove-tint);
+  color: var(--field-remove-color);
 }
 
 .dialog-body {
@@ -2789,6 +2823,17 @@ select,
   margin-top: 0;
 }
 
+/* Application dialogs get a real footer band so the buttons never sit flush against the
+   content box above them, at any dialog size. */
+.app-dialog.application .dialog-actions {
+  padding: 12px 16px;
+  border-top: 1px solid var(--rp-border-subtle);
+}
+
+.app-dialog.application .dialog-actions:empty {
+  display: none;
+}
+
 .dialog-actions button {
   height: 34px;
   min-width: 84px;
@@ -2799,18 +2844,28 @@ select,
 }
 
 .dialog-actions button[data-dialog-primary="true"]:focus-visible {
-  outline: 2px solid rgba(61, 127, 111, 0.45);
+  outline: 2px solid var(--rp-accent);
   outline-offset: 2px;
 }
 
-.dialog-actions .primary {
-  background: #3d7f6f;
-  color: #ffffff;
+/* Scoped past `[data-theme="dark"] .dialog-actions button`, which would otherwise win by source
+   order and flatten the primary action back to a plain button. */
+.app-dialog .dialog-actions button.primary {
+  background: var(--dialog-primary-bg);
+  border-color: transparent;
+  color: var(--dialog-primary-fg);
+  font-weight: 600;
 }
 
-.dialog-actions .danger {
-  background: #a64032;
-  color: #ffffff;
+.app-dialog .dialog-actions button.primary:hover {
+  background: var(--dialog-primary-bg-hover);
+}
+
+.app-dialog .dialog-actions button.danger {
+  background: var(--dialog-danger-bg);
+  border-color: transparent;
+  color: var(--dialog-danger-fg);
+  font-weight: 600;
 }
 
 .app-dialog.warning {
@@ -4093,6 +4148,12 @@ select,
   --field-remove-color: #f08fa3;
   --field-remove-color-hover: #ffaabb;
   --field-remove-tint: rgba(240, 143, 163, 0.16);
+
+  --dialog-primary-bg: #7eb8a8;
+  --dialog-primary-bg-hover: #9fd4c6;
+  --dialog-primary-fg: #10201c;
+  --dialog-danger-bg: #f08fa3;
+  --dialog-danger-fg: #241015;
 
   /* Legacy aliases for existing --dark-* references */
   --dark-bg-base: var(--rp-bg);

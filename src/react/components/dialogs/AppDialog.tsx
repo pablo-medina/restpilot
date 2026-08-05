@@ -8,6 +8,8 @@ import {
   submitDialogAction
 } from "../../../components/dialogs";
 import { t } from "../../../i18n";
+import { iconWindowClose, iconWindowMaximize, iconWindowRestore } from "../../../lib/icons";
+import { Icon } from "../Icon";
 
 type Props = {
   dialog: DialogState;
@@ -134,18 +136,18 @@ export function AppDialog({ dialog, isTop }: Props) {
               aria-label={dialog.maximized ? labels.restore : labels.maximize}
               onClick={() => submitDialogAction(dialog.id, "maximize", rootRef.current)}
             >
-              {dialog.maximized ? "❐" : "□"}
+              <Icon html={dialog.maximized ? iconWindowRestore : iconWindowMaximize} />
             </button>
           ) : null}
           <button
-            className="mini-btn dialog-window-btn"
+            className="mini-btn dialog-window-btn dialog-window-btn--close"
             type="button"
             data-dialog-action="close"
             title={labels.close}
             aria-label={labels.close}
             onClick={() => submitDialogAction(dialog.id, "close", rootRef.current)}
           >
-            ×
+            <Icon html={iconWindowClose} />
           </button>
         </div>
       </div>
@@ -160,7 +162,11 @@ export function AppDialog({ dialog, isTop }: Props) {
             onKeyDown={onInputKeyDown}
           />
         ) : null}
-        {previewHtml ? <div dangerouslySetInnerHTML={{ __html: previewHtml }} /> : null}
+        {/* `display: contents` — the preview's own root (e.g. .curl-preview) must be a direct flex
+            child of the body, otherwise its `flex: 1` has nothing to grow into. */}
+        {previewHtml ? (
+          <div className="dialog-preview-host" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+        ) : null}
       </div>
 
       <div className="dialog-actions">
