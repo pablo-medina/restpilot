@@ -47,3 +47,7 @@ export const iconSidebar = strokeIcon('<rect x="2.25" y="2.5" width="11.5" heigh
 export const iconPlay = solidIcon('<path d="M5 3.15v9.7L12.75 8z"/>');
 
 export const iconBookmark = strokeIcon('<path d="M4 2.5h8v11l-4-2.75L4 13.5z"/>');
+
+export const iconOpenExternal = strokeIcon('<path d="M9.25 2.75h4v4M8 8l5.25-5.25"/><path d="M12 9.25v4H2.75V4h4"/>', 14);
+
+export const iconCross = strokeIcon('<path d="m4 4 8 8M12 4l-8 8"/>', 14);

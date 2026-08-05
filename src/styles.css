@@ -36,8 +36,11 @@
   --panel-inset-inline: 16px;
   --workspace-panel-inset-block: 18px;
   --workspace-panel-inset-inline: 22px;
+  /* Delete / remove controls. Red on light, pink on dark (remapped in [data-theme="dark"]).
+     Always use these tokens — never a literal red — so both themes stay in sync. */
   --field-remove-color: #b54a3a;
   --field-remove-color-hover: #963d32;
+  --field-remove-tint: rgba(181, 74, 58, 0.14);
   --field-remove-size: 28px;
   --field-remove-font-size: 17px;
   --http-method-get: #22c55e;
@@ -145,7 +148,7 @@ button {
 
 .mini-btn.field-remove-btn:hover {
   color: var(--field-remove-color-hover);
-  background: rgba(181, 74, 58, 0.14);
+  background: var(--field-remove-tint);
 }
 
 .mini-btn svg {
@@ -784,7 +787,7 @@ button {
 }
 
 .tree-action-btn.danger:hover {
-  background: rgba(181, 74, 58, 0.12);
+  background: var(--field-remove-tint);
   color: var(--field-remove-color);
 }
 
@@ -820,11 +823,6 @@ button {
 [data-theme="dark"] .tree-action-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   color: var(--dark-text);
-}
-
-[data-theme="dark"] .tree-action-btn.danger:hover {
-  background: rgba(181, 74, 58, 0.2);
-  color: #e07060;
 }
 
 [data-theme="dark"] .tree-item-icon {
@@ -1092,7 +1090,7 @@ button {
 .request-tab:hover .tab-close:hover,
 .request-tab.active .tab-close:hover {
   color: var(--field-remove-color-hover);
-  background: rgba(181, 74, 58, 0.14);
+  background: var(--field-remove-tint);
 }
 
 .request-editor {
@@ -2571,10 +2569,6 @@ select,
   box-shadow: 0 18px 60px rgba(48, 42, 32, 0.2);
 }
 
-.context-menu--anchor-end {
-  transform: translateX(-100%);
-}
-
 .context-menu button {
   display: flex;
   align-items: center;
@@ -3363,6 +3357,171 @@ select,
   text-align: left;
 }
 
+/* Functions popover (title bar) */
+
+.functions-popover {
+  width: min(360px, calc(100vw - 24px));
+}
+
+.functions-popover-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.functions-popover-list {
+  max-height: 320px;
+  overflow-y: auto;
+  gap: 2px;
+}
+
+.functions-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.functions-popover-item.is-loading {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.functions-popover-item:hover {
+  background: var(--rp-hover);
+}
+
+.functions-popover-item:focus-visible,
+.functions-popover-item:focus {
+  background: rgba(61, 127, 111, 0.12);
+  box-shadow: inset 0 0 0 1px var(--rp-accent);
+}
+
+.functions-popover-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.functions-popover-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rp-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.functions-popover-item-desc {
+  font-size: 11px;
+  color: var(--rp-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Row actions stay out of the way until the row is hovered or focused.
+   Opacity (not display) so the row layout never shifts. */
+.functions-popover-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.functions-popover-item:hover .functions-popover-item-actions,
+.functions-popover-item:focus-within .functions-popover-item-actions,
+.functions-popover-item.is-loading .functions-popover-item-actions {
+  opacity: 1;
+}
+
+.mini-btn.functions-popover-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.functions-popover .mini-btn.functions-popover-action--edit {
+  color: var(--rp-text-muted);
+}
+
+.functions-popover .mini-btn.functions-popover-action--edit:hover {
+  background: var(--rp-hover);
+  color: var(--rp-accent-strong);
+}
+
+/* Scoped by .functions-popover so this beats the generic
+   `[data-theme="dark"] .mini-btn` override, which otherwise greys out the cross. */
+.functions-popover .mini-btn.functions-popover-action--delete {
+  color: var(--field-remove-color);
+}
+
+.functions-popover .mini-btn.functions-popover-action--delete:hover {
+  color: var(--field-remove-color-hover);
+  background: var(--field-remove-tint);
+}
+
+.functions-popover-open-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rp-text-muted);
+  cursor: pointer;
+}
+
+.functions-popover .functions-popover-open-section:hover {
+  background: var(--rp-hover);
+  color: var(--rp-accent-strong);
+}
+
+.functions-popover-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 2px;
+  color: var(--rp-accent);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: rp-func-spin 0.8s linear infinite;
+}
+
+@keyframes rp-func-spin {
+  to { transform: rotate(360deg); }
+}
+
+.functions-popover-empty {
+  text-align: center;
+  padding: 16px 4px;
+  font-style: italic;
+}
+
 .settings-card h2 {
   margin: 0 0 14px;
   font-size: 13px;
@@ -3931,8 +4090,9 @@ select,
   --rp-input-border: #3a3732;
   --rp-hover: rgba(255, 255, 255, 0.07);
 
-  --field-remove-color: #e07a6a;
-  --field-remove-color-hover: #f5a498;
+  --field-remove-color: #f08fa3;
+  --field-remove-color-hover: #ffaabb;
+  --field-remove-tint: rgba(240, 143, 163, 0.16);
 
   /* Legacy aliases for existing --dark-* references */
   --dark-bg-base: var(--rp-bg);
@@ -4135,7 +4295,7 @@ select,
 [data-theme="dark"] .mini-btn.field-remove-btn:hover,
 [data-theme="dark"] .request-tab:hover .tab-close:hover,
 [data-theme="dark"] .request-tab.active .tab-close:hover {
-  background: rgba(224, 122, 106, 0.18);
+  background: var(--field-remove-tint);
 }
 
 [data-theme="dark"] .tool-icon {
@@ -5346,7 +5506,7 @@ select,
 
 .saved-responses-dropdown-shell .field-remove-btn:hover {
   color: var(--field-remove-color-hover);
-  background: rgba(181, 74, 58, 0.12);
+  background: var(--field-remove-tint);
 }
 
 /* Variable Dialog Selection Styles */

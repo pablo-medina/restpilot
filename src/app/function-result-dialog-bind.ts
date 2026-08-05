@@ -1,3 +1,4 @@
+import { computeMenuPosition } from "../components/popover-position";
 import { escapeHtml } from "../lib/content-display";
 import { t } from "../i18n";
 import { activeEnvironmentVariables, getActiveEnvironment } from "./environments";
@@ -104,8 +105,9 @@ export function bindFunctionResultDialogs(): void {
           const contextMenu = document.createElement("div");
           contextMenu.className = "context-menu var-context-menu";
           contextMenu.style.position = "fixed";
-          contextMenu.style.left = `${event.clientX}px`;
-          contextMenu.style.top = `${event.clientY}px`;
+          contextMenu.style.visibility = "hidden";
+          contextMenu.style.left = "0px";
+          contextMenu.style.top = "0px";
           contextMenu.style.zIndex = "100000";
 
           const labels = t().tree;
@@ -118,6 +120,19 @@ export function bindFunctionResultDialogs(): void {
           `;
 
           document.body.appendChild(contextMenu);
+
+          // Position only after mounting, so the menu is measured and kept inside the window.
+          const position = computeMenuPosition(
+            { x: event.clientX, y: event.clientY },
+            { width: contextMenu.offsetWidth, height: contextMenu.offsetHeight }
+          );
+          if (position.maxHeight !== null) {
+            contextMenu.style.maxHeight = `${position.maxHeight}px`;
+            contextMenu.style.overflowY = "auto";
+          }
+          contextMenu.style.left = `${Math.round(position.left)}px`;
+          contextMenu.style.top = `${Math.round(position.top)}px`;
+          contextMenu.style.visibility = "";
 
           contextMenu.querySelector(".var-context-menu-run")?.addEventListener("click", (clickEvent) => {
             clickEvent.stopPropagation();

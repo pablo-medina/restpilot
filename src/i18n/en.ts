@@ -160,7 +160,15 @@ export const en = {
     dialogCreateButton: "Create",
     dialogNoVariables: "No variables found",
     dialogSavedSuccess: "Variable saved successfully",
-    dialogCreatedSuccess: "Variable \${{name}} created successfully"
+    dialogCreatedSuccess: "Variable \${{name}} created successfully",
+    popoverTitle: "Functions",
+    popoverFilterPlaceholder: "Filter functions…",
+    popoverRun: "Run function",
+    popoverEdit: "Edit function",
+    popoverDelete: "Delete function",
+    popoverOpenSection: "Open the Functions section",
+    popoverEmpty: "No functions yet",
+    popoverNoMatches: "No functions match the filter"
   },
   describe: {
     requestTitle: "Describe request",

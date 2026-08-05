@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getActiveRequest, state } from "../../app/state";
@@ -9,10 +9,11 @@ import {
   initWindowChrome,
   syncMaximizeControl
 } from "../../ui/window-chrome";
-import { iconSettings, iconSidebar } from "../../lib/icons";
+import { iconFunction, iconSettings, iconSidebar } from "../../lib/icons";
 import { useRenderGeneration } from "../hooks/useRenderGeneration";
 import { openSettingsDialog } from "../lib/settings-dialog";
 import { toggleSidebar } from "../lib/sync-app-frame";
+import { FunctionsPopover } from "./functions/FunctionsPopover";
 import { TabBar } from "./TabBar";
 
 const iconMinimize = `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M2 6.5h8v-1H2z"/></svg>`;
@@ -49,6 +50,13 @@ export function TitleBar({ refresh }: Props) {
   const useTabsChrome = state.activePanel === "request" && state.openTabs.length > 0;
   const center = resolveTitleBarCenter();
   const sidebarLabel = state.sidebarVisible ? nav.hideSidebar : nav.showSidebar;
+  const functionsBtnRef = useRef<HTMLButtonElement>(null);
+  const [functionsOpen, setFunctionsOpen] = useState(false);
+
+  const closeFunctionsPopover = () => {
+    setFunctionsOpen(false);
+    functionsBtnRef.current?.focus();
+  };
 
   useEffect(() => {
     initWindowChrome();
@@ -104,6 +112,31 @@ export function TitleBar({ refresh }: Props) {
     </button>
   );
 
+  const functionsButton = (
+    <>
+      <button
+        ref={functionsBtnRef}
+        type="button"
+        className={`title-bar-settings title-bar-functions${functionsOpen ? " is-active" : ""}`}
+        data-title-bar-functions
+        title={nav.functions}
+        aria-label={nav.functions}
+        aria-haspopup="dialog"
+        aria-expanded={functionsOpen}
+        onClick={() => setFunctionsOpen((open) => !open)}
+      >
+        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconFunction }} />
+      </button>
+      {functionsOpen && (
+        <FunctionsPopover
+          anchor={functionsBtnRef.current}
+          onClose={closeFunctionsPopover}
+          refresh={refresh}
+        />
+      )}
+    </>
+  );
+
   const settingsButton = (
     <button
       type="button"
@@ -128,6 +161,7 @@ export function TitleBar({ refresh }: Props) {
         </div>
         <div className="title-bar-drag" data-tauri-drag-region aria-hidden="true" />
         <div className="title-bar-actions">
+          {functionsButton}
           {settingsButton}
           {controls}
         </div>
@@ -142,6 +176,7 @@ export function TitleBar({ refresh }: Props) {
         <span className="title-bar-center-text">{center}</span>
       </div>
       <div className="title-bar-actions">
+        {functionsButton}
         {settingsButton}
         {controls}
       </div>

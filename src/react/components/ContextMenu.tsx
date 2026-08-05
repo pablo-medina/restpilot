@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
-import { useState } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useState } from "react";
+import { computeMenuPosition, computeSubmenuOffset, type MenuAlign } from "../../components/popover-position";
 import { runTextMenuAction, copyResponseBodySelection } from "../../app/context-menu";
 import { openDescribePopover } from "../../app/describe-popover";
 import { menuShortcuts } from "../../app/menu-shortcuts";
@@ -25,6 +26,17 @@ import { bumpRenderGeneration } from "../render-bridge";
 function refresh() {
   bumpRenderGeneration();
 }
+
+/**
+ * Where `MenuSurface` placed the menu, shared with nested submenus.
+ *
+ * A submenu needs its parent item's viewport rect, but reading that with getBoundingClientRect
+ * right after the menu moved can return the previous position. The surface already knows its
+ * exact target, so submenus derive from it plus layout-stable offsets instead of re-measuring.
+ * A ref (not a value) so children read the latest position even though child effects run first.
+ */
+const MenuOriginContext = createContext<React.RefObject<{ left: number; top: number } | null> | null>(null);
+
 
 type MenuButtonProps = {
   label: string;
@@ -59,6 +71,38 @@ type MenuSubmenuProps = {
 
 function MenuSubmenu({ label, children }: MenuSubmenuProps) {
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // The panel defaults to the right of its parent item. Flip it to the left and slide it up
+  // when that would push it past the window edge.
+  //
+  const originRef = useContext(MenuOriginContext);
+
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    const item = el?.parentElement;
+    if (!el || !item) return;
+
+    const menu = item.offsetParent as HTMLElement | null;
+    const origin = originRef?.current;
+    // offsetLeft/offsetTop are relative to the menu box, so they stay valid wherever it sits.
+    const itemRect =
+      origin && menu
+        ? {
+            left: origin.left + item.offsetLeft,
+            right: origin.left + item.offsetLeft + item.offsetWidth,
+            top: origin.top + item.offsetTop - menu.scrollTop
+          }
+        : item.getBoundingClientRect();
+
+    const offset = computeSubmenuOffset(itemRect, {
+      width: el.offsetWidth,
+      height: el.offsetHeight
+    });
+
+    el.style.left = `${Math.round(offset.left)}px`;
+    el.style.top = `${Math.round(offset.top)}px`;
+  });
 
   return (
     <div
@@ -71,11 +115,66 @@ function MenuSubmenu({ label, children }: MenuSubmenuProps) {
         <span className="context-menu-submenu-arrow" aria-hidden="true">▸</span>
       </button>
       {open && (
-        <div className="context-menu context-menu-submenu-panel" data-react-portal="true">
+        <div ref={panelRef} className="context-menu context-menu-submenu-panel" data-react-portal="true">
           {children}
         </div>
       )}
     </div>
+  );
+}
+
+type MenuSurfaceProps = {
+  x: number;
+  y: number;
+  align: MenuAlign;
+  children: React.ReactNode;
+};
+
+/**
+ * Measures the menu, then places it so it always stays fully inside the window — flipping up
+ * near the bottom edge and left near the right edge, and scrolling if it is taller than the
+ * viewport. Rendering happens off-screen-hidden first so the measurement never flashes.
+ */
+function MenuSurface({ x, y, align, children }: MenuSurfaceProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const originRef = useRef<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    el.style.visibility = "hidden";
+    el.style.left = "0px";
+    el.style.top = "0px";
+    el.style.maxHeight = "";
+    el.style.overflowY = "";
+
+    const position = computeMenuPosition(
+      { x, y },
+      { width: el.offsetWidth, height: el.offsetHeight },
+      undefined,
+      align
+    );
+
+    if (position.maxHeight !== null) {
+      el.style.maxHeight = `${position.maxHeight}px`;
+      // Only scroll when clamped — a permanent overflow would clip open submenus.
+      el.style.overflowY = "auto";
+    }
+    const left = Math.round(position.left);
+    const top = Math.round(position.top);
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.visibility = "";
+    originRef.current = { left, top };
+  });
+
+  return (
+    <MenuOriginContext.Provider value={originRef}>
+      <div ref={ref} className="context-menu" data-react-portal="true">
+        {children}
+      </div>
+    </MenuOriginContext.Provider>
   );
 }
 
@@ -272,14 +371,14 @@ export function ContextMenu() {
 
   const anchorEnd = menu.kind === "response-copy" || menu.kind === "request-actions";
 
+  // Remount per menu opening: otherwise React reuses the instance and a submenu left open by the
+  // previous menu stays expanded, positioned against where that menu used to be.
+  const menuKey = `${menu.kind}:${menu.x}:${menu.y}`;
+
   return createPortal(
-    <div
-      className={`context-menu${anchorEnd ? " context-menu--anchor-end" : ""}`}
-      data-react-portal="true"
-      style={{ left: menu.x, top: menu.y }}
-    >
+    <MenuSurface key={menuKey} x={menu.x} y={menu.y} align={anchorEnd ? "end" : "start"}>
       {content}
-    </div>,
+    </MenuSurface>,
     document.body
   );
 }
