@@ -3,8 +3,10 @@ import { escapeAttribute, escapeHtml } from "../lib/content-display";
 import { t } from "../i18n";
 import type { AppFunction } from "../types";
 import { getActiveEnvironment } from "./environments";
+import { autoMapFunctionResult } from "./function-auto-map";
 import { invokeFunctionHttp, runExtractorOnResponse, runStandaloneJavascript } from "./function-http";
 import { scheduleSave } from "./persistence";
+import { pushToast } from "../react/components/Toast";
 import { setState, state } from "./state";
 
 function renderSidebarFunctionResultDialog(
@@ -144,6 +146,15 @@ export async function runSidebarFunctionAction(funcId: string, onRefresh: () => 
   }
 
   if (success) {
+    // Auto-map short-circuits the "which variable?" dialog entirely.
+    const mapped = autoMapFunctionResult(func, extractedResult);
+    if (mapped) {
+      const message = mapped.created ? t().functions.autoMapCreated : t().functions.autoMapUpdated;
+      pushToast(message.replace("{name}", mapped.name));
+      onRefresh();
+      return;
+    }
+
     await applicationDialog({
       title: t().functions.dialogResultTitle.replace("{name}", func.name),
       body: "",

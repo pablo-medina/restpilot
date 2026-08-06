@@ -56,6 +56,12 @@ export type AppFunction = {
   graphqlVariables?: string;
   auth: RequestAuth;
   extractorCode: string;
+  /** Store this function's result straight into `autoMapVariable` instead of asking. */
+  autoMapEnabled?: boolean;
+  /** Variable that receives the result; created when missing, overwritten when present. */
+  autoMapVariable?: string;
+  /** Where the auto-mapped variable is read and created. */
+  autoMapScope?: VariableScope;
   /** Last HTTP response from Send in the function workspace (not updated by extractor run). */
   lastHttpResponse?: ApiResponse | null;
   /** Last extractor script outcome (not updated by Send alone). */
@@ -109,6 +115,8 @@ export type UserSettings = {
 };
 
 export type DuplicateNamingMode = "copyOf" | "numbered";
+
+export type VariableScope = "global" | "environment";
 
 /** Ordered `[name, value]` pair — a list, not a map, so repeated header names
  * (e.g. two `Set-Cookie` headers) don't collapse into one. */

@@ -3372,6 +3372,120 @@ select,
   line-height: 1.4;
 }
 
+/* Per-function "auto-map result to a variable" block in the function workspace. */
+.function-auto-map {
+  /* Shared vertical rhythm for the block: label row, control row, status row. */
+  --auto-map-label-height: 16px;
+  --auto-map-control-height: 34px;
+  --auto-map-status-height: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.function-auto-map-toggle {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rp-text);
+  cursor: pointer;
+}
+
+.function-auto-map-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  min-height: 15px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  accent-color: #3d7f6f;
+  cursor: pointer;
+}
+
+.function-auto-map-hint {
+  margin: 0;
+  max-width: 60em;
+  color: var(--rp-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Status line under the fields. It is always in the DOM so that showing or
+   clearing the warning never changes the height of the block. */
+.function-auto-map-status {
+  grid-column: 1 / -1;
+  margin: 0;
+  min-height: var(--auto-map-status-height);
+  color: var(--rp-text-muted);
+  font-size: 11px;
+  line-height: var(--auto-map-status-height);
+}
+
+.function-auto-map-warning {
+  color: #b54a3a;
+}
+
+.function-auto-map-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+  column-gap: 12px;
+  row-gap: 4px;
+  margin-top: 4px;
+}
+
+.function-auto-map-fields.is-hidden {
+  display: none;
+}
+
+/* Label row and control row share a fixed track height in every column, so the
+   two fields line up regardless of the intrinsic height of input vs select. */
+.function-auto-map-field {
+  display: grid;
+  grid-template-rows: var(--auto-map-label-height) var(--auto-map-control-height);
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rp-text-muted);
+}
+
+.function-auto-map-field > span {
+  overflow: hidden;
+  line-height: var(--auto-map-label-height);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.function-auto-map-field input,
+.function-auto-map-field select {
+  width: 100%;
+  min-width: 0;
+  height: var(--auto-map-control-height);
+  padding: 0 10px;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--rp-radius);
+  background: var(--rp-surface);
+  color: var(--rp-text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+@media (max-width: 900px) {
+  .function-auto-map-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .describe-popover-field {
   display: flex;
   flex-direction: column;

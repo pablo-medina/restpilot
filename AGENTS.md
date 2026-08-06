@@ -150,6 +150,8 @@ RestPilot uses high-density Excel-style datagrids for Globals and Environment Va
 - User preferences live in `AppConfig.settings` (theme, language, proxy).
 - Proxy modes: `none`, `system`, `manual`. Default: `none`.
 
+Auto-mapping a function result to a variable is **per function**, not a user preference — see [Functions](#functions).
+
 ### Proxy (user settings)
 
 Settings UI: `src/react/components/SettingsPanel.tsx`. Persisted in `AppConfig.settings.proxy` via `proxyPayload()` in `src/app/persistence.ts`. Normalized in `normalizeProxySettings()` (`src/app/proxy-settings.ts`).
@@ -241,6 +243,16 @@ Settings UI: `src/react/components/SettingsPanel.tsx`. Persisted in `AppConfig.s
   - **Import from text** (`startImportFromText`): paste anything into one textarea; `detectImportSource()` (`src/import/detect.ts`) sniffs the format live as the user types and the same parser runs once they continue. Cheap sniffing only (curl prefix, then JSON with a `format`/`openapi`/`swagger`/`item`+`info` shape check) — it must stay fast enough to run on every keystroke.
   - Both funnel through `parseBySource()` and `finishImport()` in `source-dialog.ts` (shared error handling + the selection/target-folder preview dialog). Add new sources there, not by duplicating the dialog flow.
 - **Adding a new import source:** add the value to `ImportSource` (`src/import/types.ts`), write a `parseXxx(raw: string): ImportParseResult` module, add a detection branch in `detectImportSource()`, wire it into `parseBySource()`, and add `importSourceXxx`/`importSourceXxxDesc` labels to both i18n files (reused as the "Detected format: {format}" text in the text-import dialog too).
+
+## Functions
+
+### Result auto-mapping (per function)
+
+Each `AppFunction` carries its own auto-map config: `autoMapEnabled`, `autoMapVariable`, `autoMapScope` (`global` | `environment`), normalized in `normalizeFunction()`. Edited in the function workspace header (`FunctionAutoMapField` in `src/react/components/functions/FunctionAutoMapField.tsx`) — **do not turn this into a global setting**; different functions map to different variables.
+
+When a function has it enabled with a non-blank name, running it stores the extracted value in that variable (created when missing, overwritten without confirmation) and shows a toast instead of the "Inject into Variable" dialog — `autoMapFunctionResult()` in `src/app/function-auto-map.ts`, called from `runSidebarFunctionAction`. Environment scope falls back to globals when no environment is active. Functions without it keep the dialog.
+
+The variable-name field uses `VariableNameInput` (`src/react/components/VariableNameInput.tsx`), a bare-name autocomplete over `getEffectiveVariables()`; `VariableInput` remains the `${…}` template-completing input used by headers/params.
 
 ## Collection tree
 

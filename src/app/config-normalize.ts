@@ -109,6 +109,9 @@ function normalizeFunction(func: any): AppFunction {
     form,
     auth: normalizeRequestAuth(func.auth),
     extractorCode: String(func.extractorCode ?? `// Extract data from the response\nif (response.status === 200) {\n  return response.body;\n}\nreturn undefined;\n`),
+    autoMapEnabled: func.autoMapEnabled === true,
+    autoMapVariable: typeof func.autoMapVariable === "string" ? func.autoMapVariable.trim() : "",
+    autoMapScope: func.autoMapScope === "environment" ? "environment" : "global",
     lastHttpResponse: normalizeFunctionLastHttp(func),
     lastTestResult: normalizeFunctionLastTestResult(func)
   };

@@ -2,6 +2,7 @@ import { scheduleSave } from "../../../app/persistence";
 import { t } from "../../../i18n";
 import type { AppFunction } from "../../../types";
 import { switchFunctionType } from "../../lib/function-runtime";
+import { FunctionAutoMapField } from "./FunctionAutoMapField";
 import { FunctionHttpWorkspace } from "./FunctionHttpWorkspace";
 import { FunctionJavascriptWorkspace } from "./FunctionJavascriptWorkspace";
 
@@ -88,6 +89,8 @@ export function FunctionsWorkspace({ func, refresh }: Props) {
             }}
           />
         </label>
+
+        <FunctionAutoMapField func={func} refresh={refresh} />
       </div>
 
       {func.functionType === "javascript" ? (
