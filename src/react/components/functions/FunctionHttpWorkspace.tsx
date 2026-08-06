@@ -364,7 +364,7 @@ export function FunctionHttpWorkspace({ func, refresh }: Props) {
               Raw Response Body
             </span>
             {httpRes ? (
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#4b8b3b", fontFamily: "monospace" }}>HTTP {httpRes.status}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--rp-success)", fontFamily: "monospace" }}>HTTP {httpRes.status}</span>
             ) : null}
           </div>
 

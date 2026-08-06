@@ -19,7 +19,7 @@ export function FunctionPlayButton({ loading, onClick }: Props) {
         background: "transparent",
         border: "none",
         cursor: "pointer",
-        color: "#2ecc71",
+        color: "var(--rp-success)",
         padding: 4,
         borderRadius: 4,
         transition: "background 0.2s",
@@ -29,7 +29,7 @@ export function FunctionPlayButton({ loading, onClick }: Props) {
       }}
       onClick={onClick}
       onMouseEnter={(event) => {
-        event.currentTarget.style.background = "rgba(46, 204, 113, 0.1)";
+        event.currentTarget.style.background = "rgb(var(--rp-success-rgb) / 0.1)";
       }}
       onMouseLeave={(event) => {
         event.currentTarget.style.background = "transparent";

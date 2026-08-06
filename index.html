@@ -59,7 +59,10 @@
       }
     </style>
   </head>
-  <body class="is-booting">
+  <!-- spellcheck inherits, so switching it off here clears the red squiggles from every
+       URL, header and variable field at once. The few places that genuinely want it
+       (the description textarea) opt back in with spellcheck="true". -->
+  <body class="is-booting" spellcheck="false">
     <div id="app-boot" class="app-boot-card" role="status" aria-live="polite" aria-busy="true">
       <span class="app-boot-message">Loading... Please wait.</span>
       <div class="app-boot-spinner" aria-hidden="true"></div>

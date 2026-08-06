@@ -18,7 +18,10 @@ export function SecretInput({
   id,
   value,
   placeholder,
-  autoComplete = "off",
+  // Not "off": Chromium ignores it on password-type inputs and still shows the autofill
+  // dropdown plus the "save password?" prompt. These fields hold API credentials the
+  // user is composing, not a login for this app, so nothing here should be offered up.
+  autoComplete = "new-password",
   disabled,
   shellClassName = "",
   useVariableInput = false,

@@ -35,8 +35,26 @@ Settings → **Clear all data** must restore **factory defaults** for everything
 - Respect the existing visual language in `src/styles.css` (zen palette, glass rail, folder/request icons).
 - The UI is **React** (`src/react/`). Reuse existing components (`PairRow`, `CodeMirrorEditor`, `PopoverShell`, `AppDialog`) and CSS classes; do not add new string-template rendering.
 - New surfaces should support **light** (default) and **dark** themes via `[data-theme]` on `document.documentElement`.
-- **Palette tokens** (`--rp-*` in `src/styles.css`): shared names for light and dark. Light values live on `:root`; dark remaps the same tokens inside `[data-theme="dark"]`. Prefer `var(--rp-surface)`, `var(--rp-border)`, etc. in new rules. Legacy `--dark-*` aliases still exist for older selectors.
+- **Palette tokens** (`--rp-*` in `src/styles.css`): shared names for light and dark. Light values live on `:root`; dark remaps the same tokens inside `[data-theme="dark"]`. Prefer `var(--rp-surface)`, `var(--rp-border)`, etc. in new rules.
+- **Never write a colour literal** — not in `styles.css`, not in a React `style={{}}`, not in an injected HTML string. Outside the token blocks the sheet contains zero literals, and it needs to stay that way: a literal is invisible to `[data-theme]` and is the reason a new theme comes out half-broken. The token layer is three tiers:
+  1. **Primitive channels** — `--rp-accent-rgb`, `--rp-ink-rgb`, `--rp-paper-rgb`, `--rp-glass-rgb`, `--rp-shadow-rgb`, `--rp-danger-rgb`, `--rp-warning-rgb`, `--rp-success-rgb`. Every translucent tint is `rgb(var(--rp-x-rgb) / <alpha>)` rather than an `rgba()` literal, so a theme restates eight triplets and every tint follows. Pick by role, not by how light the colour looks: `--rp-ink-rgb` is "pressed into the surface" (dark on light, white on dark), `--rp-paper-rgb` is "lifted off it", and `--rp-glass-rgb` is the frosted panel layer (white on light, near-black on dark).
+  2. **Semantic tokens** — `--rp-bg`, `--rp-chrome*`, `--rp-surface*`, `--rp-text*`, `--rp-border*`, `--rp-input-*`, plus four status families. Accent, danger and warning each have the same three roles, and they are not interchangeable: `--rp-accent` is the fill, `--rp-accent-hover`/`-deep` are its gradient steps, and `--rp-accent-text` is the accent used as label text on a plain surface (darker on light, lighter on dark). `--rp-on-accent` / `--rp-on-danger` are the foregrounds *on* those fills. Syntax colours are `--rp-syntax-*`.
+  3. **Component tokens** — `--field-remove-*`, `--dialog-*`, `--http-method-*`, `--rp-select-chevron`, `--rp-radius`, `--title-bar-height`. Add one only when a component genuinely diverges from the semantic layer. `--dialog-primary-*` derive from the accent tokens; `--field-remove-*` and `--dialog-danger-bg` deliberately do not, because on dark the × and the destructive fill are a pink that diverges from the salmon used for danger text.
+- **Main components stay on five hue families**: neutral ramp, accent, danger, warning, success. `--http-method-*` badges and `--rp-syntax-*` are the deliberate exceptions — they encode data, not chrome. Anything that wants a sixth hue should use the accent or a neutral instead.
+- The `--rp-titlebar-close` red and its white glyph are an OS convention, not theme colours; they are not remapped on dark, so leave them out of palette work.
+- **To sanity-check a palette change**, override the tier-1 and tier-2 tokens in a scratch `:root` block and confirm the whole UI follows. Kill transitions first (`* { transition: none !important }`) — a transitioned `color` reports its old computed value until frames actually composite, which makes a working theme look broken.
 - When adding sections, tabs, or panels: match existing spacing and typography. Reuse `.segmented` / `.tabs` patterns instead of inventing new tab markup. **Before finishing**, walk through [Flex and panel layout](#flex-and-panel-layout) below—most layout bugs come from skipping it.
+
+### It is an app, not a web page
+
+The webview brings browser behaviour that has no place in a desktop app. What is already handled — do not undo it, and match it when adding surfaces:
+
+- **Context menu** is the app's own (`src/app.ts` cancels `contextmenu` globally); **devtools** are debug-only (no `devtools` feature in `Cargo.toml`, so release builds have none); **zoom hotkeys** are off via Tauri's `zoomHotkeysEnabled` default.
+- **`src/react/hooks/useNativeShell.ts`** suppresses reload, print, the webview find bar, view-source, ctrl-wheel zoom and stray file drops. It is release-only, so `tauri dev` keeps F5 as a development tool.
+- **Spellcheck is off on `<body>`** in `index.html` and inherits everywhere. Red squiggles under a URL or a header value are a browser tell. Opt back in per element (`spellcheck="true"`) only for prose fields.
+- **Never use `autoComplete="username"` / `"current-password"`** on auth fields. They are request parameters the user is composing, not a login for this app, and those values hand them to the webview's password manager. `SecretInput` defaults to `new-password`, which is the value that actually suppresses both the autofill dropdown and the save prompt.
+- **Scrollbars** are styled for every theme, not scoped to dark — the webview default is instantly recognisable as a web page.
+- **Persistence is files, never `localStorage`/`sessionStorage`** — see [Persistence](#persistence).
 
 ### Flex and panel layout
 
@@ -260,13 +278,16 @@ The variable-name field uses `VariableNameInput` (`src/react/components/Variable
 
 ## Startup and performance
 
-- **Release builds** are the benchmark for startup UX: the static shell in `index.html` paints immediately; `src/bootstrap.ts` applies theme/locale and loads config while `src/app.ts` is fetched as a separate chunk. CodeMirror loads only via `src/app/editor-runtime.ts` when editors mount.
+- **Release builds** are the benchmark for startup UX: the static shell in `index.html` paints immediately, then `src/bootstrap.ts` fires both startup IPC reads in parallel, applies theme/locale, mounts React and runs `startApp`.
+- **`src/bootstrap.ts` imports the UI statically, on purpose.** A `import()` there hides `react/main`, `app.ts` and `styles.css` from `index.html`, so Vite emits no `modulepreload`/`<link rel=stylesheet>` and the browser cannot start fetching them until the entry chunk has executed — that serialised waterfall is what left release builds blank for seconds. Keep the UI in the entry graph and verify after any change that `dist/index.html` still carries both the script tag and the stylesheet link.
+- **Nothing large may be awaited before `finishBoot()`.** CodeMirror is warmed with a floating `preloadEditorRuntime()`; each editor host mounts itself when the chunk lands (`CodeMirrorEditor`), so awaiting it only delays the whole window by ~390 kB. `finishBoot()` runs *after* `render()` so the first visible frame is already populated.
 - **`tauri dev` is expected to feel much slower** (unbundled modules, HMR, no minification). Do not treat dev startup time as a regression if release/`tauri build` feels instant — that is the target for the shipped app.
 - If the user reports a blank screen for several seconds, verify **release** first before chasing dev-only slowness.
 
 ## Source layout
 
-- `src/bootstrap.ts` — minimal entry: startup prefs, parallel config load, dynamic `import("./app")`.
+- `src/bootstrap.ts` — entry: parallel startup-prefs + config IPC, then `mountReactApp()` and `startApp()` (static imports — see [Startup and performance](#startup-and-performance)).
+- `src/react/hooks/useNativeShell.ts` — suppresses leftover browser behaviour (reload, print, find, zoom, file drops) in release builds so the window feels native.
 - `src/app.ts` — startup sequence, context-menu handlers and a few app-level actions. React owns rendering (`src/react/App.tsx`).
 - `src/main.ts` — re-exports `bootstrap` (Vite entry compatibility).
 - `src/app/state.ts` — shared `state`, IDs, collection lookups, formatting helpers.

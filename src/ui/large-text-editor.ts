@@ -2,7 +2,7 @@ import { tryPrettifyJson } from "../lib/content-display";
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
 import { javascript } from "@codemirror/lang-javascript";
-import { defaultHighlightStyle, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { history, historyKeymap } from "@codemirror/commands";
 import { tags } from "@lezer/highlight";
 import { EditorSelection, EditorState, Transaction, type ChangeSpec } from "@codemirror/state";
@@ -19,23 +19,27 @@ export type BodyEditorOptions = {
   onSend?: () => void;
 };
 
-const darkHighlightStyle = HighlightStyle.define([
-  { tag: tags.propertyName, color: "#b4d4e8" },
-  { tag: tags.string, color: "#f0a8c8" },
-  { tag: tags.number, color: "#e8a868" },
-  { tag: tags.bool, color: "#c4a0f0" },
-  { tag: tags.null, color: "#9a8cb8" },
-  { tag: tags.keyword, color: "#c4a0f0" },
-  { tag: tags.comment, color: "#7a756c", fontStyle: "italic" },
-  { tag: tags.punctuation, color: "#8a847c" },
-  { tag: tags.bracket, color: "#8a847c" },
-  { tag: tags.tagName, color: "#b4d4e8" },
-  { tag: tags.attributeName, color: "#f0a8c8" }
+/** Highlight colours come from the `--rp-syntax-*` tokens rather than a hardcoded
+ * light/dark pair: CodeMirror writes these values straight into its stylesheet, so
+ * the custom properties resolve per theme and any future theme is picked up without
+ * touching this file. It also keeps the editor in step with the `.json-*` / `.xml-*`
+ * classes the response viewer uses, which read the same tokens. */
+const highlightStyle = HighlightStyle.define([
+  { tag: tags.propertyName, color: "var(--rp-syntax-key)" },
+  { tag: tags.string, color: "var(--rp-syntax-string)" },
+  { tag: tags.number, color: "var(--rp-syntax-number)" },
+  { tag: tags.bool, color: "var(--rp-syntax-bool)" },
+  { tag: tags.null, color: "var(--rp-syntax-null)" },
+  { tag: tags.keyword, color: "var(--rp-syntax-bool)" },
+  { tag: tags.comment, color: "var(--rp-syntax-comment)", fontStyle: "italic" },
+  { tag: tags.punctuation, color: "var(--rp-syntax-punctuation)" },
+  { tag: tags.bracket, color: "var(--rp-syntax-punctuation)" },
+  { tag: tags.tagName, color: "var(--rp-syntax-key)" },
+  { tag: tags.attributeName, color: "var(--rp-syntax-string)" }
 ]);
 
 function syntaxTheme() {
-  const dark = document.documentElement.dataset.theme === "dark";
-  return syntaxHighlighting(dark ? darkHighlightStyle : defaultHighlightStyle, { fallback: true });
+  return syntaxHighlighting(highlightStyle, { fallback: true });
 }
 
 function codeEditorTheme() {

@@ -27,8 +27,8 @@ function renderSidebarFunctionResultDialog(
     }
     outcomeHtml = `
       <div style="margin-bottom: 16px; font-family: monospace; font-size: 13px; text-align: left;">
-        <div style="font-weight: 600; color: #2ecc71; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; box-shadow: 0 0 8px #2ecc71;"></span>
+        <div style="font-weight: 600; color: var(--rp-success); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rp-success); box-shadow: 0 0 8px rgb(var(--rp-success-rgb) / 0.8);"></span>
           ${escapeHtml(t().functions.dialogSuccessHeader)}
         </div>
         <pre style="margin: 0; padding: 10px; background: var(--rp-surface-muted); border: 1px solid var(--rp-border); border-radius: 6px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--rp-text); font-family: inherit;">${escapeHtml(formattedVal)}</pre>
@@ -37,11 +37,11 @@ function renderSidebarFunctionResultDialog(
   } else {
     outcomeHtml = `
       <div style="margin-bottom: 16px; font-family: monospace; font-size: 13px; text-align: left;">
-        <div style="font-weight: 600; color: #b54a3a; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #b54a3a; box-shadow: 0 0 8px #b54a3a;"></span>
+        <div style="font-weight: 600; color: var(--rp-danger-text); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rp-danger-text); box-shadow: 0 0 8px rgb(var(--rp-danger-rgb) / 0.8);"></span>
           ${escapeHtml(t().functions.dialogFailureHeader)}
         </div>
-        <pre style="margin: 0; padding: 10px; background: rgba(181, 74, 58, 0.05); border: 1px solid rgba(181, 74, 58, 0.2); border-radius: 6px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; color: #b54a3a; font-family: inherit;">${escapeHtml(error || "Unknown error")}</pre>
+        <pre style="margin: 0; padding: 10px; background: rgb(var(--rp-danger-rgb) / 0.05); border: 1px solid rgb(var(--rp-danger-rgb) / 0.2); border-radius: 6px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; color: var(--rp-danger-text); font-family: inherit;">${escapeHtml(error || "Unknown error")}</pre>
       </div>
     `;
   }

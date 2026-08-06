@@ -1,16 +1,38 @@
 :root {
   color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Segoe UI Variable Display first, for Fluent-native text rendering on Windows. */
+  font-family: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 
+  /* ─── Tier 1 · primitive channels ────────────────────────────────────────────
+     The whole UI is built from five hue families: a neutral ink/paper ramp plus
+     accent, danger, warning and success. Every translucent tint derives from one
+     of these triplets via `rgb(var(--x-rgb) / <alpha>)`, so a new theme restates
+     seven triplets instead of hunting down hundreds of rgba() literals.
+     Never write a literal colour below this block — add or reuse a token. */
+  --rp-accent-rgb: 61 127 111;
+  --rp-ink-rgb: 52 48 42; /* the "pressed into the surface" channel: dark on light, white on dark */
+  --rp-paper-rgb: 255 252 246; /* the "lifted off the surface" channel: warm white on light, bone on dark */
+  --rp-shadow-rgb: 28 26 23;
+  /* Translucent panels (popovers, the sidebar, glassy field fills). Distinct from
+     --rp-paper-rgb: this one is the frosted layer, and on dark it goes near-black
+     rather than bone, so the same `rgb(var(--rp-glass-rgb) / a)` works in both. */
+  --rp-glass-rgb: 255 255 255;
+  --rp-danger-rgb: 166 64 50;
+  --rp-warning-rgb: 179 126 61;
+  --rp-success-rgb: 46 204 113;
+
+  /* ─── Tier 2 · semantic palette ───────────────────────────────────────────── */
   /* Light theme palette — professional neutral + sage accent */
   --rp-bg: #f0efec;
   --rp-chrome: #e8e7e4;
   --rp-chrome-elevated: #f4f3f0;
   --rp-surface: #ffffff;
   --rp-surface-muted: #f8f7f5;
+  /* Sits above --rp-surface: dialogs and the active segmented tab. */
+  --rp-surface-raised: #ffffff;
   --rp-text: #1c1b19;
   --rp-text-secondary: #4a4744;
   --rp-text-muted: #6f6b65;
@@ -19,17 +41,51 @@
   --rp-border-subtle: #e8e6e2;
   --rp-accent: #3d7f6f;
   --rp-accent-strong: #2f6559;
-  --rp-accent-soft: rgba(61, 127, 111, 0.08);
-  --rp-accent-soft-md: rgba(61, 127, 111, 0.12);
-  --rp-accent-soft-strong: rgba(61, 127, 111, 0.16);
-  --rp-shadow-card: 0 1px 2px rgba(28, 26, 23, 0.04), 0 6px 24px rgba(28, 26, 23, 0.06);
-  --rp-shadow-popover: 0 4px 20px rgba(28, 26, 23, 0.1);
+  --rp-accent-soft: rgb(var(--rp-accent-rgb) / 0.08);
+  --rp-accent-soft-md: rgb(var(--rp-accent-rgb) / 0.12);
+  --rp-accent-soft-strong: rgb(var(--rp-accent-rgb) / 0.16);
+  /* Accent as label text on a plain surface — darker than --rp-accent on light so it
+     stays readable, lighter than it on dark. Not the same thing as --rp-accent. */
+  --rp-accent-text: #2f5f54;
+  /* Filled-accent surfaces (the send button gradient runs hover → base → deep). */
+  --rp-accent-hover: #4f9686;
+  --rp-accent-deep: #356f62;
+  --rp-on-accent: #f8f6f1;
+  --rp-shadow-card: 0 1px 2px rgb(var(--rp-shadow-rgb) / 0.04), 0 6px 24px rgb(var(--rp-shadow-rgb) / 0.06);
+  --rp-shadow-popover: 0 4px 20px rgb(var(--rp-shadow-rgb) / 0.1);
   --rp-input-bg: #ffffff;
   --rp-input-border: #d8d4ce;
-  --rp-hover: rgba(52, 48, 42, 0.05);
+  --rp-hover: rgb(var(--rp-ink-rgb) / 0.05);
+  /* Status hues. Danger is the destructive/error family; --field-remove-* below is the
+     narrower "× removes this row" control and deliberately diverges on dark. */
+  --rp-danger: #a64032;
+  --rp-danger-hover: #b54a3c;
+  --rp-danger-text: #b54a3a;
+  --rp-on-danger: #ffffff;
+  /* Same three roles as the accent: base fill/icon, emphasised state, and the darker
+     step used when the colour becomes label text on its own tint. */
+  --rp-warning: #b88b44;
+  --rp-warning-strong: #c4973a;
+  --rp-warning-text: #8a5d23;
+  --rp-success: #2e7d32;
+  --rp-success-strong: #256428;
+  /* OS convention, not a theme colour: the close button is red with white glyph on
+     every Windows app, in both light and dark. Deliberately not remapped below. */
+  --rp-titlebar-close: #c42b1c;
+  --rp-titlebar-close-fg: #ffffff;
 
   background: var(--rp-bg);
   color: var(--rp-text);
+
+  /* Referenced by inputs, selects and panels that were silently rendering square:
+     `var(--rp-radius)` had no definition anywhere, so the declaration was dropped. */
+  /* A `select` cannot tint its own background-image, so the chevron's stroke has to be
+     baked into the data URI. Keeping it as a token is what lets a theme restyle it —
+     the colour matches --rp-text-muted. */
+  --rp-select-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236f6b65' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  --rp-radius: 8px;
+  --rp-border-strong: var(--rp-border);
+  --font-mono: "Cascadia Code", "Consolas", ui-monospace, monospace;
 
   --title-bar-height: 32px;
   --panel-inset-block: 12px;
@@ -37,19 +93,34 @@
   --workspace-panel-inset-block: 18px;
   --workspace-panel-inset-inline: 22px;
   /* Delete / remove controls. Red on light, pink on dark (remapped in [data-theme="dark"]).
-     Always use these tokens — never a literal red — so both themes stay in sync. */
+     Always use these tokens — never a literal red — so both themes stay in sync.
+     These deliberately do NOT derive from --rp-danger: on dark the × is a pink that
+     diverges from the salmon used for danger text. A new theme restates these three. */
   --field-remove-color: #b54a3a;
   --field-remove-color-hover: #963d32;
-  --field-remove-tint: rgba(181, 74, 58, 0.14);
+  --field-remove-tint: rgb(var(--rp-danger-rgb) / 0.14);
   --field-remove-size: 28px;
-  /* Filled dialog buttons. Remapped in [data-theme="dark"] — a flat accent that reads on the
-     dark surface, with dark text for contrast. */
-  --dialog-primary-bg: #3d7f6f;
-  --dialog-primary-bg-hover: #346d5f;
-  --dialog-primary-fg: #ffffff;
+  /* Filled dialog buttons — derived, so overriding the accent/danger semantics is
+     enough to retheme them. Only --dialog-danger-bg keeps its own value, for the same
+     reason as --field-remove-color above. */
+  --dialog-primary-bg: var(--rp-accent);
+  --dialog-primary-bg-hover: var(--rp-accent-strong);
+  --dialog-primary-fg: var(--rp-on-accent);
   --dialog-danger-bg: #a64032;
-  --dialog-danger-fg: #ffffff;
+  --dialog-danger-fg: var(--rp-on-danger);
   --field-remove-font-size: 17px;
+  /* Syntax highlighting — a deliberate exception to the five-family rule: these encode
+     token types in data, not chrome, so they need hues that stay distinguishable from
+     each other. Read by both `.json-*`/`.xml-*` rules and the CodeMirror highlight
+     style in `src/ui/large-text-editor.ts`; a new theme must restate all seven. */
+  --rp-syntax-key: #2f5f54;
+  --rp-syntax-string: var(--rp-warning-text);
+  --rp-syntax-number: #8f4c77;
+  --rp-syntax-bool: #7c4fa8;
+  --rp-syntax-null: #6f6b65;
+  --rp-syntax-comment: #8f8983;
+  --rp-syntax-punctuation: #6f6b65;
+
   --http-method-get: #22c55e;
   --http-method-post: #3b82f6;
   --http-method-put: #f97316;
@@ -69,8 +140,8 @@ body {
   height: 100vh;
   overflow: hidden;
   background:
-    linear-gradient(165deg, rgba(61, 127, 111, 0.05) 0%, transparent 44%),
-    linear-gradient(220deg, rgba(28, 26, 23, 0.02) 0%, transparent 40%),
+    linear-gradient(165deg, rgb(var(--rp-accent-rgb) / 0.05) 0%, transparent 44%),
+    linear-gradient(220deg, rgb(var(--rp-shadow-rgb) / 0.02) 0%, transparent 40%),
     var(--rp-bg);
   font-size: 13px;
   user-select: none;
@@ -132,13 +203,13 @@ button {
 }
 
 .mini-btn:hover {
-  background: rgba(28, 26, 23, 0.06);
+  background: rgb(var(--rp-shadow-rgb) / 0.06);
   color: var(--rp-text-secondary);
 }
 
 .mini-btn.danger:hover {
-  background: rgba(166, 64, 50, 0.1);
-  color: #a64032;
+  background: rgb(var(--rp-danger-rgb) / 0.1);
+  color: var(--rp-danger);
 }
 
 /* × remove control on field rows (params, headers, form) — see AGENTS.md */
@@ -185,12 +256,12 @@ button {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #6f6a62;
+  color: var(--rp-text-muted);
   cursor: pointer;
 }
 
 .icon-btn:hover {
-  color: #37332d;
+  color: var(--rp-text);
 }
 
 .icon-btn svg {
@@ -303,7 +374,7 @@ button {
   border: 0;
   border-left: 1px solid transparent;
   background: transparent;
-  color: #6f6a62;
+  color: var(--rp-text-muted);
   cursor: pointer;
   pointer-events: auto;
   position: relative;
@@ -319,7 +390,7 @@ button {
 
 .title-bar-settings:hover,
 .title-bar-settings.is-active {
-  background: rgba(61, 127, 111, 0.1);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
   color: var(--rp-accent-strong);
 }
 
@@ -333,7 +404,7 @@ button {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #6f6a62;
+  color: var(--rp-text-muted);
   cursor: default;
   -webkit-app-region: no-drag;
   app-region: no-drag;
@@ -346,13 +417,13 @@ button {
 }
 
 .title-bar-control:hover {
-  background: rgba(52, 48, 42, 0.08);
-  color: #37332d;
+  background: rgb(var(--rp-ink-rgb) / 0.08);
+  color: var(--rp-text);
 }
 
 .title-bar-control--close:hover {
-  background: #c42b1c;
-  color: #fff;
+  background: var(--rp-titlebar-close);
+  color: var(--rp-titlebar-close-fg);
 }
 
 .title-bar--macos .title-bar-controls {
@@ -462,7 +533,7 @@ button {
   min-height: 0;
   overflow: hidden;
   border-right: 1px solid var(--rp-border);
-  background: var(--rp-surface-muted);
+  /* Fill comes from the glassmorphism block further down (translucent + backdrop blur). */
 }
 
 .collection-sidebar-toolbar {
@@ -481,8 +552,8 @@ button {
   min-height: 0;
   flex-direction: column;
   padding: 14px;
-  border-right: 1px solid rgba(52, 48, 42, 0.1);
-  background: rgba(255, 252, 246, 0.72);
+  border-right: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
+  background: rgb(var(--rp-paper-rgb) / 0.72);
   backdrop-filter: blur(18px);
 }
 
@@ -498,11 +569,11 @@ button {
   height: 28px;
   min-width: 28px;
   min-height: 28px;
-  color: #3d7f6f;
+  color: var(--rp-accent);
 }
 
 .tool-icon:hover {
-  color: #2f5f54;
+  color: var(--rp-accent-text);
 }
 
 .quiet-button {
@@ -534,7 +605,7 @@ button {
   padding-left: calc(4px + var(--depth) * 14px);
   border: 1px solid transparent;
   border-radius: 4px;
-  color: #37332d;
+  color: var(--rp-text);
   font-size: 12px;
   user-select: none;
 }
@@ -572,53 +643,53 @@ button {
 
 /* Tree selection (keyboard / collection focus) */
 .tree-row.is-selected {
-  border-color: rgba(61, 127, 111, 0.22);
-  background: rgba(255, 255, 255, 0.78);
+  border-color: rgb(var(--rp-accent-rgb) / 0.22);
+  background: rgb(var(--rp-glass-rgb) / 0.78);
 }
 
 /* Request with the visible editor tab open */
 .tree-row.is-open-tab:not(.is-selected) {
-  border-color: rgba(61, 127, 111, 0.12);
-  background: rgba(61, 127, 111, 0.07);
-  box-shadow: inset 3px 0 0 #3d7f6f;
+  border-color: rgb(var(--rp-accent-rgb) / 0.12);
+  background: rgb(var(--rp-accent-rgb) / 0.07);
+  box-shadow: inset 3px 0 0 var(--rp-accent);
 }
 
 .tree-row.is-selected.is-open-tab {
-  border-color: rgba(61, 127, 111, 0.28);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: inset 3px 0 0 #3d7f6f;
+  border-color: rgb(var(--rp-accent-rgb) / 0.28);
+  background: rgb(var(--rp-glass-rgb) / 0.78);
+  box-shadow: inset 3px 0 0 var(--rp-accent);
 }
 
 .tree-row:focus-visible {
-  outline: 2px solid rgba(61, 127, 111, 0.35);
+  outline: 2px solid rgb(var(--rp-accent-rgb) / 0.35);
   outline-offset: -1px;
 }
 
 .tree-row.dragging {
   opacity: 0.35;
-  background: rgba(61, 127, 111, 0.06);
+  background: rgb(var(--rp-accent-rgb) / 0.06);
 }
 
 .tree-row.drop-into {
-  border-color: rgba(61, 127, 111, 0.55);
-  background: rgba(61, 127, 111, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(61, 127, 111, 0.28);
+  border-color: rgb(var(--rp-accent-rgb) / 0.55);
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+  box-shadow: inset 0 0 0 1px rgb(var(--rp-accent-rgb) / 0.28);
 }
 
 .tree-row.drop-after{
-  background: rgba(61, 127, 111, 0.08);
-  box-shadow: inset 0 -3px 0 rgba(61, 127, 111, 0.65);
+  background: rgb(var(--rp-accent-rgb) / 0.08);
+  box-shadow: inset 0 -3px 0 rgb(var(--rp-accent-rgb) / 0.65);
 }
 
 .tree-row.drop-before {
-  background: rgba(61, 127, 111, 0.08);
-  box-shadow: inset 0 3px 0 rgba(61, 127, 111, 0.65);
+  background: rgb(var(--rp-accent-rgb) / 0.08);
+  box-shadow: inset 0 3px 0 rgb(var(--rp-accent-rgb) / 0.65);
 }
 
 .pointer-drag-ghost.tree-row {
-  border: 1px solid rgba(61, 127, 111, 0.35);
-  background: rgba(255, 252, 246, 0.96);
-  box-shadow: 0 10px 28px rgba(52, 48, 42, 0.22);
+  border: 1px solid rgb(var(--rp-accent-rgb) / 0.35);
+  background: rgb(var(--rp-paper-rgb) / 0.96);
+  box-shadow: 0 10px 28px rgb(var(--rp-ink-rgb) / 0.22);
   opacity: 0.96;
   z-index: 10000;
 }
@@ -644,12 +715,12 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #b88b44;
+  color: var(--rp-warning);
 }
 
 .tree-row.is-selected .tree-item-icon,
 .tree-row.is-open-tab .tree-item-icon {
-  color: #c4973a;
+  color: var(--rp-warning-strong);
 }
 
 .tree-method {
@@ -724,10 +795,10 @@ button {
 .tree-rename-input {
   height: 20px;
   padding: 0 5px;
-  border: 1px solid rgba(61, 127, 111, 0.45);
+  border: 1px solid rgb(var(--rp-accent-rgb) / 0.45);
   border-radius: 3px;
-  background: #fff;
-  color: #25231f;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
   font-size: 12px;
   outline: none;
 }
@@ -753,7 +824,7 @@ button {
 }
 
 .tree-row:hover:not(.is-editing) {
-  background: rgba(52, 48, 42, 0.05);
+  background: rgb(var(--rp-ink-rgb) / 0.05);
   --tree-row-bg: #efede8;
 }
 
@@ -768,7 +839,7 @@ button {
 
 .tree-row.is-selected,
 .tree-row.is-open-tab {
-  --tree-row-bg: rgba(255, 255, 255, 0.78);
+  --tree-row-bg: rgb(var(--rp-glass-rgb) / 0.78);
 }
 
 .tree-row:hover .tree-row-actions,
@@ -789,7 +860,7 @@ button {
 }
 
 .tree-action-btn:hover {
-  background: rgba(52, 48, 42, 0.1);
+  background: rgb(var(--rp-ink-rgb) / 0.1);
   color: var(--rp-text);
 }
 
@@ -799,21 +870,21 @@ button {
 }
 
 .func-play-btn {
-  color: #2ecc71;
+  color: var(--rp-success);
 }
 
 .func-play-btn:hover {
-  color: #27ae60;
+  color: var(--rp-success-strong);
 }
 
 [data-theme="dark"] .tree-rename-input {
-  background: rgba(24, 23, 21, 0.95);
-  color: #ece7dc;
-  border-color: rgba(61, 127, 111, 0.5);
+  background: rgb(var(--rp-glass-rgb) / 0.95);
+  color: var(--rp-text);
+  border-color: rgb(var(--rp-accent-rgb) / 0.5);
 }
 
 [data-theme="dark"] .tree-row:hover:not(.is-editing) {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgb(var(--rp-ink-rgb) / 0.05);
   --tree-row-bg: #2a2926;
 }
 
@@ -824,21 +895,21 @@ button {
 
 [data-theme="dark"] .tree-row.is-selected,
 [data-theme="dark"] .tree-row.is-open-tab {
-  --tree-row-bg: rgba(34, 33, 30, 0.96);
+  --tree-row-bg: rgb(var(--rp-glass-rgb) / 0.96);
 }
 
 [data-theme="dark"] .tree-action-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--dark-text);
+  background: rgb(var(--rp-ink-rgb) / 0.1);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .tree-item-icon {
-  color: #c4973a;
+  color: var(--rp-warning);
 }
 
 [data-theme="dark"] .tree-row.is-selected .tree-item-icon,
 [data-theme="dark"] .tree-row.is-open-tab .tree-item-icon {
-  color: #d4a85a;
+  color: var(--rp-warning-strong);
 }
 
 .workspace {
@@ -906,20 +977,20 @@ button {
   flex-shrink: 0;
   width: 26px;
   border: none;
-  border-right: 1px solid rgba(52, 48, 42, 0.08);
+  border-right: 1px solid rgb(var(--rp-ink-rgb) / 0.08);
   background: transparent;
-  color: #6f6a62;
+  color: var(--rp-text-muted);
   cursor: pointer;
 }
 
 .tab-strip-wrap .tab-scroll-forward {
   border-right: none;
-  border-left: 1px solid rgba(52, 48, 42, 0.08);
+  border-left: 1px solid rgb(var(--rp-ink-rgb) / 0.08);
 }
 
 .tab-scroll-btn:hover:not(.is-hidden) {
-  color: #3d7f6f;
-  background: rgba(61, 127, 111, 0.1);
+  color: var(--rp-accent);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
 }
 
 .tab-scroll-btn.is-hidden {
@@ -932,7 +1003,7 @@ button {
   gap: 6px;
   flex-shrink: 0;
   padding: 0 8px 0 6px;
-  border-left: 1px solid rgba(52, 48, 42, 0.1);
+  border-left: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
   position: relative;
   z-index: 2;
   pointer-events: auto;
@@ -963,23 +1034,23 @@ button {
   gap: 4px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid rgba(61, 127, 111, 0.34);
+  border: 1px solid rgb(var(--rp-accent-rgb) / 0.34);
   border-radius: 8px;
-  background: rgba(61, 127, 111, 0.1);
-  color: #3d7f6f;
+  background: rgb(var(--rp-accent-rgb) / 0.1);
+  color: var(--rp-accent);
   font-size: 12px;
   font-weight: 680;
   cursor: pointer;
 }
 
 .tab-actions-trigger:hover {
-  background: rgba(61, 127, 111, 0.16);
-  color: #2f5f54;
-  border-color: rgba(61, 127, 111, 0.48);
+  background: rgb(var(--rp-accent-rgb) / 0.16);
+  color: var(--rp-accent-text);
+  border-color: rgb(var(--rp-accent-rgb) / 0.48);
 }
 
 .tab-actions-trigger.has-stream {
-  box-shadow: inset 0 0 0 1px rgba(61, 127, 111, 0.22);
+  box-shadow: inset 0 0 0 1px rgb(var(--rp-accent-rgb) / 0.22);
 }
 
 .tab-actions-label {
@@ -1003,7 +1074,7 @@ button {
   height: 36px;
   padding: 0 12px;
   border: none;
-  border-right: 1px solid rgba(52, 48, 42, 0.08);
+  border-right: 1px solid rgb(var(--rp-ink-rgb) / 0.08);
   border-radius: 0;
   background: transparent;
   color: var(--rp-text-muted);
@@ -1028,7 +1099,7 @@ button {
   width: 3px;
   border-radius: 2px;
   background: var(--rp-accent);
-  box-shadow: 0 0 0 1px rgba(61, 127, 111, 0.2);
+  box-shadow: 0 0 0 1px rgb(var(--rp-accent-rgb) / 0.2);
   pointer-events: none;
   z-index: 5;
 }
@@ -1049,21 +1120,21 @@ button {
 }
 
 .pointer-drag-ghost.request-tab {
-  border: 1px solid rgba(61, 127, 111, 0.3);
+  border: 1px solid rgb(var(--rp-accent-rgb) / 0.3);
   border-radius: 6px;
   background: var(--rp-bg);
-  box-shadow: 0 8px 24px rgba(52, 48, 42, 0.2);
+  box-shadow: 0 8px 24px rgb(var(--rp-ink-rgb) / 0.2);
   color: var(--rp-text);
 }
 
 .request-tab:hover {
-  background: rgba(255, 255, 255, 0.45);
+  background: rgb(var(--rp-glass-rgb) / 0.45);
   color: var(--rp-text-secondary);
 }
 
+/* The active-tab indicator is the ::after bar defined further down, not an inset shadow. */
 .request-tab.active {
   background: var(--rp-bg);
-  box-shadow: inset 0 2px 0 var(--rp-accent);
   color: var(--rp-text);
 }
 
@@ -1083,15 +1154,9 @@ button {
   min-width: 22px;
   min-height: 22px;
   opacity: 0;
-  color: var(--field-remove-color);
   font-size: 15px;
   font-weight: 800;
   line-height: 1;
-}
-
-.request-tab:hover .tab-close,
-.request-tab.active .tab-close {
-  opacity: 1;
 }
 
 .request-tab:hover .tab-close:hover,
@@ -1147,11 +1212,11 @@ button {
   border: 1px solid var(--rp-input-border);
   border-radius: 10px;
   background: var(--rp-input-bg);
-  box-shadow: 0 1px 2px rgba(28, 26, 23, 0.04);
+  box-shadow: 0 1px 2px rgb(var(--rp-shadow-rgb) / 0.04);
 }
 
 .url-send-field:focus-within {
-  border-color: rgba(61, 127, 111, 0.45);
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
   box-shadow: 0 0 0 3px var(--rp-accent-soft-md);
 }
 
@@ -1170,6 +1235,10 @@ button {
   box-shadow: none;
 }
 
+/* Fill, border, weight, letter-spacing and text-transform come from the "Solid Modern
+   Fluent Action Fill" block further down, which needs !important to beat .danger-button
+   (same specificity, declared later) on the cancel variant. Declaring them here too
+   only produced dead rules. */
 .url-send-btn {
   flex-shrink: 0;
   align-self: stretch;
@@ -1177,27 +1246,13 @@ button {
   height: auto;
   padding: 0 18px;
   border: 0;
-  border-left: 1px solid rgba(36, 90, 78, 0.35);
   border-radius: 0;
-  background: linear-gradient(180deg, #4f9686 0%, #3d7f6f 55%, #356f62 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
-  color: #f8f6f1;
+  color: var(--rp-on-accent);
   font-size: 13px;
-  font-weight: 720;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.url-send-btn:hover {
-  background: linear-gradient(180deg, #5aa193 0%, #45887a 55%, #3a7769 100%);
 }
 
 .url-send-btn--cancel {
   min-width: 88px;
-  border-left-color: rgba(120, 40, 32, 0.4);
-  background: linear-gradient(180deg, #b54a3c 0%, #a64032 100%);
-  text-transform: none;
-  font-weight: 680;
 }
 
 .env-chip {
@@ -1207,10 +1262,10 @@ button {
   max-width: 168px;
   height: 36px;
   padding: 0 11px;
-  border: 1px solid rgba(52, 48, 42, 0.14);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.14);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #3d7f6f;
+  background: rgb(var(--rp-glass-rgb) / 0.72);
+  color: var(--rp-accent);
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
@@ -1218,14 +1273,14 @@ button {
 }
 
 .env-chip:hover {
-  border-color: rgba(61, 127, 111, 0.35);
-  background: rgba(61, 127, 111, 0.08);
+  border-color: rgb(var(--rp-accent-rgb) / 0.35);
+  background: rgb(var(--rp-accent-rgb) / 0.08);
 }
 
 .env-chip.is-active {
-  border-color: rgba(61, 127, 111, 0.45);
-  background: rgba(61, 127, 111, 0.14);
-  color: #2f5f54;
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+  color: var(--rp-accent-text);
 }
 
 .env-chip-label {
@@ -1244,15 +1299,15 @@ button {
   height: 36px;
   min-width: 36px;
   min-height: 36px;
-  border: 1px solid rgba(52, 48, 42, 0.12);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.12);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.58);
+  background: rgb(var(--rp-glass-rgb) / 0.58);
 }
 
 .request-tool-btn.is-active {
-  border-color: rgba(61, 127, 111, 0.45);
-  background: rgba(61, 127, 111, 0.14);
-  color: #2f5f54;
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+  color: var(--rp-accent-text);
 }
 
 .app-popover {
@@ -1264,7 +1319,7 @@ button {
   max-height: calc(100vh - 16px);
   border: 1px solid var(--rp-border);
   border-radius: 10px;
-  background: var(--rp-surface);
+  /* Fill comes from the glassmorphism block further down (translucent + backdrop blur). */
   box-shadow: var(--rp-shadow-popover);
   overflow: hidden;
 }
@@ -1276,7 +1331,7 @@ button {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px 8px;
-  border-bottom: 1px solid rgba(52, 48, 42, 0.08);
+  border-bottom: 1px solid rgb(var(--rp-ink-rgb) / 0.08);
 }
 
 .app-popover-title {
@@ -1308,7 +1363,7 @@ button {
   display: flex;
   justify-content: flex-end;
   padding: 8px 12px 12px;
-  border-top: 1px solid rgba(52, 48, 42, 0.08);
+  border-top: 1px solid rgb(var(--rp-ink-rgb) / 0.08);
 }
 
 .dialog-form {
@@ -1320,7 +1375,7 @@ button {
 
 .dialog-form-lead {
   margin: 0;
-  color: #6f6a62;
+  color: var(--rp-text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
@@ -1333,7 +1388,7 @@ button {
 
 .dialog-form-fieldset legend {
   margin-bottom: 8px;
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.03em;
@@ -1356,9 +1411,9 @@ button {
   align-items: start;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid rgba(52, 48, 42, 0.1);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgb(var(--rp-glass-rgb) / 0.5);
   cursor: pointer;
 }
 
@@ -1368,7 +1423,7 @@ button {
 
 .dialog-form-option strong {
   display: block;
-  color: #3f3a34;
+  color: var(--rp-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1376,7 +1431,7 @@ button {
 .dialog-form-option small {
   display: block;
   margin-top: 2px;
-  color: #8f887f;
+  color: var(--rp-text-faint);
   font-size: 11px;
   line-height: 1.4;
   font-weight: 400;
@@ -1399,14 +1454,14 @@ button {
 }
 
 .dialog-form-toggle span {
-  color: #3f3a34;
+  color: var(--rp-text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
 
 .dialog-form-hint {
   margin: -6px 0 0;
-  color: #8f887f;
+  color: var(--rp-text-faint);
   font-size: 11px;
   line-height: 1.45;
 }
@@ -1473,7 +1528,7 @@ button {
   grid-template-columns: 36px 32px 1fr 120px 1fr 32px;
   gap: 8px;
   padding: 0 4px 6px;
-  color: #6f6a62;
+  color: var(--rp-text-muted);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1486,8 +1541,8 @@ button {
   margin-left: 8px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(61, 127, 111, 0.14);
-  color: #2f5f54;
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+  color: var(--rp-accent-text);
   font-size: 11px;
   font-weight: 700;
   vertical-align: middle;
@@ -1547,7 +1602,7 @@ textarea {
 select:focus,
 input:focus,
 textarea:focus {
-  border-color: rgba(61, 127, 111, 0.45);
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
   box-shadow: 0 0 0 3px var(--rp-accent-soft-md);
 }
 
@@ -1565,8 +1620,8 @@ select,
   min-height: 30px;
   padding: 0 14px;
   border-radius: 8px;
-  background: #a64032;
-  color: #ffffff;
+  background: var(--rp-danger);
+  color: var(--dialog-danger-fg);
   font-weight: 680;
 }
 
@@ -1667,7 +1722,7 @@ select,
   width: 18px;
   height: 18px;
   justify-self: center;
-  accent-color: #3d7f6f;
+  accent-color: var(--rp-accent);
 }
 
 .pair-row .mini-btn {
@@ -1711,7 +1766,7 @@ select,
 }
 
 .raw-type-select-label {
-  color: #8b857c;
+  color: var(--rp-text-faint);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -1731,7 +1786,7 @@ select,
 }
 
 .code-editor.text-mode pre {
-  color: #37332d;
+  color: var(--rp-text);
 }
 
 .segmented {
@@ -1757,7 +1812,7 @@ select,
 .tabs button.active {
   background: var(--rp-surface);
   color: var(--rp-text);
-  box-shadow: 0 1px 2px rgba(28, 26, 23, 0.06);
+  box-shadow: 0 1px 2px rgb(var(--rp-shadow-rgb) / 0.06);
 }
 
 .code-editor {
@@ -1793,12 +1848,12 @@ select,
   border: 0;
   background: transparent;
   color: transparent;
-  caret-color: #25231f;
+  caret-color: var(--rp-text);
   resize: none;
 }
 
 .code-editor textarea::selection {
-  background: rgba(61, 127, 111, 0.2);
+  background: rgb(var(--rp-accent-rgb) / 0.2);
   color: transparent;
 }
 
@@ -1819,7 +1874,7 @@ select,
 }
 
 .code-editor.json-mode .cm-editor {
-  color: #37332d;
+  color: var(--rp-text);
 }
 
 .form-list {
@@ -1850,13 +1905,13 @@ select,
   display: grid;
   place-content: center;
   padding: 18px;
-  color: #777067;
+  color: var(--rp-text-muted);
   text-align: center;
 }
 
 .response-empty h2 {
   margin: 8px 0 6px;
-  color: #25231f;
+  color: var(--rp-text);
   font-size: 18px;
 }
 
@@ -1867,7 +1922,7 @@ select,
 }
 
 .response-empty.error h2 {
-  color: #a64032;
+  color: var(--rp-danger);
 }
 
 .empty-editor {
@@ -1876,17 +1931,17 @@ select,
   min-height: 0;
   margin: 12px 14px 14px;
   place-items: center;
-  border: 1px solid rgba(52, 48, 42, 0.1);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
   border-radius: 8px;
-  background: rgba(255, 252, 246, 0.48);
-  color: #777067;
+  background: rgb(var(--rp-paper-rgb) / 0.48);
+  color: var(--rp-text-muted);
   font-size: 12px;
 }
 
 .loader,
 .pulse {
   border-radius: 999px;
-  background: #3d7f6f;
+  background: var(--rp-accent);
 }
 
 .loader {
@@ -1930,7 +1985,7 @@ select,
   justify-content: space-between;
   gap: 12px;
   padding: 10px var(--panel-inset-inline);
-  border-bottom: 1px solid rgba(52, 48, 42, 0.1);
+  border-bottom: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
 }
 
 .response-head-actions {
@@ -1951,24 +2006,24 @@ select,
 }
 
 .status.ok {
-  background: rgba(61, 127, 111, 0.14);
-  color: #246354;
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+  color: var(--rp-accent-text);
 }
 
 .status.bad {
-  background: rgba(166, 64, 50, 0.12);
-  color: #a64032;
+  background: rgb(var(--rp-danger-rgb) / 0.12);
+  color: var(--rp-danger);
 }
 
 .status.soft {
-  background: rgba(179, 126, 61, 0.14);
-  color: #8a5d23;
+  background: rgb(var(--rp-warning-rgb) / 0.14);
+  color: var(--rp-warning-text);
 }
 
 .metrics {
   display: flex;
   gap: 14px;
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 13px;
 }
 
@@ -2014,10 +2069,10 @@ select,
   width: 100%;
   height: 30px;
   padding: 0 10px;
-  border: 1px solid rgba(52, 48, 42, 0.14);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.14);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #25231f;
+  background: rgb(var(--rp-glass-rgb) / 0.72);
+  color: var(--rp-text);
 }
 
 .headers-table-frame {
@@ -2039,9 +2094,9 @@ select,
 .headers-table-head {
   flex-shrink: 0;
   padding: 6px 12px;
-  border-bottom: 1px solid rgba(52, 48, 42, 0.1);
-  background: rgba(255, 255, 255, 0.55);
-  color: #6f6a62;
+  border-bottom: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
+  background: rgb(var(--rp-glass-rgb) / 0.55);
+  color: var(--rp-text-muted);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -2074,11 +2129,11 @@ select,
 .headers-table-row {
   height: 32px;
   padding: 0 12px;
-  border-bottom: 1px solid rgba(52, 48, 42, 0.06);
+  border-bottom: 1px solid rgb(var(--rp-ink-rgb) / 0.06);
 }
 
 .headers-table-row:nth-child(even) {
-  background: rgba(255, 255, 255, 0.42);
+  background: rgb(var(--rp-glass-rgb) / 0.42);
 }
 
 .headers-table-key,
@@ -2091,12 +2146,12 @@ select,
 }
 
 .headers-table-key {
-  color: #2c6f61;
+  color: var(--rp-accent-text);
   font-weight: 650;
 }
 
 .headers-table-value {
-  color: #37332d;
+  color: var(--rp-text);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
 }
@@ -2104,7 +2159,7 @@ select,
 .headers-table-empty {
   margin: 0;
   padding: 16px 12px;
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 13px;
   text-align: center;
 }
@@ -2114,48 +2169,48 @@ select,
 }
 
 .json-key {
-  color: #2c6f61;
+  color: var(--rp-syntax-key);
 }
 
 .json-string {
-  color: #8a5d23;
+  color: var(--rp-syntax-string);
 }
 
 .json-number {
-  color: #8f4c77;
+  color: var(--rp-syntax-number);
 }
 
 .json-bool {
-  color: #7c4fa8;
+  color: var(--rp-syntax-bool);
 }
 
 .json-null {
-  color: #6f6a62;
+  color: var(--rp-syntax-null);
 }
 
 .xml-tag {
-  color: #2c6f61;
+  color: var(--rp-syntax-key);
 }
 
 .xml-attr {
-  color: #8a5d23;
+  color: var(--rp-syntax-string);
 }
 
 .xml-bracket {
-  color: #6f6a62;
+  color: var(--rp-syntax-punctuation);
 }
 
 .xml-comment {
-  color: #8b857c;
+  color: var(--rp-syntax-comment);
   font-style: italic;
 }
 
 .xml-cdata {
-  color: #8f4c77;
+  color: var(--rp-syntax-number);
 }
 
 .code-editor.xml-mode .cm-editor {
-  color: #37332d;
+  color: var(--rp-text);
 }
 
 .variables-view {
@@ -2179,14 +2234,16 @@ select,
   height: 40px;
   padding: 0 16px;
   border-radius: 10px;
-  background: linear-gradient(180deg, #4a8f7f 0%, #3d7f6f 100%);
-  box-shadow: 0 10px 24px rgba(61, 127, 111, 0.22);
-  color: #f8f6f1;
+  background: linear-gradient(180deg, var(--rp-accent-hover) 0%, var(--rp-accent) 100%);
+  box-shadow: 0 10px 24px rgb(var(--rp-accent-rgb) / 0.22);
+  color: var(--rp-on-accent);
   font-weight: 620;
 }
 
+/* Lifting the whole fill keeps the hover feedback without a second hardcoded
+   gradient — it follows whatever accent the active theme defines. */
 .variables-add-btn:hover {
-  background: linear-gradient(180deg, #559786 0%, #45887a 100%);
+  filter: brightness(1.08);
 }
 
 .variables-add-icon {
@@ -2196,15 +2253,15 @@ select,
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgb(var(--rp-glass-rgb) / 0.18);
   font-size: 16px;
   line-height: 1;
 }
 
 .variables-panel{
-  border: 1px solid rgba(52, 48, 42, 0.1);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
   border-radius: 14px;
-  background: rgba(255, 252, 246, 0.9);
+  background: rgb(var(--rp-paper-rgb) / 0.9);
 }
 
 .variables-empty-icon{
@@ -2213,7 +2270,7 @@ select,
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  background: rgba(61, 127, 111, 0.14);
+  background: rgb(var(--rp-accent-rgb) / 0.14);
   color: var(--rp-accent-strong);
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   font-size: 18px;
@@ -2226,7 +2283,7 @@ select,
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #3d7f6f;
+  color: var(--rp-accent);
 }
 
 .variables-panel {
@@ -2244,7 +2301,7 @@ select,
 }
 
 .variables-panel-meta {
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 12px;
 }
 
@@ -2258,12 +2315,12 @@ select,
 
 .variable-secret-btn {
   justify-self: center;
-  color: #8b857c;
+  color: var(--rp-text-faint);
 }
 
 .variable-secret-btn.is-active {
-  color: #3d7f6f;
-  background: rgba(61, 127, 111, 0.12);
+  color: var(--rp-accent);
+  background: rgb(var(--rp-accent-rgb) / 0.12);
 }
 
 .variable-item.is-secret .variable-field-value input {
@@ -2364,7 +2421,7 @@ select,
 
 .variables-table-head {
   padding: 0 12px 4px;
-  color: #8b857c;
+  color: var(--rp-text-faint);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.05em;
@@ -2378,15 +2435,15 @@ select,
 
 .variable-item {
   padding: 10px 12px;
-  border: 1px solid rgba(52, 48, 42, 0.1);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgb(var(--rp-glass-rgb) / 0.72);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
 .variable-item:hover {
-  border-color: rgba(61, 127, 111, 0.24);
-  box-shadow: 0 8px 24px rgba(48, 42, 32, 0.06);
+  border-color: rgb(var(--rp-accent-rgb) / 0.24);
+  box-shadow: 0 8px 24px rgb(var(--rp-ink-rgb) / 0.06);
 }
 
 .variable-item.is-disabled {
@@ -2404,9 +2461,9 @@ select,
   width: 100%;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid rgba(52, 48, 42, 0.12);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgb(var(--rp-glass-rgb) / 0.92);
 }
 
 .variable-field-name input {
@@ -2436,7 +2493,7 @@ select,
   width: 38px;
   height: 22px;
   border-radius: 999px;
-  background: rgba(52, 48, 42, 0.16);
+  background: rgb(var(--rp-ink-rgb) / 0.16);
   transition: background 0.15s ease;
 }
 
@@ -2448,13 +2505,13 @@ select,
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  background: var(--rp-input-bg);
+  box-shadow: 0 1px 4px rgb(var(--rp-shadow-rgb) / 0.18);
   transition: transform 0.15s ease;
 }
 
 .variable-toggle input:checked + .variable-toggle-ui {
-  background: #3d7f6f;
+  background: var(--rp-accent);
 }
 
 .variable-toggle input:checked + .variable-toggle-ui::after {
@@ -2462,7 +2519,7 @@ select,
 }
 
 .variable-toggle input:focus-visible + .variable-toggle-ui {
-  outline: 2px solid rgba(61, 127, 111, 0.45);
+  outline: 2px solid rgb(var(--rp-accent-rgb) / 0.45);
   outline-offset: 2px;
 }
 
@@ -2486,7 +2543,7 @@ select,
 .variables-empty p {
   margin: 0;
   max-width: 40ch;
-  color: #777067;
+  color: var(--rp-text-muted);
   line-height: 1.55;
 }
 
@@ -2544,7 +2601,7 @@ select,
 [data-theme="dark"] .window-layer--stack::before,
 [data-theme="dark"] .window-layer--settings::before,
 [data-theme="dark"] .window-layer--variables-manager::before {
-  background: rgba(0, 0, 0, 0.42);
+  background: rgb(var(--rp-shadow-rgb) / 0.42);
 }
 
 .app-toast {
@@ -2554,11 +2611,11 @@ select,
   z-index: 40;
   max-width: min(92vw, 360px);
   padding: 8px 14px;
-  border: 1px solid rgba(52, 48, 42, 0.14);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.14);
   border-radius: 8px;
-  background: rgba(255, 252, 246, 0.98);
-  box-shadow: 0 12px 40px rgba(48, 42, 32, 0.18);
-  color: #37332d;
+  background: rgb(var(--rp-paper-rgb) / 0.98);
+  box-shadow: 0 12px 40px rgb(var(--rp-ink-rgb) / 0.18);
+  color: var(--rp-text);
   font-size: 12px;
   line-height: 1.35;
   pointer-events: none;
@@ -2577,10 +2634,10 @@ select,
   z-index: 30;
   min-width: 200px;
   padding: 5px;
-  border: 1px solid rgba(52, 48, 42, 0.14);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.14);
   border-radius: 8px;
-  background: rgba(255, 252, 246, 0.98);
-  box-shadow: 0 18px 60px rgba(48, 42, 32, 0.2);
+  background: rgb(var(--rp-paper-rgb) / 0.98);
+  box-shadow: 0 18px 60px rgb(var(--rp-ink-rgb) / 0.2);
 }
 
 .context-menu button {
@@ -2593,13 +2650,13 @@ select,
   padding: 0 10px;
   border-radius: 6px;
   background: transparent;
-  color: #37332d;
+  color: var(--rp-text);
 }
 
 .context-menu-check {
   flex-shrink: 0;
   width: 1.1em;
-  color: #3d7f6f;
+  color: var(--rp-accent);
   font-size: 12px;
   font-weight: 700;
   text-align: center;
@@ -2614,7 +2671,7 @@ select,
 
 .context-menu-shortcut {
   flex-shrink: 0;
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -2622,7 +2679,7 @@ select,
 }
 
 .context-menu button:hover:not(:disabled) {
-  background: rgba(61, 127, 111, 0.1);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
 }
 
 .context-menu button:disabled {
@@ -2631,14 +2688,14 @@ select,
 }
 
 .context-menu button.danger {
-  color: #a64032;
+  color: var(--rp-danger);
 }
 
 .context-menu hr {
   height: 1px;
   margin: 5px;
   border: 0;
-  background: rgba(52, 48, 42, 0.12);
+  background: rgb(var(--rp-ink-rgb) / 0.12);
 }
 
 .context-menu-submenu {
@@ -2656,18 +2713,18 @@ select,
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #37332d;
+  color: var(--rp-text);
   cursor: pointer;
 }
 
 .context-menu-submenu-arrow {
   flex-shrink: 0;
-  color: #777067;
+  color: var(--rp-text-muted);
   font-size: 11px;
 }
 
 .context-menu-submenu-trigger:hover {
-  background: rgba(61, 127, 111, 0.1);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
 }
 
 .context-menu-submenu-panel {
@@ -2714,16 +2771,16 @@ select,
 
 .var-ac-item:hover,
 .var-ac-item.active {
-  background: rgba(61, 127, 111, 0.1);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
 }
 
 .var-ac-item.active {
-  color: #3d7f6f;
+  color: var(--rp-accent);
 }
 
 .var-ac-name {
   font-weight: 600;
-  color: #3d7f6f;
+  color: var(--rp-accent);
 }
 
 .app-dialog {
@@ -2731,17 +2788,17 @@ select,
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border: 1px solid rgba(52, 48, 42, 0.14);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.14);
   border-radius: 8px;
-  background: rgba(255, 252, 246, 0.96);
-  box-shadow: 0 22px 90px rgba(48, 42, 32, 0.24);
+  background: rgb(var(--rp-paper-rgb) / 0.96);
+  box-shadow: 0 22px 90px rgb(var(--rp-ink-rgb) / 0.24);
   pointer-events: auto;
   outline: none;
 }
 
 /* Opaque while dragging — WebView2 can drop alpha on semi-transparent panels during move */
 .app-dialog.is-dragging {
-  background: #fffdf6;
+  background: rgb(var(--rp-paper-rgb));
 }
 
 .app-dialog.message {
@@ -2754,7 +2811,7 @@ select,
   justify-content: space-between;
   height: 42px;
   padding: 0 12px 0 16px;
-  border-bottom: 1px solid rgba(52, 48, 42, 0.1);
+  border-bottom: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
   cursor: move;
 }
 
@@ -2839,8 +2896,8 @@ select,
   min-width: 84px;
   padding: 0 14px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.7);
-  color: #555048;
+  background: rgb(var(--rp-glass-rgb) / 0.7);
+  color: var(--rp-text-secondary);
 }
 
 .dialog-actions button[data-dialog-primary="true"]:focus-visible {
@@ -2869,12 +2926,12 @@ select,
 }
 
 .app-dialog.warning {
-  border-color: rgba(179, 126, 61, 0.4);
+  border-color: rgb(var(--rp-warning-rgb) / 0.4);
 }
 
 .app-dialog.error,
 .app-dialog.confirmation {
-  border-color: rgba(166, 64, 50, 0.34);
+  border-color: rgb(var(--rp-danger-rgb) / 0.34);
 }
 
 .app-dialog.resizable .dialog-body.dialog-body-curl {
@@ -2960,14 +3017,14 @@ select,
   gap: 2px;
   min-height: 32px;
   padding: 0 4px 0 10px;
-  border: 1px solid rgba(52, 48, 42, 0.12);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgb(var(--rp-glass-rgb) / 0.72);
 }
 
 .collection-search-field:focus-within {
-  border-color: rgba(61, 127, 111, 0.38);
-  box-shadow: 0 0 0 2px rgba(61, 127, 111, 0.12);
+  border-color: rgb(var(--rp-accent-rgb) / 0.38);
+  box-shadow: 0 0 0 2px rgb(var(--rp-accent-rgb) / 0.12);
 }
 
 .collection-search input[type="search"] {
@@ -2979,7 +3036,7 @@ select,
   border: none;
   border-radius: 0;
   background: transparent;
-  color: #3f3a34;
+  color: var(--rp-text-secondary);
   font-size: 12px;
 }
 
@@ -2997,7 +3054,7 @@ select,
   min-width: 26px;
   min-height: 26px;
   flex-shrink: 0;
-  color: #8b857c;
+  color: var(--rp-text-faint);
 }
 
 .collection-search-clear {
@@ -3006,7 +3063,7 @@ select,
 }
 
 .collection-search-icon {
-  color: #3d7f6f;
+  color: var(--rp-accent);
 }
 
 .collection-search-clear.is-hidden {
@@ -3072,9 +3129,9 @@ select,
 
 .settings-card {
   padding: 16px 18px;
-  border: 1px solid rgba(52, 48, 42, 0.1);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
   border-radius: 12px;
-  background: rgba(255, 252, 246, 0.86);
+  background: rgb(var(--rp-paper-rgb) / 0.86);
 }
 
 .settings-card-wide {
@@ -3137,7 +3194,7 @@ select,
 }
 
 .zen-popover-item.active {
-  background: rgba(61, 127, 111, 0.1);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
   font-weight: 600;
   color: var(--rp-accent);
 }
@@ -3287,8 +3344,8 @@ select,
 }
 
 .env-var-item-scope.is-env {
-  background: rgba(61, 127, 111, 0.1);
-  color: #3d7f6f;
+  background: rgb(var(--rp-accent-rgb) / 0.1);
+  color: var(--rp-accent);
 }
 
 .env-var-item-value {
@@ -3302,8 +3359,8 @@ select,
 }
 
 [data-theme="dark"] .env-var-item-scope.is-env {
-  background: rgba(61, 127, 111, 0.2);
-  color: #9fd0c4;
+  background: rgb(var(--rp-accent-rgb) / 0.2);
+  color: var(--rp-accent-text);
 }
 
 .function-import-popover .app-popover-body,
@@ -3334,7 +3391,7 @@ select,
 }
 
 .function-import-item:hover {
-  background: rgba(61, 127, 111, 0.1);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
 }
 
 .function-import-item.is-hidden {
@@ -3406,7 +3463,7 @@ select,
   border: 0;
   border-radius: 4px;
   background: transparent;
-  accent-color: #3d7f6f;
+  accent-color: var(--rp-accent);
   cursor: pointer;
 }
 
@@ -3430,7 +3487,7 @@ select,
 }
 
 .function-auto-map-warning {
-  color: #b54a3a;
+  color: var(--rp-danger-text);
 }
 
 .function-auto-map-fields {
@@ -3567,7 +3624,7 @@ select,
 
 .functions-popover-item:focus-visible,
 .functions-popover-item:focus {
-  background: rgba(61, 127, 111, 0.12);
+  background: rgb(var(--rp-accent-rgb) / 0.12);
   box-shadow: inset 0 0 0 1px var(--rp-accent);
 }
 
@@ -3697,7 +3754,7 @@ select,
   font-weight: 650;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: #777067;
+  color: var(--rp-text-muted);
 }
 
 .settings-field {
@@ -3706,7 +3763,7 @@ select,
 }
 
 .settings-field span {
-  color: #555048;
+  color: var(--rp-text-secondary);
   font-size: 12px;
 }
 
@@ -3727,7 +3784,7 @@ select,
 
 .settings-option + .settings-option {
   padding-top: 18px;
-  border-top: 1px solid rgba(52, 48, 42, 0.08);
+  border-top: 1px solid rgb(var(--rp-ink-rgb) / 0.08);
 }
 
 .settings-option--compact + .settings-option--compact {
@@ -3736,7 +3793,7 @@ select,
 }
 
 .settings-option-label {
-  color: #3f3a34;
+  color: var(--rp-text-secondary);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
@@ -3745,7 +3802,7 @@ select,
 .settings-option-hint {
   margin: 9px 0 0;
   max-width: 36em;
-  color: #8f887f;
+  color: var(--rp-text-faint);
   font-size: 11px;
   line-height: 1.45;
 }
@@ -3769,7 +3826,7 @@ select,
   border: 0;
   border-radius: 4px;
   background: transparent;
-  accent-color: #3d7f6f;
+  accent-color: var(--rp-accent);
   cursor: pointer;
 }
 
@@ -3791,7 +3848,7 @@ select,
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: #555048;
+  color: var(--rp-text-secondary);
   font-size: 13px;
 }
 
@@ -3803,7 +3860,7 @@ select,
   width: 14px;
   height: 14px;
   margin: 0;
-  accent-color: #3d7f6f;
+  accent-color: var(--rp-accent);
   cursor: pointer;
 }
 
@@ -3824,16 +3881,16 @@ select,
   border: 0;
   border-radius: 4px;
   background: transparent;
-  accent-color: #3d7f6f;
+  accent-color: var(--rp-accent);
 }
 
 .settings-field select,
 .settings-field input:not([type="checkbox"]) {
   height: 38px;
   padding: 0 12px;
-  border: 1px solid rgba(52, 48, 42, 0.14);
+  border: 1px solid rgb(var(--rp-ink-rgb) / 0.14);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgb(var(--rp-glass-rgb) / 0.88);
 }
 
 .settings-network-general {
@@ -3843,7 +3900,7 @@ select,
   gap: 12px 28px;
   padding-bottom: 16px;
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(52, 48, 42, 0.1);
+  border-bottom: 1px solid rgb(var(--rp-ink-rgb) / 0.1);
 }
 
 .settings-network-general .settings-field-compact {
@@ -3919,22 +3976,22 @@ select,
 }
 
 .settings-proxy-test-summary.is-success {
-  color: var(--rp-success, #2f6f4d);
+  color: var(--rp-success);
 }
 
 .settings-proxy-test-summary.is-error {
-  color: var(--field-remove-color, #b54a3a);
+  color: var(--field-remove-color, var(--rp-danger-text));
 }
 
 [data-theme="dark"] .settings-proxy-test-summary.is-success {
-  color: #7eb8a8;
+  color: var(--rp-accent);
 }
 
 .settings-proxy-test-details-link {
   padding: 0;
   border: 0;
   background: none;
-  color: #3d7f6f;
+  color: var(--rp-accent);
   font-size: 12px;
   font-weight: 600;
   text-decoration: underline;
@@ -3943,15 +4000,15 @@ select,
 }
 
 .settings-proxy-test-details-link:hover {
-  color: #2f5f54;
+  color: var(--rp-accent-text);
 }
 
 [data-theme="dark"] .settings-proxy-test-details-link {
-  color: #9fd4c4;
+  color: var(--rp-accent-hover);
 }
 
 [data-theme="dark"] .settings-proxy-test-details-link:hover {
-  color: #d4eee6;
+  color: var(--rp-accent-hover);
 }
 
 @media (max-width: 900px) {
@@ -4038,10 +4095,10 @@ select,
 .settings-proxy-test-btn {
   height: 38px;
   padding: 0 18px;
-  border: 1px solid rgba(61, 127, 111, 0.34);
+  border: 1px solid rgb(var(--rp-accent-rgb) / 0.34);
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(74, 143, 127, 0.16) 0%, rgba(61, 127, 111, 0.1) 100%);
-  color: #3d7f6f;
+  background: linear-gradient(180deg, rgb(var(--rp-accent-rgb) / 0.16) 0%, rgb(var(--rp-accent-rgb) / 0.1) 100%);
+  color: var(--rp-accent);
   font-size: 13px;
   font-weight: 680;
   white-space: nowrap;
@@ -4053,9 +4110,9 @@ select,
 }
 
 .settings-proxy-test-btn:hover:not(:disabled) {
-  border-color: rgba(61, 127, 111, 0.48);
-  background: linear-gradient(180deg, rgba(85, 151, 134, 0.22) 0%, rgba(61, 127, 111, 0.14) 100%);
-  color: #2f5f54;
+  border-color: rgb(var(--rp-accent-rgb) / 0.48);
+  background: linear-gradient(180deg, rgb(var(--rp-accent-rgb) / 0.22) 0%, rgb(var(--rp-accent-rgb) / 0.14) 100%);
+  color: var(--rp-accent-text);
 }
 
 .settings-proxy-test-btn:disabled {
@@ -4079,15 +4136,15 @@ select,
 }
 
 [data-theme="dark"] .settings-proxy-test-btn {
-  border-color: rgba(122, 181, 165, 0.34);
-  background: linear-gradient(180deg, rgba(122, 181, 165, 0.18) 0%, rgba(90, 150, 135, 0.1) 100%);
-  color: #9fd4c4;
+  border-color: rgb(var(--rp-accent-rgb) / 0.34);
+  background: linear-gradient(180deg, rgb(var(--rp-accent-rgb) / 0.18) 0%, rgb(var(--rp-accent-rgb) / 0.1) 100%);
+  color: var(--rp-accent-hover);
 }
 
 [data-theme="dark"] .settings-proxy-test-btn:hover:not(:disabled) {
-  border-color: rgba(159, 212, 196, 0.48);
-  background: linear-gradient(180deg, rgba(122, 181, 165, 0.24) 0%, rgba(90, 150, 135, 0.16) 100%);
-  color: #d4eee6;
+  border-color: rgb(var(--rp-accent-rgb) / 0.48);
+  background: linear-gradient(180deg, rgb(var(--rp-accent-rgb) / 0.24) 0%, rgb(var(--rp-accent-rgb) / 0.16) 100%);
+  color: var(--rp-accent-hover);
 }
 
 .about-list {
@@ -4104,7 +4161,7 @@ select,
 
 .about-list dt {
   margin: 0;
-  color: #777067;
+  color: var(--rp-text-muted);
   font-weight: 560;
 }
 
@@ -4118,12 +4175,12 @@ select,
 }
 
 .settings-danger-card {
-  border-color: rgba(166, 64, 50, 0.22);
+  border-color: rgb(var(--rp-danger-rgb) / 0.22);
 }
 
 .settings-danger-copy {
   margin: 0;
-  color: #555048;
+  color: var(--rp-text-secondary);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -4143,7 +4200,7 @@ select,
 }
 
 .app-dialog.message.information {
-  border-color: rgba(61, 127, 111, 0.35);
+  border-color: rgb(var(--rp-accent-rgb) / 0.35);
 }
 
 .app-dialog.message::before,
@@ -4228,6 +4285,14 @@ select,
 [data-theme="dark"] {
   color-scheme: dark;
 
+  --rp-syntax-key: #b4d4e8;
+  --rp-syntax-string: #f0a8c8;
+  --rp-syntax-number: #e8a868;
+  --rp-syntax-bool: #c4a0f0;
+  --rp-syntax-null: #9a8cb8;
+  --rp-syntax-comment: #7a756c;
+  --rp-syntax-punctuation: #8a847c;
+
   --http-method-get: #4ade80;
   --http-method-post: #60a5fa;
   --http-method-put: #fb923c;
@@ -4236,12 +4301,27 @@ select,
   --http-method-options: #c084fc;
   --http-method-head: #22d3ee;
 
+  /* Tier 1 · primitive channels — the ink/paper channels swap sides on dark, which
+     is what makes every rgb(var(--…-rgb) / a) tint below flip automatically. */
+  --rp-accent-rgb: 126 184 168;
+  --rp-ink-rgb: 255 255 255;
+  --rp-paper-rgb: 236 231 220;
+  --rp-shadow-rgb: 0 0 0;
+  --rp-glass-rgb: 26 25 23;
+  /* Same chevron at the dark --rp-text-muted; previously it kept the light stroke and
+     nearly vanished against the dark field. */
+  --rp-select-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%239a948b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  --rp-danger-rgb: 224 122 106;
+  --rp-warning-rgb: 232 192 120;
+  --rp-success-rgb: 46 204 113;
+
   /* Dark palette — mirrors light --rp-* tokens */
   --rp-bg: #141312;
   --rp-chrome: #1a1917;
   --rp-chrome-elevated: #1e1d1b;
   --rp-surface: #22211e;
   --rp-surface-muted: #181715;
+  --rp-surface-raised: #2a2926;
   --rp-text: #ece7dc;
   --rp-text-secondary: #c8c2b8;
   --rp-text-muted: #9a948b;
@@ -4250,68 +4330,58 @@ select,
   --rp-border-subtle: #2a2825;
   --rp-accent: #7eb8a8;
   --rp-accent-strong: #9fd4c6;
-  --rp-accent-soft: rgba(126, 184, 168, 0.1);
-  --rp-accent-soft-md: rgba(126, 184, 168, 0.14);
-  --rp-accent-soft-strong: rgba(126, 184, 168, 0.2);
-  --rp-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.22), 0 8px 28px rgba(0, 0, 0, 0.26);
-  --rp-shadow-popover: 0 6px 28px rgba(0, 0, 0, 0.38);
+  --rp-accent-soft: rgb(var(--rp-accent-rgb) / 0.1);
+  --rp-accent-soft-md: rgb(var(--rp-accent-rgb) / 0.14);
+  --rp-accent-soft-strong: rgb(var(--rp-accent-rgb) / 0.2);
+  --rp-accent-text: #9fd0c4;
+  --rp-accent-hover: #9fd4c4;
+  --rp-accent-deep: #5a9d8c;
+  --rp-on-accent: #10201c;
+  --rp-shadow-card: 0 1px 2px rgb(var(--rp-shadow-rgb) / 0.22), 0 8px 28px rgb(var(--rp-shadow-rgb) / 0.26);
+  --rp-shadow-popover: 0 6px 28px rgb(var(--rp-shadow-rgb) / 0.38);
   --rp-input-bg: #1a1917;
   --rp-input-border: #3a3732;
-  --rp-hover: rgba(255, 255, 255, 0.07);
+  --rp-hover: rgb(var(--rp-ink-rgb) / 0.07);
+
+  --rp-danger: #e07a6a;
+  --rp-danger-hover: #f0a8a0;
+  --rp-danger-text: #e07a6a;
+  --rp-on-danger: #241015;
+  --rp-warning: #c4973a;
+  --rp-warning-strong: #d4a85a;
+  --rp-warning-text: #e8c078;
+  --rp-success: #2ecc71;
+  --rp-success-strong: #55d98d;
 
   --field-remove-color: #f08fa3;
   --field-remove-color-hover: #ffaabb;
   --field-remove-tint: rgba(240, 143, 163, 0.16);
 
-  --dialog-primary-bg: #7eb8a8;
-  --dialog-primary-bg-hover: #9fd4c6;
-  --dialog-primary-fg: #10201c;
   --dialog-danger-bg: #f08fa3;
-  --dialog-danger-fg: #241015;
-
-  /* Legacy aliases for existing --dark-* references */
-  --dark-bg-base: var(--rp-bg);
-  --dark-bg-rail: var(--rp-chrome);
-  --dark-bg-workspace: var(--rp-bg);
-  --dark-bg-surface: var(--rp-surface);
-  --dark-bg-raised: #2a2926;
-  --dark-bg-input: var(--rp-input-bg);
-  --dark-border: var(--rp-border-subtle);
-  --dark-border-strong: var(--rp-border);
-  --dark-text: var(--rp-text);
-  --dark-text-muted: var(--rp-text-muted);
-  --dark-text-faint: var(--rp-text-faint);
-  --dark-accent: var(--rp-accent);
-  --dark-accent-bright: var(--rp-accent-strong);
-  --dark-json-key: #b4d4e8;
-  --dark-json-string: #f0a8c8;
-  --dark-json-number: #e8a868;
-  --dark-json-bool: #c4a0f0;
-  --dark-json-null: #9a8cb8;
 }
 
 [data-theme="dark"] body {
   background:
-    radial-gradient(ellipse 70% 50% at 0% 0%, rgba(126, 184, 168, 0.06), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(0, 0, 0, 0.12), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 0% 0%, rgb(var(--rp-accent-rgb) / 0.06), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgb(var(--rp-shadow-rgb) / 0.12), transparent 50%),
     var(--rp-bg);
   color: var(--rp-text);
 }
 
 [data-theme="dark"] .title-bar-control:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--dark-text);
+  background: rgb(var(--rp-ink-rgb) / 0.08);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .title-bar-settings:hover,
 [data-theme="dark"] .title-bar-settings.is-active {
-  background: rgba(61, 127, 111, 0.2);
+  background: rgb(var(--rp-accent-rgb) / 0.2);
   color: var(--rp-accent-strong);
 }
 
 [data-theme="dark"] .title-bar-control--close:hover {
-  background: #c42b1c;
-  color: #fff;
+  background: var(--rp-titlebar-close);
+  color: var(--rp-titlebar-close-fg);
 }
 
 [data-theme="dark"] .settings-card,
@@ -4321,61 +4391,61 @@ select,
 [data-theme="dark"] .app-popover,
 [data-theme="dark"] .var-autocomplete,
 [data-theme="dark"] .request-tool-btn{
-  background: var(--dark-bg-surface);
-  border-color: var(--dark-border);
-  color: var(--dark-text);
+  background: var(--rp-surface);
+  border-color: var(--rp-border-subtle);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .app-dialog {
-  background: var(--dark-bg-raised);
+  background: var(--rp-surface-raised);
   border-color: var(--rp-border);
-  color: var(--dark-text);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: var(--rp-text);
+  box-shadow: 0 24px 80px rgb(var(--rp-shadow-rgb) / 0.7), 0 4px 16px rgb(var(--rp-shadow-rgb) / 0.4);
 }
 
 [data-theme="dark"] .context-menu {
   background: var(--rp-chrome-elevated);
   border-color: var(--rp-border);
   color: var(--rp-text);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgb(var(--rp-shadow-rgb) / 0.5), 0 2px 8px rgb(var(--rp-shadow-rgb) / 0.3);
 }
 
 [data-theme="dark"] .context-menu-shortcut {
-  color: #a8a093;
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .variables-panel-meta,
 [data-theme="dark"] .variables-empty p,
 [data-theme="dark"] .variables-table-head{
-  color: #a8a093;
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .variables-panel-head h2{
-  color: #9fd0c4;
+  color: var(--rp-accent-text);
 }
 
 [data-theme="dark"] .variables-empty-icon{
-  background: rgba(61, 127, 111, 0.18);
+  background: rgb(var(--rp-accent-rgb) / 0.18);
 }
 
 [data-theme="dark"] .variable-field-name input,
 [data-theme="dark"] .variable-field-value input {
-  border-color: rgba(236, 231, 220, 0.12);
-  background: rgba(27, 26, 23, 0.88);
-  color: #ece7dc;
+  border-color: rgb(var(--rp-paper-rgb) / 0.12);
+  background: rgb(var(--rp-glass-rgb) / 0.88);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .variable-secret-btn {
-  color: #a8a093;
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .variable-secret-btn.is-active {
-  color: #9fd0c4;
-  background: rgba(61, 127, 111, 0.2);
+  color: var(--rp-accent-text);
+  background: rgb(var(--rp-accent-rgb) / 0.2);
 }
 
 [data-theme="dark"] .app-dialog.is-dragging {
-  background: var(--dark-bg-raised);
+  background: var(--rp-surface-raised);
 }
 
 [data-theme="dark"] .brand span,
@@ -4383,11 +4453,11 @@ select,
 [data-theme="dark"] .topbar p,
 [data-theme="dark"] .about-list dt,
 [data-theme="dark"] .settings-card h2 {
-  color: #a8a093;
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .settings-option-label {
-  color: #e8e4dc;
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .settings-option-hint {
@@ -4395,66 +4465,66 @@ select,
 }
 
 [data-theme="dark"] .settings-option + .settings-option {
-  border-top-color: rgba(236, 231, 220, 0.1);
+  border-top-color: rgb(var(--rp-paper-rgb) / 0.1);
 }
 
 [data-theme="dark"] .dialog-form-option {
-  border-color: rgba(236, 231, 220, 0.1);
-  background: rgba(34, 33, 30, 0.55);
+  border-color: rgb(var(--rp-paper-rgb) / 0.1);
+  background: rgb(var(--rp-glass-rgb) / 0.55);
 }
 
 [data-theme="dark"] .dialog-form-option strong,
 [data-theme="dark"] .dialog-form-toggle span {
-  color: #e8e4dc;
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .dialog-form-option small,
 [data-theme="dark"] .dialog-form-hint,
 [data-theme="dark"] .dialog-form-lead,
 [data-theme="dark"] .dialog-form-fieldset legend {
-  color: #8a847c;
+  color: var(--rp-text-faint);
 }
 
 [data-theme="dark"] .tree-row.is-selected {
-  border-color: rgba(61, 127, 111, 0.35);
-  background: rgba(61, 127, 111, 0.18);
+  border-color: rgb(var(--rp-accent-rgb) / 0.35);
+  background: rgb(var(--rp-accent-rgb) / 0.18);
 }
 
 [data-theme="dark"] .tree-row.is-open-tab:not(.is-selected) {
-  border-color: rgba(61, 127, 111, 0.2);
-  background: rgba(61, 127, 111, 0.1);
-  box-shadow: inset 3px 0 0 #5a9d8c;
+  border-color: rgb(var(--rp-accent-rgb) / 0.2);
+  background: rgb(var(--rp-accent-rgb) / 0.1);
+  box-shadow: inset 3px 0 0 var(--rp-accent-deep);
 }
 
 [data-theme="dark"] .tree-row.is-selected.is-open-tab {
-  border-color: rgba(61, 127, 111, 0.4);
-  background: rgba(61, 127, 111, 0.22);
-  box-shadow: inset 3px 0 0 #5a9d8c;
+  border-color: rgb(var(--rp-accent-rgb) / 0.4);
+  background: rgb(var(--rp-accent-rgb) / 0.22);
+  box-shadow: inset 3px 0 0 var(--rp-accent-deep);
 }
 
 [data-theme="dark"] .tree-row {
-  color: #d4cec4;
+  color: var(--rp-text-secondary);
 }
 
 [data-theme="dark"] .pointer-drag-ghost.tree-row {
-  border-color: rgba(61, 127, 111, 0.45);
-  background: #2a2926;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
+  background: var(--rp-surface-raised);
+  box-shadow: 0 10px 28px rgb(var(--rp-shadow-rgb) / 0.45);
 }
 
 [data-theme="dark"] .pointer-drag-ghost.request-tab {
-  border-color: rgba(61, 127, 111, 0.4);
+  border-color: rgb(var(--rp-accent-rgb) / 0.4);
   background: var(--rp-bg);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgb(var(--rp-shadow-rgb) / 0.4);
 }
 
 [data-theme="dark"] .mini-btn {
-  color: var(--dark-text-faint);
+  color: var(--rp-text-faint);
 }
 
 [data-theme="dark"] .mini-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--dark-text);
+  background: rgb(var(--rp-ink-rgb) / 0.06);
+  color: var(--rp-text);
 }
 
 /* Keep the delete (×) control's dedicated red — the generic .mini-btn dark rule above
@@ -4474,85 +4544,45 @@ select,
 }
 
 [data-theme="dark"] .tool-icon {
-  color: var(--dark-accent);
+  color: var(--rp-accent);
 }
 
 [data-theme="dark"] .tool-icon:hover {
-  color: var(--dark-accent-bright);
+  color: var(--rp-accent-strong);
 }
 
 [data-theme="dark"] .segmented {
   border-color: var(--rp-border-subtle);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgb(var(--rp-shadow-rgb) / 0.2);
 }
 
 [data-theme="dark"] .segmented button.active,
 [data-theme="dark"] .tabs button.active {
-  background: var(--dark-bg-raised);
+  background: var(--rp-surface-raised);
   box-shadow: inset 0 0 0 1px var(--rp-border);
 }
 
-[data-theme="dark"] .json-key {
-  color: var(--dark-json-key);
-}
-
-[data-theme="dark"] .json-string {
-  color: var(--dark-json-string);
-}
-
-[data-theme="dark"] .json-number {
-  color: var(--dark-json-number);
-}
-
-[data-theme="dark"] .json-bool {
-  color: var(--dark-json-bool);
-}
-
-[data-theme="dark"] .json-null {
-  color: var(--dark-json-null);
-}
-
-[data-theme="dark"] .xml-tag {
-  color: var(--dark-json-key);
-}
-
-[data-theme="dark"] .xml-attr {
-  color: var(--dark-json-string);
-}
-
-[data-theme="dark"] .xml-bracket {
-  color: var(--dark-text-faint);
-}
-
-[data-theme="dark"] .xml-comment {
-  color: #7a756c;
-}
-
-[data-theme="dark"] .xml-cdata {
-  color: var(--dark-json-number);
-}
-
 [data-theme="dark"] .response-head {
-  border-bottom-color: var(--dark-border);
+  border-bottom-color: var(--rp-border-subtle);
 }
 
 [data-theme="dark"] .metrics {
-  color: var(--dark-text-faint);
+  color: var(--rp-text-faint);
 }
 
 [data-theme="dark"] .status.ok {
-  background: rgba(61, 127, 111, 0.22);
-  color: #8ecdb8;
+  background: rgb(var(--rp-accent-rgb) / 0.22);
+  color: var(--rp-accent-text);
 }
 
 [data-theme="dark"] .status.bad {
-  background: rgba(248, 113, 113, 0.16);
-  color: #f0a8a0;
+  background: rgb(var(--rp-danger-rgb) / 0.16);
+  color: var(--rp-danger-hover);
 }
 
 [data-theme="dark"] .status.soft {
-  background: rgba(232, 192, 120, 0.14);
-  color: #e8c078;
+  background: rgb(var(--rp-warning-rgb) / 0.14);
+  color: var(--rp-warning-text);
 }
 
 [data-theme="dark"] .request-tab-panel {
@@ -4561,13 +4591,13 @@ select,
 
 [data-theme="dark"] .pair-row input,
 [data-theme="dark"] .pair-row textarea {
-  border-color: var(--dark-border);
-  background: var(--dark-bg-input);
-  color: var(--dark-text);
+  border-color: var(--rp-border-subtle);
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .headers-table-empty{
-  color: var(--dark-text-faint);
+  color: var(--rp-text-faint);
 }
 
 [data-theme="dark"] .context-menu button {
@@ -4575,15 +4605,15 @@ select,
 }
 
 [data-theme="dark"] .context-menu button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgb(var(--rp-ink-rgb) / 0.09);
 }
 
 [data-theme="dark"] .context-menu button.danger {
-  color: #e07a6a;
+  color: var(--rp-danger);
 }
 
 [data-theme="dark"] .context-menu hr {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(var(--rp-ink-rgb) / 0.1);
 }
 
 [data-theme="dark"] .context-menu-submenu-trigger {
@@ -4591,15 +4621,15 @@ select,
 }
 
 [data-theme="dark"] .context-menu-submenu-trigger:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgb(var(--rp-ink-rgb) / 0.09);
 }
 
 [data-theme="dark"] .context-menu-submenu-arrow {
-  color: #a8a093;
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .settings-radio-row {
-  color: var(--dark-text-muted);
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .env-chip {
@@ -4613,7 +4643,7 @@ select,
 }
 
 [data-theme="dark"] .request-tab:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--rp-ink-rgb) / 0.04);
   color: var(--rp-text);
 }
 
@@ -4626,28 +4656,28 @@ select,
 }
 
 [data-theme="dark"] .tab-scroll-btn {
-  color: #a8a093;
-  border-color: rgba(236, 231, 220, 0.08);
+  color: var(--rp-text-muted);
+  border-color: rgb(var(--rp-paper-rgb) / 0.08);
 }
 
 [data-theme="dark"] .tab-scroll-btn:hover:not(.is-hidden) {
-  color: #9fd0c4;
-  background: rgba(61, 127, 111, 0.16);
+  color: var(--rp-accent-text);
+  background: rgb(var(--rp-accent-rgb) / 0.16);
 }
 
 [data-theme="dark"] .tab-actions-trigger {
-  border-color: rgba(61, 127, 111, 0.42);
-  background: rgba(61, 127, 111, 0.14);
-  color: #9fd0c4;
+  border-color: rgb(var(--rp-accent-rgb) / 0.42);
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+  color: var(--rp-accent-text);
 }
 
 [data-theme="dark"] .tab-actions-trigger:hover {
-  background: rgba(61, 127, 111, 0.22);
-  color: #b8e4d8;
+  background: rgb(var(--rp-accent-rgb) / 0.22);
+  color: var(--rp-accent-hover);
 }
 
 [data-theme="dark"] .context-menu-check {
-  color: #9fd0c4;
+  color: var(--rp-accent-text);
 }
 
 [data-theme="dark"] input,
@@ -4660,20 +4690,20 @@ select,
 }
 
 [data-theme="dark"] .collection-search-field:focus-within {
-  border-color: rgba(61, 127, 111, 0.45);
-  box-shadow: 0 0 0 2px rgba(61, 127, 111, 0.16);
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
+  box-shadow: 0 0 0 2px rgb(var(--rp-accent-rgb) / 0.16);
 }
 
 [data-theme="dark"] .collection-search input[type="search"] {
-  color: #e8e4dc;
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .collection-search-clear {
-  color: #a8a093;
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .collection-search-icon {
-  color: #9fd0c4;
+  color: var(--rp-accent-text);
 }
 
 [data-theme="dark"] .settings-field select,
@@ -4684,11 +4714,11 @@ select,
 }
 
 [data-theme="dark"] .icon-btn {
-  color: #a8a093;
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .icon-btn:hover {
-  color: #ece7dc;
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .quiet-button,
@@ -4700,78 +4730,85 @@ select,
 
 [data-theme="dark"] .code-editor .cm-editor,
 [data-theme="dark"] .response-body-viewer .cm-editor {
-  background: var(--dark-bg-input);
-  color: var(--dark-text);
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .code-editor .cm-cursor,
 [data-theme="dark"] .response-body-viewer .cm-cursor {
-  border-left-color: var(--dark-accent-bright);
+  border-left-color: var(--rp-accent-strong);
 }
 
 [data-theme="dark"] .code-editor .cm-selectionBackground,
 [data-theme="dark"] .response-body-viewer .cm-selectionBackground,
 [data-theme="dark"] .code-editor.cm-focused .cm-selectionBackground,
 [data-theme="dark"] .response-body-viewer .cm-focused .cm-selectionBackground {
-  background: rgba(61, 127, 111, 0.28) !important;
+  background: rgb(var(--rp-accent-rgb) / 0.28) !important;
 }
 
 [data-theme="dark"] .headers-table-search {
-  border-color: rgba(236, 231, 220, 0.12);
-  background: rgba(27, 26, 23, 0.92);
-  color: #ece7dc;
+  border-color: rgb(var(--rp-paper-rgb) / 0.12);
+  background: rgb(var(--rp-glass-rgb) / 0.92);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .headers-table-head {
-  background: rgba(34, 33, 30, 0.92);
-  border-bottom-color: rgba(236, 231, 220, 0.08);
-  color: #a8a093;
+  background: rgb(var(--rp-glass-rgb) / 0.92);
+  border-bottom-color: rgb(var(--rp-paper-rgb) / 0.08);
+  color: var(--rp-text-muted);
 }
 
 [data-theme="dark"] .headers-table-row:nth-child(even) {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--rp-ink-rgb) / 0.03);
 }
 
 [data-theme="dark"] .headers-table-key {
-  color: #7eb8a8;
+  color: var(--rp-accent);
 }
 
 [data-theme="dark"] .headers-table-value {
-  color: #ece7dc;
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .url-send-input {
-  color: var(--dark-text);
+  color: var(--rp-text);
 }
 
 [data-theme="dark"] .url-send-input::placeholder {
-  color: var(--dark-text-faint);
+  color: var(--rp-text-faint);
 }
 
-[data-theme="dark"] ::-webkit-scrollbar {
+/* Scrollbars are styled for every theme, not just dark: scoping them to
+   [data-theme="dark"] left the light theme with the webview's default chunky
+   scrollbar, which is one of the most obvious "this is a web page" tells. */
+::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-[data-theme="dark"] ::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
 
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 8px;
-  background: rgba(236, 231, 220, 0.14);
+  background: rgb(var(--rp-ink-rgb) / 0.16);
   background-clip: padding-box;
 }
 
-[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(236, 231, 220, 0.22);
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--rp-ink-rgb) / 0.26);
   background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ── Missing dark overrides ──────────────────────────────────────────────── */
 
-/* Empty workspace state — was rgba(255,252,246,0.48) which composited to medium gray */
+/* Empty workspace state — was rgb(var(--rp-paper-rgb) / 0.48) which composited to medium gray */
 [data-theme="dark"] .empty-editor {
   background: var(--rp-surface);
   border-color: var(--rp-border-subtle);
@@ -4788,23 +4825,23 @@ select,
 }
 
 [data-theme="dark"] .response-empty.error h2 {
-  color: #e07a6a;
+  color: var(--rp-danger);
 }
 
 /* Sidebar navigation tab — hover visible on dark */
 [data-theme="dark"] .sidebar-navigation-item:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgb(var(--rp-ink-rgb) / 0.07);
 }
 
 /* Sidebar action popover (+ and ⋯ menus at sidebar header) */
 [data-theme="dark"] .sidebar-action-popover {
   background: var(--rp-chrome-elevated);
   border-color: var(--rp-border);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 24px rgb(var(--rp-shadow-rgb) / 0.45);
 }
 
 [data-theme="dark"] .sidebar-action-popover button:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgb(var(--rp-ink-rgb) / 0.09);
 }
 
 @media (max-width: 1180px) {
@@ -4878,14 +4915,14 @@ select,
 /* 3. Send & Cancel Button Hover Effects */
 .url-send-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(61, 127, 111, 0.22);
+  box-shadow: 0 4px 12px rgb(var(--rp-accent-rgb) / 0.22);
 }
 .url-send-btn:active {
   transform: translateY(0) scale(0.98);
   box-shadow: none;
 }
 .url-send-btn--cancel:hover {
-  box-shadow: 0 4px 12px rgba(181, 74, 60, 0.25);
+  box-shadow: 0 4px 12px rgb(var(--rp-danger-rgb) / 0.25);
 }
 
 /* 4. Smooth Tabs Transitions & Indicators */
@@ -4926,12 +4963,11 @@ select,
 }
 
 /* 6. Dynamic Glassmorphism for Popovers */
+/* One rule for both themes: --rp-glass-rgb already flips, so the dark override that
+   used to sit here restated exactly the same declaration. */
 .app-popover {
-  background: rgba(255, 255, 255, 0.94) !important;
+  background: rgb(var(--rp-glass-rgb) / 0.94) !important;
   backdrop-filter: blur(12px) !important;
-}
-[data-theme="dark"] .app-popover {
-  background: rgba(30, 29, 26, 0.94) !important;
 }
 
 /* 7. Input Glow Pulse Transitions */
@@ -4950,19 +4986,9 @@ select,
 .tree-rename-input:focus,
 .settings-input-shell input:focus,
 .dialog-form input:focus {
-  border-color: rgba(61, 127, 111, 0.55);
+  border-color: rgb(var(--rp-accent-rgb) / 0.55);
   box-shadow: 0 0 0 3px var(--rp-accent-soft-strong);
   outline: none;
-}
-
-.collection-sidebar {
-  background: rgba(248, 247, 245, 0.76) !important;
-  backdrop-filter: blur(24px) saturate(110%) !important;
-}
-
-[data-theme="dark"] .collection-sidebar {
-  background: rgba(24, 23, 21, 0.76) !important;
-  backdrop-filter: blur(24px) saturate(110%) !important;
 }
 
 /* Unified application sidebar */
@@ -5095,7 +5121,7 @@ select,
 
 .sidebar-navigation-item:hover {
   color: var(--rp-text);
-  background: rgba(52, 48, 42, 0.05);
+  background: rgb(var(--rp-ink-rgb) / 0.05);
 }
 
 .sidebar-navigation-item.is-active {
@@ -5158,7 +5184,7 @@ select,
   border: 1px solid var(--rp-border);
   border-radius: 7px;
   background: var(--rp-surface);
-  box-shadow: 0 8px 24px rgba(20, 29, 43, 0.14);
+  box-shadow: 0 8px 24px rgb(var(--rp-shadow-rgb) / 0.14);
 }
 
 .sidebar-action-menu--end .sidebar-action-popover {
@@ -5257,7 +5283,7 @@ select,
 /* Solid Modern Fluent Action Fill for Primary & Cancel Buttons */
 .url-send-btn {
   background: var(--rp-accent) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 1px 2px rgb(var(--rp-shadow-rgb) / 0.05), inset 0 1px 0 rgb(var(--rp-glass-rgb) / 0.12) !important;
   text-transform: none !important;
   font-weight: 600 !important;
   letter-spacing: 0.01em !important;
@@ -5283,13 +5309,8 @@ select,
 }
 
 .code-editor:focus-within {
-  border-color: rgba(61, 127, 111, 0.55) !important;
+  border-color: rgb(var(--rp-accent-rgb) / 0.55) !important;
   box-shadow: 0 0 0 3px var(--rp-accent-soft-strong) !important;
-}
-
-/* Font-family prioritizes Microsoft Segoe UI Variable Display for Fluent aesthetics */
-:root {
-  font-family: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, -apple-system, sans-serif !important;
 }
 
 /* Scoped Excel-Style Variables Spreadsheet Grid (Scoped strictly under .variables-workspace) */
@@ -5364,7 +5385,7 @@ select,
 }
 
 .variables-workspace .variable-item:hover {
-  background: rgba(61, 127, 111, 0.04);
+  background: rgb(var(--rp-accent-rgb) / 0.04);
   box-shadow: none;
 }
 
@@ -5514,7 +5535,7 @@ select,
 }
 
 .variables-workspace .env-manage-var-row:hover {
-  background: rgba(61, 127, 111, 0.04);
+  background: rgb(var(--rp-accent-rgb) / 0.04);
   box-shadow: none;
 }
 
@@ -5606,7 +5627,7 @@ select,
 }
 
 .variables-workspace .variable-secret-btn:hover {
-  background: rgba(61, 127, 111, 0.08);
+  background: rgb(var(--rp-accent-rgb) / 0.08);
   color: var(--rp-text);
 }
 
@@ -5618,7 +5639,7 @@ select,
 
 .variables-workspace .variable-secret-btn.is-active {
   color: var(--rp-accent);
-  background: rgba(61, 127, 111, 0.12);
+  background: rgb(var(--rp-accent-rgb) / 0.12);
 }
 
 .variables-workspace .variable-toggle {
@@ -5647,7 +5668,7 @@ select,
   border: 1px solid var(--rp-border);
   border-radius: 4px;
   background-color: var(--rp-surface-muted);
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236f6b65' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-image: var(--rp-select-chevron);
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 10px;
@@ -5703,13 +5724,13 @@ select,
 }
 
 .var-dialog-item:hover {
-  background: rgba(46, 204, 113, 0.06);
-  border-color: rgba(46, 204, 113, 0.15);
+  background: rgb(var(--rp-accent-rgb) / 0.06);
+  border-color: rgb(var(--rp-accent-rgb) / 0.15);
 }
 
 .var-dialog-item.selected {
-  background: rgba(46, 204, 113, 0.14) !important;
-  border-color: rgba(46, 204, 113, 0.35) !important;
+  background: rgb(var(--rp-accent-rgb) / 0.14) !important;
+  border-color: rgb(var(--rp-accent-rgb) / 0.35) !important;
 }
 
 .variables-workspace-sidebar {
@@ -5774,13 +5795,13 @@ select,
 }
 
 .variables-sidebar-item:hover {
-  background: rgba(61, 127, 111, 0.06);
+  background: rgb(var(--rp-accent-rgb) / 0.06);
 }
 
 .variables-sidebar-item.is-selected {
-  background: rgba(61, 127, 111, 0.12);
-  border-color: rgba(61, 127, 111, 0.2);
-  color: var(--rp-accent-strong, #2f5f54);
+  background: rgb(var(--rp-accent-rgb) / 0.12);
+  border-color: rgb(var(--rp-accent-rgb) / 0.2);
+  color: var(--rp-accent-strong, var(--rp-accent-text));
   font-weight: 600;
 }
 
@@ -5789,8 +5810,8 @@ select,
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #2e7d32;
-  box-shadow: 0 0 6px #2e7d32;
+  background: var(--rp-success);
+  box-shadow: 0 0 6px var(--rp-success);
   margin-left: 8px;
 }
 
@@ -5871,15 +5892,15 @@ select,
 }
 
 .import-text-status--ok {
-  color: var(--rp-success, #2f6f4d);
+  color: var(--rp-success);
 }
 
 .import-text-status--bad {
-  color: var(--field-remove-color, #b54a3a);
+  color: var(--field-remove-color, var(--rp-danger-text));
 }
 
 [data-theme="dark"] .import-text-status--ok {
-  color: #7eb8a8;
+  color: var(--rp-accent);
 }
 
 /* ── Import preview dialog ── */
@@ -5997,9 +6018,9 @@ select,
   gap: 12px;
   margin: 16px;
   padding: 16px 18px;
-  border: 1px solid rgba(181, 74, 58, 0.3);
+  border: 1px solid rgb(var(--rp-danger-rgb) / 0.3);
   border-radius: var(--rp-radius);
-  background: rgba(181, 74, 58, 0.06);
+  background: rgb(var(--rp-danger-rgb) / 0.06);
   color: var(--rp-text);
   font-size: 13px;
 }
@@ -6008,7 +6029,7 @@ select,
   margin: 0;
   font-weight: 700;
   font-size: 14px;
-  color: #b54a3a;
+  color: var(--rp-danger-text);
 }
 
 .error-boundary-actions {
@@ -6062,11 +6083,11 @@ select,
 }
 
 [data-theme="dark"] .error-boundary-fallback {
-  border-color: rgba(224, 122, 106, 0.35);
-  background: rgba(224, 122, 106, 0.1);
+  border-color: rgb(var(--rp-danger-rgb) / 0.35);
+  background: rgb(var(--rp-danger-rgb) / 0.1);
 }
 
 [data-theme="dark"] .error-boundary-message {
-  color: #e07a6a;
+  color: var(--rp-danger);
 }
 

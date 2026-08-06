@@ -138,11 +138,11 @@ export function EnvironmentVariablesPanel({ environment, refresh, onVariablesCha
                 gap: "6px",
                 fontSize: "11px",
                 fontWeight: 700,
-                color: "#2e7d32",
-                background: "rgba(46, 125, 50, 0.1)",
+                color: "var(--rp-success)",
+                background: "rgb(var(--rp-success-rgb) / 0.1)",
                 padding: "4px 10px",
                 borderRadius: "20px",
-                border: "1px solid rgba(46, 125, 50, 0.2)",
+                border: "1px solid rgb(var(--rp-success-rgb) / 0.2)",
                 height: "24px",
                 boxSizing: "border-box",
                 textTransform: "uppercase",
@@ -155,8 +155,8 @@ export function EnvironmentVariablesPanel({ environment, refresh, onVariablesCha
                   width: "6px",
                   height: "6px",
                   borderRadius: "50%",
-                  background: "#2e7d32",
-                  boxShadow: "0 0 6px #2e7d32"
+                  background: "var(--rp-success)",
+                  boxShadow: "0 0 6px rgb(var(--rp-success-rgb) / 0.8)"
                 }}
               />
               {labels.active || "Active"}

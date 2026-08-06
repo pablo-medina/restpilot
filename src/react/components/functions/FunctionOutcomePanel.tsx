@@ -178,8 +178,8 @@ export function FunctionOutcomePanel(props: Props) {
           minHeight: 180
         }}
       >
-        <div style={{ marginBottom: 8, fontWeight: 600, color: "#4b8b3b", display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#4b8b3b" }} />
+        <div style={{ marginBottom: 8, fontWeight: 600, color: "var(--rp-success)", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--rp-success)" }} />
           {funcLabels.success}
         </div>
         <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--rp-text)" }}>{formattedVal}</pre>
@@ -203,11 +203,11 @@ export function FunctionOutcomePanel(props: Props) {
         minHeight: 180
       }}
     >
-      <div style={{ marginBottom: 8, fontWeight: 600, color: "#b54a3a", display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#b54a3a" }} />
+      <div style={{ marginBottom: 8, fontWeight: 600, color: "var(--rp-danger-text)", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--rp-danger-text)" }} />
         {funcLabels.failure}
       </div>
-      <pre style={{ margin: 0, whiteSpace: "pre-wrap", color: "#b54a3a" }}>{props.result.error || "Unknown error occurred."}</pre>
+      <pre style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--rp-danger-text)" }}>{props.result.error || "Unknown error occurred."}</pre>
     </div>
   );
 }

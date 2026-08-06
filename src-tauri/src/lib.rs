@@ -1137,6 +1137,14 @@ pub fn run() {
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("RestPilot");
+                // tauri.conf.json can only declare one background colour, so a dark-theme
+                // user would see a light flash before the webview paints. Repaint the
+                // window to the saved theme before it is shown.
+                if load_startup_settings().theme == "dark" {
+                    let _ = window.set_background_color(Some(tauri::window::Color(
+                        0x14, 0x13, 0x12, 0xff,
+                    )));
+                }
                 if maximize_on_startup_enabled() {
                     let _ = window.maximize();
                 }

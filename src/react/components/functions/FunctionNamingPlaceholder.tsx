@@ -27,7 +27,8 @@ export function FunctionNamingPlaceholder() {
           width: 64,
           height: 64,
           borderRadius: "50%",
-          background: "linear-gradient(135deg, rgba(46, 204, 113, 0.1), rgba(52, 152, 219, 0.1))",
+          background:
+            "linear-gradient(135deg, rgb(var(--rp-accent-rgb) / 0.14), rgb(var(--rp-accent-rgb) / 0.04))",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -43,7 +44,7 @@ export function FunctionNamingPlaceholder() {
             fontWeight: 700,
             color: "var(--rp-text)",
             margin: 0,
-            background: "linear-gradient(120deg, var(--rp-text), var(--rp-accent, #3d7f6f))",
+            background: "linear-gradient(120deg, var(--rp-text), var(--rp-accent))",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent"
           }}

@@ -43,8 +43,8 @@ export function bindFunctionResultDialogs(): void {
         .map((v) => {
           const scopeBadge =
             v.scope === "env"
-              ? `<span style="background: rgba(46, 204, 113, 0.15); color: #2ecc71; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Env: ${escapeHtml(v.envName ?? "")}</span>`
-              : `<span style="background: rgba(52, 152, 219, 0.15); color: #3498db; padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Global</span>`;
+              ? `<span style="background: rgb(var(--rp-accent-rgb) / 0.15); color: var(--rp-accent-text); padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Env: ${escapeHtml(v.envName ?? "")}</span>`
+              : `<span style="background: rgb(var(--rp-ink-rgb) / 0.08); color: var(--rp-text-muted); padding: 1px 5px; border-radius: 10px; font-size: 9px; font-weight: 700; margin-left: 6px;">Global</span>`;
 
           const displayValue = v.secret ? "••••••••" : v.value;
 

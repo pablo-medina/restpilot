@@ -5,6 +5,7 @@ import { useContextMenuTrigger } from "./hooks/useContextMenuTrigger";
 import { useDialogStack } from "./hooks/useDialogStack";
 import { useExternalLinks } from "./hooks/useExternalLinks";
 import { useGlobalKeyboard } from "./hooks/useGlobalKeyboard";
+import { useNativeShell } from "./hooks/useNativeShell";
 import { usePopoverClose } from "./hooks/usePopoverClose";
 import { registerSettingsDialogOpener } from "./lib/settings-dialog";
 import { registerVariablesManagerDialogOpener } from "./lib/variables-manager-dialog";
@@ -32,6 +33,7 @@ export function App() {
   const closeVariablesManager = useCallback(() => setVariablesManagerOpen(false), []);
 
   useGlobalKeyboard();
+  useNativeShell();
   useExternalLinks();
   useContextMenuTrigger();
   usePopoverClose();

@@ -133,7 +133,10 @@ export function FunctionAuthFields({ func, onChange }: Props) {
                   value={auth.basicUsername ?? ""}
                   placeholder={labels.basicUsernamePlaceholder}
                   spellCheck={false}
-                  autoComplete="username"
+                  // These are request parameters, not the user's own login: "username" /
+                  // "current-password" would hand them to the webview's password manager,
+                  // which then offers to save API credentials as if they were a site login.
+                  autoComplete="off"
                   className="url-send-input"
                   style={{ padding: "6px 12px" }}
                   onChange={(event) =>
@@ -153,7 +156,9 @@ export function FunctionAuthFields({ func, onChange }: Props) {
                 <SecretInput
                   value={auth.basicPassword ?? ""}
                   placeholder={labels.basicPasswordPlaceholder}
-                  autoComplete="current-password"
+                  // "off" is widely ignored on password inputs; "new-password" is what
+                  // actually suppresses the autofill dropdown and the save prompt.
+                  autoComplete="new-password"
                   onChange={(value) =>
                     persistAuth({
                       ...auth,

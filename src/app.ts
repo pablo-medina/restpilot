@@ -59,7 +59,10 @@ export async function startApp(
     onVariablesChanged: onEffectiveVariablesChanged
   });
 
-  const editorsReady = preloadEditorRuntime();
+  // Warm the CodeMirror chunk in the background. It is deliberately *not* awaited:
+  // every editor host mounts itself once the chunk lands (see CodeMirrorEditor), so
+  // blocking the first paint on ~390 KB of editor code only delays the whole window.
+  void preloadEditorRuntime();
   let configLoadFailed = false;
 
   try {
@@ -86,14 +89,15 @@ export async function startApp(
   }
 
   applyUserSettings(state.settings);
-  await editorsReady;
-
-  finishBoot();
 
   initWindowChrome();
   for (const id of state.openTabs) ensureTab(id);
   render();
   bindEvents();
+
+  // Unhide only once the tree/tabs/panels have been rendered, so the window never
+  // flashes an empty shell between the splash and the first real frame.
+  finishBoot();
 
   if (configLoadFailed) {
     const labels = t().messages;

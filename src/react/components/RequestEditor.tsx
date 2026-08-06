@@ -168,7 +168,8 @@ function AuthPanel({
               value={auth.basicUsername ?? ""}
               placeholder={labels.basicUsernamePlaceholder}
               spellCheck={false}
-              autoComplete="username"
+              // Request parameters, not the user's own login — see SecretInput.
+              autoComplete="off"
               onValueChange={(value) =>
                 persistAuth({
                   ...auth,
@@ -185,7 +186,6 @@ function AuthPanel({
               id="auth-basic-password"
               value={auth.basicPassword ?? ""}
               placeholder={labels.basicPasswordPlaceholder}
-              autoComplete="current-password"
               onChange={(value) =>
                 persistAuth({
                   ...auth,
