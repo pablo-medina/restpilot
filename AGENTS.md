@@ -32,7 +32,8 @@ Settings → **Clear all data** must restore **factory defaults** for everything
 
 ## UI and theming
 
-- Respect the existing visual language in `src/styles.css` (zen palette, glass rail, folder/request icons).
+- Respect the existing visual language in `src/styles.css` (zen palette, solid chrome, folder/request icons).
+- **No glassmorphism.** There is no `backdrop-filter` anywhere and none should be added: floating surfaces (popovers, dialogs, toasts, the context menu) are solid `var(--rp-surface)` or a near-opaque `--rp-paper-rgb` fill. `--rp-glass-rgb` is plain alpha for selected rows, tab hovers and input fills — the name predates the cleanup, it does not imply frosting.
 - The UI is **React** (`src/react/`). Reuse existing components (`PairRow`, `CodeMirrorEditor`, `PopoverShell`, `AppDialog`) and CSS classes; do not add new string-template rendering.
 - New surfaces should support **light** (default) and **dark** themes via `[data-theme]` on `document.documentElement`.
 - **Palette tokens** (`--rp-*` in `src/styles.css`): shared names for light and dark. Light values live on `:root`; dark remaps the same tokens inside `[data-theme="dark"]`. Prefer `var(--rp-surface)`, `var(--rp-border)`, etc. in new rules.
