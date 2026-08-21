@@ -4,8 +4,10 @@ import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth, normalizeRequestAuth } from "./request-auth";
 import { migrateRequestQuery } from "../lib/url-params";
 import { normalizeParentId } from "./collection-parent";
+import { migrateVariableSyntax, needsVariableSyntaxMigration } from "./migrate-variable-syntax";
 import {
   clampRequestTimeoutSecs,
+  CONFIG_VERSION,
   DEFAULT_PROXY_TEST_URL,
   defaultSettings,
   type ApiResponse,
@@ -222,7 +224,8 @@ export function normalizeConfig(config: AppConfig): AppConfig {
   if (activeEnvironmentId && !environments.some((env) => env.id === activeEnvironmentId)) {
     activeEnvironmentId = null;
   }
-  return {
+  const normalized: AppConfig = {
+    configVersion: CONFIG_VERSION,
     items: (config.items ?? []).map(normalizeTreeItem),
     variables: (config.variables ?? []).map(normalizeVariable),
     environments,
@@ -253,6 +256,10 @@ export function normalizeConfig(config: AppConfig): AppConfig {
           : DEFAULT_PROXY_TEST_URL
     }
   };
+
+  // Runs after normalization so every field is already the right shape. Idempotent, so an
+  // already-migrated config passed through here again is unchanged.
+  return needsVariableSyntaxMigration(config.configVersion) ? migrateVariableSyntax(normalized) : normalized;
 }
 
 

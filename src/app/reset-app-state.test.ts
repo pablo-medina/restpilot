@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { defaultConfig, defaultSettings } from "../types";
+import { CONFIG_VERSION, defaultConfig, defaultSettings } from "../types";
 import { defaultRuntimeState, resetAppStateToDefaults } from "./reset-app-state";
 import type { AppState } from "./state";
 
 function mockPopulatedState(): AppState {
   return {
+    configVersion: CONFIG_VERSION,
     items: [{ id: "1", kind: "folder", parentId: "/", title: "X", expanded: true }],
     variables: [{ id: "v1", name: "a", value: "b", enabled: true }],
     environments: [{ id: "e1", name: "Prod", variables: [] }],

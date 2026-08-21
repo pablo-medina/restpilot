@@ -28,7 +28,8 @@ function textWidthAtCursor(input: HTMLInputElement): number {
 
 type DropdownState = {
   vars: Variable[];
-  dollarIndex: number;
+  /** Index of the `{{` that opened the template being completed. */
+  openIndex: number;
   activeIndex: number;
   top: number;
   left: number;
@@ -56,21 +57,19 @@ export const VariableInput = forwardRef<HTMLInputElement, Props>(
 
     const computeDropdown = (input: HTMLInputElement): DropdownState | null => {
       const pos = input.selectionStart ?? 0;
-      let dollarIdx = -1;
-      for (let i = pos - 1; i >= 0; i--) {
-        if (input.value[i] === "$") {
-          const between = input.value.slice(i + 1, pos);
-          if (between.includes("}")) break;
-          dollarIdx = i;
+      // Walk back to the `{{` that opened the template the cursor sits in. A `}` on the way
+      // means the nearest template is already closed, so there is nothing to complete.
+      let openIdx = -1;
+      for (let i = pos - 2; i >= 0; i--) {
+        if (input.value[i] === "{" && input.value[i + 1] === "{") {
+          openIdx = i;
           break;
         }
+        if (input.value[i] === "}") break;
       }
-      if (dollarIdx === -1) return null;
+      if (openIdx === -1) return null;
 
-      const afterDollar = input.value.slice(dollarIdx + 1, pos);
-      if (afterDollar !== "" && !afterDollar.startsWith("{")) return null;
-
-      const filter = afterDollar.startsWith("{") ? afterDollar.slice(1) : "";
+      const filter = input.value.slice(openIdx + 2, pos);
       const all = getActiveVars();
       const vars = filter
         ? all.filter((v) => v.name.toLowerCase().includes(filter.toLowerCase()))
@@ -104,7 +103,7 @@ export const VariableInput = forwardRef<HTMLInputElement, Props>(
       const acWidth = Math.max(160, Math.min(280, 480));
       const left = Math.max(4, Math.min(cx, window.innerWidth - acWidth - 8));
 
-      return { vars, dollarIndex: dollarIdx, activeIndex: 0, top: Math.round(top), left: Math.round(left), maxHeight: Math.round(maxH) };
+      return { vars, openIndex: openIdx, activeIndex: 0, top: Math.round(top), left: Math.round(left), maxHeight: Math.round(maxH) };
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,9 +116,9 @@ export const VariableInput = forwardRef<HTMLInputElement, Props>(
     const applyComplete = (varName: string) => {
       const input = inputRef.current;
       if (!input || !dropdown) return;
-      const before = input.value.slice(0, dropdown.dollarIndex);
+      const before = input.value.slice(0, dropdown.openIndex);
       const after = input.value.slice(input.selectionStart ?? input.value.length);
-      const insertion = `\${${varName}}`;
+      const insertion = `{{${varName}}}`;
       const newValue = before + insertion + after;
       const newPos = before.length + insertion.length;
 
@@ -211,7 +210,7 @@ export const VariableInput = forwardRef<HTMLInputElement, Props>(
                   applyComplete(v.name);
                 }}
               >
-                <span className="var-ac-name">{`\${${v.name}}`}</span>
+                <span className="var-ac-name">{`{{${v.name}}}`}</span>
               </button>
             ))}
           </div>,

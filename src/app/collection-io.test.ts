@@ -51,6 +51,32 @@ describe("collection-format", () => {
     expect(parsed.collection.variables).toEqual(file.collection.variables);
   });
 
+  // Export files embed raw items and carry no config version, so an export written before the
+  // `{{name}}` switch would otherwise reinject the old syntax on import.
+  it("upgrades legacy ${name} templates in an imported collection", () => {
+    const legacy = request("r1", "Login");
+    legacy.url = "${base_url}/auth";
+    legacy.headers = [{ id: "h1", key: "X-Tenant", value: "${tenant}", enabled: true }];
+    // Normalization hoists an Authorization header into the auth block, so this also proves the
+    // upgrade runs after normalization and still reaches the derived field.
+    legacy.auth = { type: "bearer", bearerToken: "${token}" };
+    const file = {
+      format: COLLECTION_FORMAT,
+      version: COLLECTION_VERSION,
+      exportedAt: new Date().toISOString(),
+      collection: buildCollectionSnapshot(
+        { items: [legacy], variables: [], environments: [], activeEnvironmentId: null },
+        false
+      )
+    };
+
+    const parsed = parseCollectionExport(JSON.stringify(file), defaultSettings());
+    const imported = parsed.collection.items[0] as SavedRequest;
+    expect(imported.url).toBe("{{base_url}}/auth");
+    expect(imported.headers[0]?.value).toBe("{{tenant}}");
+    expect(imported.auth.bearerToken).toBe("{{token}}");
+  });
+
   it("strips variable values when requested", () => {
     const collection = buildCollectionSnapshot(
       {

@@ -14,9 +14,9 @@ function sampleRequest(): SavedRequest {
     parentId: "/",
     title: "Test",
     method: "GET",
-    url: "${base_url}",
+    url: "{{base_url}}",
     urlHash: "",
-    queryParams: [{ id: "q1", key: "api_key", value: "${token}", enabled: true }],
+    queryParams: [{ id: "q1", key: "api_key", value: "{{token}}", enabled: true }],
     headers: [],
     bodyMode: "raw",
     rawType: "json",
@@ -31,16 +31,16 @@ function sampleRequest(): SavedRequest {
 
 describe("applyVariables", () => {
   it("replaces enabled variables", () => {
-    expect(applyVariables("${base_url}/users", variables)).toBe("https://api.test/users");
+    expect(applyVariables("{{base_url}}/users", variables)).toBe("https://api.test/users");
   });
 
   it("leaves unknown names empty", () => {
-    expect(applyVariables("${missing}", variables)).toBe("");
+    expect(applyVariables("{{missing}}", variables)).toBe("");
   });
 
   it("ignores disabled variables", () => {
     const disabled = [{ ...variables[0], enabled: false }];
-    expect(applyVariables("${base_url}", disabled)).toBe("");
+    expect(applyVariables("{{base_url}}", disabled)).toBe("");
   });
 });
 
@@ -66,6 +66,6 @@ describe("shouldShowUrlPreview", () => {
 
 describe("displayRequestUrl", () => {
   it("keeps templates in the composed URL", () => {
-    expect(displayRequestUrl(sampleRequest())).toBe("${base_url}?api_key=%24%7Btoken%7D");
+    expect(displayRequestUrl(sampleRequest())).toBe("{{base_url}}?api_key=%7B%7Btoken%7D%7D");
   });
 });

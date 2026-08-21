@@ -8,7 +8,7 @@ import { getEffectiveVariables } from "../../app/environments";
 import { compactBase64, decodeBasicCredentials } from "../../lib/basic-auth";
 import { getActiveRequest, id, state } from "../../app/state";
 import { ingestUrlIntoRequest } from "../../lib/url-params";
-import { applyVariables, displayRequestUrl } from "../../lib/variables";
+import { applyVariables, displayRequestUrl, hasVariableTemplate } from "../../lib/variables";
 import { HTTP_METHODS, isHttpMethod } from "../../lib/http-methods";
 import { t } from "../../i18n";
 import type { BodyMode, FormPartType, Pair, RawType, RequestAuth, RequestTab } from "../../types";
@@ -28,7 +28,6 @@ function ensureFormRow(request: NonNullable<ReturnType<typeof getActiveRequest>>
   }
 }
 
-const VARIABLE_TEMPLATE = /\$\{[^}]+\}/;
 
 /**
  * Shows what actually goes on the wire: the encoded value in credential mode, and what a
@@ -45,7 +44,7 @@ function BasicAuthPreview({ auth }: { auth: RequestAuth }) {
     if (decoded) {
       return <p className="auth-hint auth-basic-preview">{labels.basicTokenDecoded.replace("{username}", decoded.username)}</p>;
     }
-    if (VARIABLE_TEMPLATE.test(resolved)) {
+    if (hasVariableTemplate(resolved)) {
       return <p className="auth-hint auth-basic-preview">{labels.basicTokenVariable}</p>;
     }
     return <p className="auth-hint auth-basic-preview is-warning">{labels.basicTokenInvalid}</p>;

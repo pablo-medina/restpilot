@@ -14,15 +14,15 @@ const request = (id: string, parentId: string): SavedRequest => ({
   parentId,
   title: "Example",
   method: "GET",
-  url: "https://api.example.com/${base}",
-  queryParams: [{ id: "p1", key: "q", value: "${term}", enabled: true }],
+  url: "https://api.example.com/{{base}}",
+  queryParams: [{ id: "p1", key: "q", value: "{{term}}", enabled: true }],
   headers: [],
   bodyMode: "none",
   rawType: "json",
   body: "",
   form: [],
   streamResponse: false,
-  auth: { type: "bearer", bearerToken: "${token}" },
+  auth: { type: "bearer", bearerToken: "{{token}}" },
   lastResponse: null,
   lastError: null
 });

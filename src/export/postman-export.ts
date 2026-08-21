@@ -2,16 +2,12 @@ import type { Pair, RequestAuth, SavedRequest, TreeItem } from "../types";
 import { COLLECTION_ROOT_PARENT_ID } from "../app/collection-parent";
 import { compactBase64, decodeBasicCredentials } from "../lib/basic-auth";
 
-function toPostmanVar(value: string): string {
-  return value.replace(/\$\{([^}]+)\}/g, "{{$1}}");
-}
-
 function postmanAuth(auth: RequestAuth): Record<string, unknown> | undefined {
   if (auth.type === "none") return undefined;
   if (auth.type === "bearer") {
     return {
       type: "bearer",
-      bearer: [{ key: "token", value: toPostmanVar(auth.bearerToken ?? ""), type: "string" }]
+      bearer: [{ key: "token", value: auth.bearerToken ?? "", type: "string" }]
     };
   }
   if (auth.type === "basic") {
@@ -26,8 +22,8 @@ function postmanAuth(auth: RequestAuth): Record<string, unknown> | undefined {
     return {
       type: "basic",
       basic: [
-        { key: "username", value: toPostmanVar(credentials.username), type: "string" },
-        { key: "password", value: toPostmanVar(credentials.password), type: "string" }
+        { key: "username", value: credentials.username, type: "string" },
+        { key: "password", value: credentials.password, type: "string" }
       ]
     };
   }
@@ -35,8 +31,8 @@ function postmanAuth(auth: RequestAuth): Record<string, unknown> | undefined {
     return {
       type: "apikey",
       apikey: [
-        { key: "key", value: toPostmanVar(auth.apiKeyName ?? ""), type: "string" },
-        { key: "value", value: toPostmanVar(auth.apiKeyValue ?? ""), type: "string" },
+        { key: "key", value: auth.apiKeyName ?? "", type: "string" },
+        { key: "value", value: auth.apiKeyValue ?? "", type: "string" },
         { key: "in", value: auth.apiKeyIn === "query" ? "query" : "header", type: "string" }
       ]
     };
@@ -48,8 +44,8 @@ function postmanHeaders(headers: Pair[]): Array<Record<string, unknown>> {
   return headers
     .filter((header) => header.enabled && header.key.trim())
     .map((header) => ({
-      key: toPostmanVar(header.key.trim()),
-      value: toPostmanVar(header.value),
+      key: header.key.trim(),
+      value: header.value,
       type: "text"
     }));
 }
@@ -61,7 +57,7 @@ function postmanBody(request: SavedRequest): Record<string, unknown> | undefined
     const language = request.rawType === "json" ? "json" : request.rawType === "xml" ? "xml" : "text";
     return {
       mode: "raw",
-      raw: toPostmanVar(request.body),
+      raw: request.body,
       options: { raw: { language } }
     };
   }
@@ -72,8 +68,8 @@ function postmanBody(request: SavedRequest): Record<string, unknown> | undefined
       urlencoded: request.form
         .filter((field) => field.enabled && field.key.trim())
         .map((field) => ({
-          key: toPostmanVar(field.key),
-          value: toPostmanVar(field.value),
+          key: field.key,
+          value: field.value,
           type: "text",
           disabled: false
         }))
@@ -88,15 +84,15 @@ function postmanBody(request: SavedRequest): Record<string, unknown> | undefined
         .map((field) => {
           if (field.partType === "file") {
             return {
-              key: toPostmanVar(field.key),
+              key: field.key,
               type: "file",
               src: field.fileName ?? "",
               disabled: false
             };
           }
           return {
-            key: toPostmanVar(field.key),
-            value: toPostmanVar(field.value),
+            key: field.key,
+            value: field.value,
             type: "text",
             disabled: false
           };
@@ -105,8 +101,8 @@ function postmanBody(request: SavedRequest): Record<string, unknown> | undefined
   }
 
   if (request.bodyMode === "graphql") {
-    const query = toPostmanVar(request.body);
-    const variables = request.graphqlVariables ? toPostmanVar(request.graphqlVariables) : "";
+    const query = request.body;
+    const variables = request.graphqlVariables ?? "";
     const raw = variables ? `${query}\n\n${variables}` : query;
     return {
       mode: "raw",
@@ -124,7 +120,7 @@ function postmanBasicHeader(auth: RequestAuth): Record<string, unknown> | undefi
   if (decodeBasicCredentials(auth.basicToken ?? "")) return undefined;
   const token = compactBase64(auth.basicToken ?? "");
   if (!token) return undefined;
-  return { key: "Authorization", value: `Basic ${toPostmanVar(token)}`, type: "text" };
+  return { key: "Authorization", value: `Basic ${token}`, type: "text" };
 }
 
 function postmanRequest(request: SavedRequest): Record<string, unknown> {
@@ -136,7 +132,7 @@ function postmanRequest(request: SavedRequest): Record<string, unknown> {
   const result: Record<string, unknown> = {
     method: request.method.toUpperCase(),
     header: headers,
-    url: toPostmanVar(request.url.trim()),
+    url: request.url.trim(),
     description: request.description ?? ""
   };
   if (auth) result.auth = auth;

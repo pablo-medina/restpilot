@@ -103,7 +103,7 @@ describe("request-auth", () => {
   });
 
   it("resolves variables inside a base64 token", () => {
-    const auth: RequestAuth = { type: "basic", basicMode: "token", basicToken: "${creds}" };
+    const auth: RequestAuth = { type: "basic", basicMode: "token", basicToken: "{{creds}}" };
     const headers = applyAuthHeaders([], auth, [
       { id: "1", name: "creds", value: "YWxpY2U6c2VjcmV0", enabled: true }
     ]);

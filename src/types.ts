@@ -215,7 +215,17 @@ export type CollectionSnapshot = {
   activeEnvironmentId: string | null;
 };
 
+/** Schema version of `config.json`. Bumped when stored data needs a one-time rewrite;
+ * `normalizeConfig()` upgrades anything older on load. Version 2 switched the template
+ * syntax from `${name}` to `{{name}}`. */
+export const CONFIG_VERSION = 2;
+
+/** Version assumed for configs written before `configVersion` existed. */
+export const LEGACY_CONFIG_VERSION = 1;
+
 export type AppConfig = {
+  /** See `CONFIG_VERSION`. Missing in configs written before versioning existed. */
+  configVersion: number;
   items: TreeItem[];
   variables: Variable[];
   environments: Environment[];
@@ -267,6 +277,7 @@ export function clampTabSize(value: unknown): number {
 
 export function defaultConfig(): AppConfig {
   return {
+    configVersion: CONFIG_VERSION,
     items: [],
     variables: [],
     environments: [],

@@ -227,6 +227,7 @@ export async function importCollection() {
 
   const hasContent =
     !isSeedConfig({
+      configVersion: state.configVersion,
       items: state.items,
       variables: state.variables,
       environments: state.environments,

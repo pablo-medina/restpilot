@@ -109,7 +109,7 @@ Goal: deeper workflows for teams and debugging — still local-first.
 | 3.5 | **TLS options** — trust custom CA; optional insecure mode (dev only, loud warning) | Rust client builder | planned |
 | 3.6 | **Client certificates** — pick cert/key for mTLS | Settings or per-request | planned |
 | 3.7 | **Dynamic variables** — `$randomInt`, `$timestamp`, `$guid`, `$randomEmail` etc. at send time | `src/variables.ts` — new `resolveDynamicVariable()` | planned |
-| 3.8 | **Variable chaining** — resolve `${...}` inside variable values (recursive, cycle-guarded) | `src/variables.ts` — recursive `applyVariables` | planned |
+| 3.8 | **Variable chaining** — resolve `{{...}}` inside variable values (recursive, cycle-guarded) | `src/variables.ts` — recursive `applyVariables` | planned |
 | 3.9 | **Pre-request scripts** — JavaScript sandbox to set variables before send | QuickJS or similar embedded runtime; separate `src/scripting/` | planned |
 | 3.10 | **Post-response tests** — assertions on status/body/headers with pass/fail UI | `src/testing/` — test script editor + results display | planned |
 | 3.11 | **Per-request proxy override** — override global proxy per request or per-folder | Extend `SavedRequest` with optional `proxyOverride` | planned |
@@ -214,7 +214,7 @@ Versions are indicative; ship when exit criteria for the theme are met.
 - **Dialogs:** `messageDialog` / `applicationDialog` from `src/components/dialogs.ts`.
 - **HTTP:** Rust `send_request` in `src-tauri/src/lib.rs`; pass `proxy` from settings.
 - **Proxy (corporate NTLM):** documented in `AGENTS.md` → "Proxy (user settings)" / "Proxy (runtime behavior)". Manual + auth **Auto** uses libcurl NTLM on CONNECT; requires vendored libcurl with `CURL_ENABLE_NTLM` (see `.cargo/config.toml`). **Do not change the HTTP/proxy stack without user confirmation.**
-- **Variables today:** global list + `applyVariables()` at send time — environments layer on top without breaking `${name}` syntax.
+- **Variables today:** global list + `applyVariables()` at send time — environments layer on top without breaking `{{name}}` syntax.
 - **Autocomplete:** Variable autocomplete in `src/variable-autocomplete.ts`, bound to URL + all pair inputs + auth fields.
 
 ---

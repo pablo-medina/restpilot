@@ -1,18 +1,11 @@
 import { activeEnvironmentVariables } from "../app/environments";
 import { requestAuthTextFields } from "../app/request-auth";
 import { state } from "../app/state";
-import { effectiveVariables } from "../lib/variables";
+import { collectTemplateNames, effectiveVariables } from "../lib/variables";
 import type { SavedRequest, TreeItem, Variable } from "../types";
 
-const VARIABLE_PATTERN = /\$\{([^}]+)\}/g;
-
 export function collectVariableNamesFromText(value: string): Set<string> {
-  const names = new Set<string>();
-  for (const match of value.matchAll(VARIABLE_PATTERN)) {
-    const name = match[1]?.trim();
-    if (name) names.add(name);
-  }
-  return names;
+  return collectTemplateNames(value);
 }
 
 export function collectVariableNamesFromRequest(request: SavedRequest): Set<string> {

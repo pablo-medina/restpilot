@@ -1,3 +1,4 @@
+import { LEGACY_CONFIG_VERSION } from "../types";
 import type { CollectionSnapshot, Environment, TreeItem, UserSettings, Variable } from "../types";
 import { normalizeConfig } from "./config-normalize";
 import { COLLECTION_ROOT_PARENT_ID, isCollectionRoot, normalizeParentId } from "./collection-parent";
@@ -71,6 +72,10 @@ export function parseCollectionExport(raw: string, settings: UserSettings): Coll
   if (!collection || typeof collection !== "object") throw new Error("invalid-format");
 
   const normalized = normalizeConfig({
+    // Export files embed raw items and carry no config version, so incoming collections are
+    // always treated as legacy. The template-syntax upgrade is idempotent, which makes this
+    // safe for exports produced after the switch.
+    configVersion: LEGACY_CONFIG_VERSION,
     items: (collection as CollectionSnapshot).items ?? [],
     variables: (collection as CollectionSnapshot).variables ?? [],
     environments: (collection as CollectionSnapshot).environments ?? [],

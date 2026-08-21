@@ -8,21 +8,22 @@ const request: SavedRequest = {
   parentId: "/",
   title: "Get item",
   method: "GET",
-  url: "https://example.com/${id}",
-  queryParams: [{ id: "p1", key: "q", value: "${term}", enabled: true }],
+  url: "https://example.com/{{id}}",
+  queryParams: [{ id: "p1", key: "q", value: "{{term}}", enabled: true }],
   headers: [{ id: "h1", key: "X-Test", value: "1", enabled: true }],
   bodyMode: "raw",
   rawType: "json",
   body: '{"ok":true}',
   form: [],
   streamResponse: false,
-  auth: { type: "bearer", bearerToken: "${token}" },
+  auth: { type: "bearer", bearerToken: "{{token}}" },
   lastResponse: null,
   lastError: null
 };
 
 describe("postman-export", () => {
-  it("builds a Postman v2.1 collection with converted variables", () => {
+  // RestPilot and Postman now share the `{{name}}` syntax, so templates pass through verbatim.
+  it("builds a Postman v2.1 collection, carrying variable templates through unchanged", () => {
     const items: TreeItem[] = [request];
     const payload = buildPostmanCollectionExport({
       folderName: "Demo",

@@ -15,6 +15,20 @@
 - **Do not use `localStorage` or `sessionStorage`.**
 - Do not add migration fallbacks from removed storage mechanisms.
 
+### Config version and schema upgrades
+
+`AppConfig.configVersion` (`CONFIG_VERSION` in `src/types.ts`) is the schema version of `config.json`. When stored data needs a one-time rewrite, bump it and add the upgrade to `normalizeConfig()` in `src/app/config-normalize.ts`, which runs on load **and** on RestPilot collection import (export files embed raw items and carry no version of their own, so `parseCollectionExport()` passes `LEGACY_CONFIG_VERSION`).
+
+**Upgrades run after normalization**, so every field is already the right shape — including fields normalization derives, like the `auth` block hoisted out of an `Authorization` header. Write each upgrade to be **idempotent**: the import path re-runs it on already-current data.
+
+Keep an upgrade in its own module so it can be deleted wholesale once no config in the wild predates it (see `src/app/migrate-variable-syntax.ts`). This is not the same thing as a runtime compatibility layer, which is still forbidden — the app understands exactly one shape at a time.
+
+### Variable templates
+
+The template syntax is **`{{name}}`**, matching Postman and Insomnia (which is why the import/export paths carry templates through verbatim). The pattern is defined once in `src/lib/variables.ts`; use `hasVariableTemplate()` and `collectTemplateNames()` instead of writing the regex again.
+
+`applyVariables()` does **not** resolve nested references — a `{{x}}` inside a variable's *value* is literal text (ROADMAP 3.8). It is also never applied to `extractorCode`, which is JavaScript where `${}` is a real template literal.
+
 ### Clear all data
 
 Settings → **Clear all data** must restore **factory defaults** for everything persisted and in-memory:
@@ -271,7 +285,7 @@ Each `AppFunction` carries its own auto-map config: `autoMapEnabled`, `autoMapVa
 
 When a function has it enabled with a non-blank name, running it stores the extracted value in that variable (created when missing, overwritten without confirmation) and shows a toast instead of the "Inject into Variable" dialog — `autoMapFunctionResult()` in `src/app/function-auto-map.ts`, called from `runSidebarFunctionAction`. Environment scope falls back to globals when no environment is active. Functions without it keep the dialog.
 
-The variable-name field uses `VariableNameInput` (`src/react/components/VariableNameInput.tsx`), a bare-name autocomplete over `getEffectiveVariables()`; `VariableInput` remains the `${…}` template-completing input used by headers/params.
+The variable-name field uses `VariableNameInput` (`src/react/components/VariableNameInput.tsx`), a bare-name autocomplete over `getEffectiveVariables()`; `VariableInput` remains the `{{…}}` template-completing input used by headers/params.
 
 ## Collection tree
 

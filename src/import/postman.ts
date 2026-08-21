@@ -5,15 +5,10 @@ function id(): string {
   return crypto.randomUUID();
 }
 
-function postmanVar(value: unknown): string {
-  if (typeof value !== "string") return String(value ?? "");
-  return value.replace(/\{\{(\w+)\}\}/g, "$${$1}");
-}
-
 function parsePostmanUrl(url: unknown): string {
-  if (!url || typeof url === "string") return postmanVar(url ?? "");
+  if (!url || typeof url === "string") return String(url ?? "");
   const obj = url as Record<string, unknown>;
-  if (obj.raw && typeof obj.raw === "string") return postmanVar(obj.raw);
+  if (obj.raw && typeof obj.raw === "string") return obj.raw;
   let result = "";
   if (obj.protocol) result += String(obj.protocol) + "://";
   if (Array.isArray(obj.host)) result += obj.host.join(".");
@@ -41,8 +36,8 @@ function parsePostmanQueryParams(url: unknown): Pair[] {
       const item = q as Record<string, unknown>;
       return {
         id: id(),
-        key: postmanVar(String(item.key ?? "")),
-        value: postmanVar(String(item.value ?? "")),
+        key: String(item.key ?? ""),
+        value: String(item.value ?? ""),
         enabled: item.disabled !== true
       };
     });
@@ -56,8 +51,8 @@ function parsePostmanHeaders(headers: unknown): Pair[] {
       const item = h as Record<string, unknown>;
       return {
         id: id(),
-        key: postmanVar(String(item.key ?? "")),
-        value: postmanVar(String(item.value ?? "")),
+        key: String(item.key ?? ""),
+        value: String(item.value ?? ""),
         enabled: item.disabled !== true
       };
     });
@@ -73,7 +68,7 @@ function parsePostmanAuth(auth: unknown): RequestAuth {
     for (const item of arr) {
       if (item && typeof item === "object") {
         const i = item as Record<string, unknown>;
-        result[String(i.key ?? "")] = postmanVar(String(i.value ?? ""));
+        result[String(i.key ?? "")] = String(i.value ?? "");
       }
     }
     return result;
@@ -108,8 +103,8 @@ function parsePostmanBody(body: unknown): { bodyMode: "raw" | "form" | "none" | 
             const item = f as Record<string, unknown>;
             return {
               id: id(),
-              key: postmanVar(String(item.key ?? "")),
-              value: postmanVar(String(item.value ?? "")),
+              key: String(item.key ?? ""),
+              value: String(item.value ?? ""),
               enabled: item.disabled !== true
             };
           })
@@ -125,8 +120,8 @@ function parsePostmanBody(body: unknown): { bodyMode: "raw" | "form" | "none" | 
             const item = f as Record<string, unknown>;
             return {
               id: id(),
-              key: postmanVar(String(item.key ?? "")),
-              value: postmanVar(String(item.value ?? item.src ?? "")),
+              key: String(item.key ?? ""),
+              value: String(item.value ?? item.src ?? ""),
               enabled: item.disabled !== true,
               partType: (item.type === "file" ? "file" : "text") as "file" | "text",
               fileName: item.type === "file" && item.src ? String(item.src).split(/[/\\]/).pop() : undefined

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { setLocale } from "../i18n";
 import {
+  CONFIG_VERSION,
   defaultConfig,
   type ApiResponse,
   type AppConfig,
@@ -104,6 +105,7 @@ function buildResponseCache(items: TreeItem[]): ResponseCache {
 
 export async function persistConfig() {
   const config: AppConfig = {
+    configVersion: CONFIG_VERSION,
     items: sanitizeItemsForSave(state.items),
     variables: state.variables,
     environments: state.environments,

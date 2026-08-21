@@ -16,8 +16,13 @@ export function effectiveVariables(global: Variable[], environment: Variable[]):
   return Array.from(byName.values());
 }
 
+/** Matches a single `{{name}}` reference. `[^}]+` keeps a match from spanning two
+ * templates, so `{{a}}{{b}}` resolves as two names rather than one. */
+const VARIABLE_TEMPLATE = /\{\{([^}]+)\}\}/;
+const VARIABLE_TEMPLATE_GLOBAL = new RegExp(VARIABLE_TEMPLATE, "g");
+
 export function applyVariables(value: string, variables: Variable[]): string {
-  return value.replace(/\$\{([^}]+)\}/g, (_, name: string) => {
+  return value.replace(VARIABLE_TEMPLATE_GLOBAL, (_, name: string) => {
     const variable = variables.find((item) => item.enabled && item.name === name.trim());
     return variable?.value ?? "";
   });
@@ -47,23 +52,27 @@ export function shouldShowUrlPreview(request: SavedRequest, variables: Variable[
   return displayRequestUrl(request) !== resolvedRequestUrl(request, variables);
 }
 
-function requestHasVariableTemplate(request: SavedRequest): boolean {
-  if (/\$\{[^}]+\}/.test(request.url) || /\$\{[^}]+\}/.test(request.urlHash ?? "")) return true;
-  if (request.queryParams.some((pair) => /\$\{[^}]+\}/.test(pair.key) || /\$\{[^}]+\}/.test(pair.value))) {
-    return true;
-  }
-  if (request.headers.some((pair) => /\$\{[^}]+\}/.test(pair.key) || /\$\{[^}]+\}/.test(pair.value))) {
-    return true;
-  }
-  if (/\$\{[^}]+\}/.test(request.body)) return true;
-  return request.form.some((pair) => /\$\{[^}]+\}/.test(pair.key) || /\$\{[^}]+\}/.test(pair.value));
+/** True when `value` still contains at least one `{{name}}` reference. */
+export function hasVariableTemplate(value: string): boolean {
+  return VARIABLE_TEMPLATE.test(value);
 }
 
-const VARIABLE_PATTERN = /\$\{([^}]+)\}/g;
+function requestHasVariableTemplate(request: SavedRequest): boolean {
+  if (hasVariableTemplate(request.url) || hasVariableTemplate(request.urlHash ?? "")) return true;
+  if (request.queryParams.some((pair) => hasVariableTemplate(pair.key) || hasVariableTemplate(pair.value))) {
+    return true;
+  }
+  if (request.headers.some((pair) => hasVariableTemplate(pair.key) || hasVariableTemplate(pair.value))) {
+    return true;
+  }
+  if (hasVariableTemplate(request.body)) return true;
+  return request.form.some((pair) => hasVariableTemplate(pair.key) || hasVariableTemplate(pair.value));
+}
 
-function collectTemplateNames(value: string) {
+/** Every distinct variable name referenced by `value`, trimmed. */
+export function collectTemplateNames(value: string) {
   const names = new Set<string>();
-  for (const match of value.matchAll(VARIABLE_PATTERN)) {
+  for (const match of value.matchAll(VARIABLE_TEMPLATE_GLOBAL)) {
     const name = match[1]?.trim();
     if (name) names.add(name);
   }
