@@ -26,8 +26,8 @@ function readDescription(target: DescribeTarget): string {
     const item = getItem(target.id);
     return item?.kind === "request" ? (item.description ?? "") : "";
   }
-  const func = state.functions.find((f) => f.id === target.id);
-  return func?.description ?? "";
+  const extractor = state.extractors.find((item) => item.id === target.id);
+  return extractor?.description ?? "";
 }
 
 function writeDescription(target: DescribeTarget, description: string): void {
@@ -37,9 +37,9 @@ function writeDescription(target: DescribeTarget, description: string): void {
     if (!item || item.kind !== "request") return;
     item.description = trimmed || undefined;
   } else {
-    const func = state.functions.find((f) => f.id === target.id);
-    if (!func) return;
-    func.description = trimmed || undefined;
+    const extractor = state.extractors.find((item) => item.id === target.id);
+    if (!extractor) return;
+    extractor.description = trimmed || undefined;
   }
   scheduleSave();
   render();

@@ -10,7 +10,7 @@ export type BodyMode = "raw" | "form" | "none" | "multipart" | "binary" | "graph
 export type FormPartType = "text" | "file";
 export type RawType = "json" | "text" | "xml";
 export type ResponseTab = "body" | "headers";
-export type RequestTab = "params" | "auth" | "headers" | "body";
+export type RequestTab = "queryParams" | "auth" | "headers" | "body";
 
 export type RequestAuthType = "none" | "bearer" | "basic" | "apikey";
 
@@ -35,43 +35,7 @@ export type Locale = "en" | "es";
 export type ProxyMode = "none" | "system" | "environment" | "manual";
 /** Proxy authentication negotiated by libcurl (manual) or forced scheme. */
 export type ProxyAuthMode = "auto" | "basic" | "ntlm" | "negotiate";
-export type ActivePanel = "request" | "settings" | "functions";
-
-export type AppFunction = {
-  id: string;
-  name: string;
-  /** Human-oriented summary shown in the function editor only. */
-  description?: string;
-  code: string;
-  functionType: "http" | "javascript";
-  method: string;
-  url: string;
-  queryParams: Pair[];
-  headers: Pair[];
-  bodyMode: BodyMode;
-  rawType: RawType;
-  body: string;
-  form: Pair[];
-  binaryFilePath?: string;
-  graphqlVariables?: string;
-  auth: RequestAuth;
-  extractorCode: string;
-  /** Store this function's result straight into `autoMapVariable` instead of asking. */
-  autoMapEnabled?: boolean;
-  /** Variable that receives the result; created when missing, overwritten when present. */
-  autoMapVariable?: string;
-  /** Where the auto-mapped variable is read and created. */
-  autoMapScope?: VariableScope;
-  /** Last HTTP response from Send in the function workspace (not updated by extractor run). */
-  lastHttpResponse?: ApiResponse | null;
-  /** Last extractor script outcome (not updated by Send alone). */
-  lastTestResult?: {
-    success: boolean;
-    extractedValue?: unknown;
-    error?: string;
-  } | null;
-};
-
+export type ActivePanel = "request" | "settings";
 
 export const DEFAULT_PROXY_TEST_URL = "https://jsonplaceholder.typicode.com/posts/1";
 
@@ -159,9 +123,31 @@ export type SavedRequest = {
   graphqlVariables?: string;
   streamResponse: boolean;
   auth: RequestAuth;
+  /** Runs an extractor over the response. Absent when the request does not use one. */
+  extractor?: RequestExtractor;
   lastResponse: ApiResponse | null;
   lastError: string | null;
   savedResponses?: SavedResponseHistoryItem[];
+};
+
+/** Answers to a request's run-time parameters, keyed by parameter name. */
+export type ParameterAnswers = Record<string, string>;
+
+/** A named script that pulls a value out of a response body. */
+export type Extractor = {
+  id: string;
+  name: string;
+  description?: string;
+  code: string;
+  /** Response body the editor's Test button runs against. */
+  sampleText: string;
+};
+
+/** Present only when an extractor is assigned; choosing one is what enables the feature. */
+export type RequestExtractor = {
+  extractorId: string;
+  /** Variable that receives the value; blank shows the result in a dialog instead. */
+  variable?: string;
 };
 
 export type Folder = {
@@ -233,8 +219,7 @@ export type AppConfig = {
   openTabs: string[];
   activeTabId: string;
   settings: UserSettings;
-  functions: AppFunction[];
-  activeFunctionId: string | null;
+  extractors: Extractor[];
 };
 
 
@@ -285,7 +270,6 @@ export function defaultConfig(): AppConfig {
     openTabs: [],
     activeTabId: "",
     settings: defaultSettings(),
-    functions: [],
-    activeFunctionId: null
+    extractors: []
   };
 }

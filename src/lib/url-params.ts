@@ -6,41 +6,76 @@ export type UrlParts = {
   params: { key: string; value: string }[];
 };
 
+/**
+ * A `{{…}}` is opaque to URL syntax, the way Postman and Insomnia treat their own tokens: the
+ * `?` in `{{?name}}` must not start the query string, and the braces must survive a
+ * `URLSearchParams` round-trip without being percent-encoded. Swapping each template for an
+ * unreserved placeholder before parsing or encoding, then swapping it back, gives both.
+ */
+/** The trailing alternative catches a template still being typed — `{{?num`, `{{?numPost}` — so
+ * the `?` does not become query syntax before the closing braces arrive. */
+const TEMPLATE_TOKEN = /\{\{[^{}]*\}\}|\{\{[^{}]*\}?$/g;
+const PLACEHOLDER = /rpTpl(\d+)Rp/g;
+
+function createTemplateMask() {
+  const tokens: string[] = [];
+  return {
+    mask: (value: string) =>
+      value.replace(TEMPLATE_TOKEN, (match) => {
+        tokens.push(match);
+        return `rpTpl${tokens.length - 1}Rp`;
+      }),
+    unmask: (value: string) =>
+      tokens.length
+        ? value.replace(PLACEHOLDER, (match, index: string) => tokens[Number(index)] ?? match)
+        : value
+  };
+}
+
 export function splitUrl(raw: string): UrlParts {
   const trimmed = raw.trim();
   if (!trimmed) return { base: "", hash: "", params: [] };
 
-  const hashIndex = trimmed.indexOf("#");
-  let withoutHash = trimmed;
+  const mask = createTemplateMask();
+  const masked = mask.mask(trimmed);
+
+  const hashIndex = masked.indexOf("#");
+  let withoutHash = masked;
   let hash = "";
   if (hashIndex >= 0) {
-    withoutHash = trimmed.slice(0, hashIndex);
-    hash = trimmed.slice(hashIndex + 1);
+    withoutHash = masked.slice(0, hashIndex);
+    hash = masked.slice(hashIndex + 1);
   }
 
   const queryIndex = withoutHash.indexOf("?");
-  if (queryIndex < 0) return { base: withoutHash, hash, params: [] };
+  if (queryIndex < 0) return { base: mask.unmask(withoutHash), hash: mask.unmask(hash), params: [] };
 
   const base = withoutHash.slice(0, queryIndex);
   const query = withoutHash.slice(queryIndex + 1);
   const params: { key: string; value: string }[] = [];
   const search = new URLSearchParams(query);
-  search.forEach((value, key) => params.push({ key, value }));
-  return { base, hash, params };
+  search.forEach((value, key) => params.push({ key: mask.unmask(key), value: mask.unmask(value) }));
+  return { base: mask.unmask(base), hash: mask.unmask(hash), params };
 }
 
-export function buildRequestUrl(base: string, params: Pair[], hash = ""): string {
+/** `preserveTemplates` is for the URL the user is editing. The outbound URL leaves it off, so a
+ * resolved value that happens to contain braces is still encoded. */
+export function buildRequestUrl(base: string, params: Pair[], hash = "", preserveTemplates = false): string {
   const trimmedBase = base.trim();
   const enabled = params.filter((pair) => pair.enabled && pair.key.trim());
   let url = trimmedBase;
 
   if (enabled.length) {
+    const mask = createTemplateMask();
+    const keep = (value: string) => (preserveTemplates ? mask.mask(value) : value);
     const search = new URLSearchParams();
     for (const pair of enabled) {
-      search.append(pair.key.trim(), pair.value);
+      search.append(keep(pair.key.trim()), keep(pair.value));
     }
-    const serialized = search.toString();
-    if (serialized) url += `${url.includes("?") ? "&" : "?"}${serialized}`;
+    const serialized = preserveTemplates ? mask.unmask(search.toString()) : search.toString();
+    // Templates are stripped first: a `?` inside `{{?name}}` is not the start of a query string.
+    const hasQuery = trimmedBase.replace(TEMPLATE_TOKEN, "").includes("?");
+    if (serialized) url += `${hasQuery ? "&" : "?"}${serialized}`;
   }
 
   const trimmedHash = hash.trim();

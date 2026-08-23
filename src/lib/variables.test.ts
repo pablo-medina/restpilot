@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { SavedRequest, Variable } from "../types";
-import { applyVariables, displayRequestUrl, resolvedRequestUrl, shouldShowUrlPreview } from "./variables";
+import {
+  applyVariables,
+  displayRequestUrl,
+  requestUsesSecretVariables,
+  resolvedRequestUrl,
+  shouldShowUrlPreview
+} from "./variables";
 
 const variables: Variable[] = [
   { id: "1", name: "base_url", value: "https://api.test", enabled: true },
@@ -42,6 +48,29 @@ describe("applyVariables", () => {
     const disabled = [{ ...variables[0], enabled: false }];
     expect(applyVariables("{{base_url}}", disabled)).toBe("");
   });
+
+  it("resolves `{{?name}}` from the answers", () => {
+    expect(applyVariables("{{base_url}}/u/{{?user}}", variables, { user: "bob" })).toBe("https://api.test/u/bob");
+  });
+
+  it("lets a parameter and a variable of the same name coexist", () => {
+    expect(applyVariables("{{?token}}", variables, { token: "from-prompt" })).toBe("from-prompt");
+    expect(applyVariables("{{token}}", variables, { token: "from-prompt" })).toBe("secret");
+  });
+
+  it("resolves an unanswered parameter to empty, like an unknown variable", () => {
+    expect(applyVariables("[{{?missing}}]", variables)).toBe("[]");
+    expect(applyVariables("[{{nosuchvar}}]", variables)).toBe("[]");
+  });
+
+  it("substitutes a resolved value verbatim rather than expanding it again", () => {
+    expect(applyVariables("{{?raw}}", variables, { raw: "{{base_url}}" })).toBe("{{base_url}}");
+  });
+
+  it("leaves a malformed reference in place instead of silently eating it", () => {
+    expect(applyVariables("{{ }}", variables)).toBe("{{ }}");
+    expect(applyVariables("{{?}}", variables)).toBe("{{?}}");
+  });
 });
 
 describe("resolvedRequestUrl", () => {
@@ -64,8 +93,31 @@ describe("shouldShowUrlPreview", () => {
   });
 });
 
+describe("requestUsesSecretVariables", () => {
+  const secrets: Variable[] = [{ id: "s1", name: "api_key", value: "shh", enabled: true, secret: true }];
+
+  it("detects a secret in the GraphQL variables field", () => {
+    const request = sampleRequest();
+    request.bodyMode = "graphql";
+    request.graphqlVariables = '{"key": "{{api_key}}"}';
+
+    expect(requestUsesSecretVariables(request, secrets)).toBe(true);
+  });
+
+  it("detects a secret in an auth field", () => {
+    const request = sampleRequest();
+    request.auth = { type: "bearer", bearerToken: "{{api_key}}" };
+
+    expect(requestUsesSecretVariables(request, secrets)).toBe(true);
+  });
+
+  it("is false when no secret is referenced", () => {
+    expect(requestUsesSecretVariables(sampleRequest(), secrets)).toBe(false);
+  });
+});
+
 describe("displayRequestUrl", () => {
   it("keeps templates in the composed URL", () => {
-    expect(displayRequestUrl(sampleRequest())).toBe("{{base_url}}?api_key=%7B%7Btoken%7D%7D");
+    expect(displayRequestUrl(sampleRequest())).toBe("{{base_url}}?api_key={{token}}");
   });
 });

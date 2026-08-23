@@ -4,13 +4,10 @@ import type { ActivePanel } from "../../types";
 
 export function syncAppFrameLayout(): void {
   const isRequest = state.activePanel === "request";
-  const isFunctions = state.activePanel === "functions";
-  const hasSidebar = isRequest || isFunctions;
   appRoot.classList.add("app-frame");
   appRoot.classList.toggle("app-frame--request", isRequest);
-  appRoot.classList.toggle("app-frame--functions", isFunctions);
-  appRoot.classList.toggle("app-frame--sidebar", hasSidebar);
-  appRoot.classList.toggle("is-sidebar-hidden", hasSidebar && !state.sidebarVisible);
+  appRoot.classList.toggle("app-frame--sidebar", isRequest);
+  appRoot.classList.toggle("is-sidebar-hidden", isRequest && !state.sidebarVisible);
   appRoot.classList.remove("is-collection-collapsed");
 }
 

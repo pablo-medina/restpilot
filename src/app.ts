@@ -11,7 +11,6 @@ import {
   syncRequestPopover
 } from "./ui/request-popovers";
 import { getEffectiveVariables } from "./app/environments";
-import { bindFunctionResultDialogs } from "./app/function-result-dialog-bind";
 import { bumpRenderGeneration } from "./react/render-bridge";
 import { pushToast } from "./react/components/index";
 import { isAppActionTarget } from "./react/lib/app-action-targets";
@@ -20,9 +19,6 @@ import { bindOverlayBindings } from "./react/lib/overlay-bindings";
 import { syncAppFrameLayout } from "./react/lib/sync-app-frame";
 import { focusTreeSelection } from "./react/lib/collection-tree-actions";
 import { ensureTab } from "./react/lib/ensure-tab";
-import {
-  selectFunctionInSidebar
-} from "./react/lib/function-actions";
 import { requestUsesSecretVariables, variablesForCurl } from "./lib/variables";
 import "./styles.css";
 import { COLLECTION_ROOT_PARENT_ID } from "./app/collection-parent";
@@ -77,8 +73,7 @@ export async function startApp(
         openTabs: (migrated.openTabs ?? []).filter((tabId) => Boolean(getRequestFrom(migrated.items, tabId))),
         activeTabId: "",
         settings: migrated.settings,
-        functions: migrated.functions ?? [],
-        activeFunctionId: null
+        extractors: migrated.extractors ?? []
       });
       state.activeTabId = state.openTabs.includes(migrated.activeTabId) ? migrated.activeTabId : (state.openTabs[0] ?? "");
       if (persist) scheduleSave();
@@ -129,7 +124,6 @@ export function syncContextMenu() {
 }
 
 function bindEvents() {
-  bindFunctionResultDialogs();
   bindOverlayBindings();
 }
 
@@ -150,17 +144,6 @@ function contextMenuAnchor(element: HTMLElement) {
 function resolveContextMenuTarget(focused: HTMLElement): HTMLElement {
   if (focused.closest(".context-menu, [data-copy-menu-trigger], [data-request-actions-trigger]")) return focused;
 
-  if (state.activePanel === "functions" && focused.closest(".tree")) {
-    return (
-      focused.closest<HTMLElement>("[data-function-id]") ??
-      (state.activeFunctionId
-        ? (document.querySelector<HTMLElement>(`[data-function-id="${state.activeFunctionId}"]`) ?? undefined)
-        : undefined) ??
-      focused.closest<HTMLElement>(".tree") ??
-      focused
-    );
-  }
-
   if (focused.closest(".tree")) {
     return (
       focused.closest<HTMLElement>("[data-tree-id]") ??
@@ -180,15 +163,6 @@ function resolveContextMenuTarget(focused: HTMLElement): HTMLElement {
 
 function openContextMenuForTarget(target: HTMLElement, x: number, y: number) {
   if (target.closest(".context-menu, [data-copy-menu-trigger], [data-request-actions-trigger]")) return;
-
-  if (state.activePanel === "functions" && target.closest(".tree")) {
-    const row = target.closest<HTMLElement>("[data-function-id]");
-    const functionId = row?.dataset.functionId ?? null;
-    state.contextMenu = { kind: "functions-tree", x, y, functionId };
-    if (functionId) selectFunctionInSidebar(functionId, bumpRenderGeneration);
-    syncContextMenu();
-    return;
-  }
 
   if (target.closest(".tree")) {
     const row = target.closest<HTMLElement>("[data-tree-id]");

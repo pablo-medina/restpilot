@@ -5,7 +5,6 @@ import { runTextMenuAction, copyResponseBodySelection } from "../../app/context-
 import { openDescribePopover } from "../../app/describe-popover";
 import { menuShortcuts } from "../../app/menu-shortcuts";
 import { scheduleSave } from "../../app/persistence";
-import { runSidebarFunctionAction } from "../../app/sidebar-function-action";
 import { getItem, getRequest, state } from "../../app/state";
 import { copyRequestAsCurl, parentIdForTreeCreate } from "../../app";
 import { COLLECTION_ROOT_PARENT_ID } from "../../app/collection-parent";
@@ -19,7 +18,6 @@ import {
   exportFolderAsPostman,
   exportFolderAsRestpilot
 } from "../../export/folder-export";
-import { deleteFunction, createNewFunction, selectFunctionInSidebar, startFuncRename } from "../lib/function-actions";
 import { clearTabResponse, closeAllTabs, closeOtherTabs, closeRequestTab, openRequestTab } from "../lib/tab-actions";
 import { bumpRenderGeneration } from "../render-bridge";
 
@@ -218,31 +216,6 @@ export function ContextMenu() {
         )}
         <hr />
         <MenuButton label={tl.selectAll} shortcut={menuShortcuts.selectAll()} disabled={!menu.canSelectAll} onClick={withClose(() => void runTextMenuAction("text-select-all"))} />
-      </>
-    );
-  } else if (menu.kind === "functions-tree") {
-    const tl = labels.tree;
-    const navLabels = labels.nav;
-    const funcId = menu.functionId;
-    const func = funcId ? state.functions.find((f) => f.id === funcId) : null;
-    content = (
-      <>
-        <MenuButton label={navLabels.newFunction} onClick={withClose(() => createNewFunction(refresh))} />
-        {func && (
-          <>
-            <hr />
-            <MenuButton label={tl.run} onClick={withClose(() => void runSidebarFunctionAction(func.id, refresh))} />
-            <MenuButton label={tl.rename} shortcut={menuShortcuts.rename()} onClick={withClose(() => startFuncRename(func.id, refresh))} />
-            <MenuButton label={tl.describe} onClick={withClose(() => {
-              selectFunctionInSidebar(func.id, refresh);
-              requestAnimationFrame(() => {
-                const row = document.querySelector<HTMLElement>(`[data-function-id="${func.id}"]`);
-                if (row) openDescribePopover({ kind: "function", id: func.id }, row);
-              });
-            })} />
-            <MenuButton label={tl.delete} shortcut={menuShortcuts.delete()} danger onClick={withClose(() => void deleteFunction(func.id, refresh))} />
-          </>
-        )}
       </>
     );
   } else if (menu.kind === "request-tab") {

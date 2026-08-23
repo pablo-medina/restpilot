@@ -18,6 +18,9 @@ import {
   SettingsDialog,
   TitleBar,
   Toast,
+  ExtractorResultDialog,
+  ExtractorsDialog,
+  ParameterPromptDialog,
   VariablesManagerDialog,
   Workspace
 } from "./components";
@@ -74,6 +77,9 @@ export function App() {
         <DialogLayer />
         <SettingsDialog open={settingsOpen} onClose={closeSettings} refresh={refresh} />
         <VariablesManagerDialog open={variablesManagerOpen} onClose={closeVariablesManager} refresh={refresh} />
+        <ParameterPromptDialog />
+        <ExtractorsDialog refresh={refresh} />
+        <ExtractorResultDialog />
       </ErrorBoundary>
       <ContextMenu />
       <Toast />

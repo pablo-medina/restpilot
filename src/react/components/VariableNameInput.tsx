@@ -16,7 +16,7 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChan
   onValueChange: (value: string) => void;
 };
 
-/** Text input for a bare variable name (no `${…}` wrapper) that hints the
+/** Text input for a bare variable name (no `{{…}}` wrapper) that hints the
  * names already defined in globals and the active environment. */
 export function VariableNameInput({ value, onValueChange, onKeyDown, onBlur, onFocus, ...rest }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);

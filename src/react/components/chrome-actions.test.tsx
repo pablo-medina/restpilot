@@ -59,7 +59,7 @@ describe("title bar chrome actions", () => {
       streaming: false,
       requestRunId: null,
       selectedResponseTab: "body",
-      selectedRequestTab: "params"
+      selectedRequestTab: "queryParams"
     };
   });
 

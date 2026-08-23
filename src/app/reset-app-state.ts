@@ -17,15 +17,6 @@ export function defaultRuntimeState(): Pick<
   | "envManageSelectedId"
   | "variablesWorkspaceTab"
   | "collectionSearchQuery"
-  | "editingFunctionId"
-  | "selectedFunctionId"
-  | "functionSearchQuery"
-  | "activeFunctionRequestTab"
-  | "activeFunctionConsoleTab"
-  | "activeFunctionHttpLoading"
-  | "activeFunctionExtractorLoading"
-  | "activeFunctionPopover"
-  | "activeSidebarFunctionPlayLoading"
   | "editingEnvId"
   | "previewTabId"
   | "envPopoverVariablesExpanded"
@@ -45,15 +36,6 @@ export function defaultRuntimeState(): Pick<
     envManageSelectedId: null,
     variablesWorkspaceTab: "globals",
     collectionSearchQuery: "",
-    editingFunctionId: null,
-    selectedFunctionId: null,
-    functionSearchQuery: "",
-    activeFunctionRequestTab: "params",
-    activeFunctionConsoleTab: "test-result",
-    activeFunctionHttpLoading: false,
-    activeFunctionExtractorLoading: false,
-    activeFunctionPopover: null,
-    activeSidebarFunctionPlayLoading: null,
     editingEnvId: null,
     previewTabId: null,
     envPopoverVariablesExpanded: false,
@@ -78,8 +60,7 @@ export function resetAppStateToDefaults(target: AppState): void {
   target.openTabs = fresh.openTabs;
   target.activeTabId = fresh.activeTabId;
   target.settings = fresh.settings;
-  target.functions = fresh.functions;
-  target.activeFunctionId = fresh.activeFunctionId;
+  target.extractors = fresh.extractors;
 
   Object.assign(target, runtime);
 }

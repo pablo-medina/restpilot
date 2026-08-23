@@ -12,9 +12,10 @@ import {
   defaultSettings,
   type ApiResponse,
   type AppConfig,
-  type AppFunction,
   type BodyMode,
   type Environment,
+  type Extractor,
+  type RequestExtractor,
   type FormPartType,
   type HeaderPair,
   type Pair,
@@ -73,83 +74,52 @@ export function normalizeSavedResponseHistoryItem(raw: Record<string, unknown>):
   };
 }
 
-function normalizeFunction(func: any): AppFunction {
-  const form = (func.form ?? []).map((field: any) => ({
-    id: String(field.id || crypto.randomUUID()),
-    key: String(field.key ?? ""),
-    value: String(field.value ?? ""),
-    enabled: field.enabled !== false,
-    partType: (field.partType === "file" ? "file" : "text") as FormPartType,
-    fileName: field.fileName ? String(field.fileName) : undefined
-  }));
-  const queryParams = (func.queryParams ?? []).map((field: any) => ({
-    id: String(field.id || crypto.randomUUID()),
-    key: String(field.key ?? ""),
-    value: String(field.value ?? ""),
-    enabled: field.enabled !== false
-  }));
-  const headers = (func.headers ?? []).map((field: any) => ({
-    id: String(field.id || crypto.randomUUID()),
-    key: String(field.key ?? ""),
-    value: String(field.value ?? ""),
-    enabled: field.enabled !== false
-  }));
-
+function normalizeExtractor(raw: Record<string, unknown>): Extractor {
+  const description = typeof raw.description === "string" ? raw.description.trim() : "";
   return {
-    id: String(func.id),
-    name: String(func.name ?? "Function").trim() || "Function",
-    description: typeof func.description === "string" ? func.description.trim() || undefined : undefined,
-    code: String(func.code ?? ""),
-    functionType: (func.functionType === "javascript" ? "javascript" : "http") as "http" | "javascript",
-    method: String(func.method ?? "GET"),
-    url: String(func.url ?? "https://jsonplaceholder.typicode.com/todos/1"),
-    queryParams,
-    headers,
-    bodyMode: migrateBodyMode(String(func.bodyMode ?? "none"), form),
-    rawType: normalizeRawType(func.rawType),
-    body: String(func.body ?? ""),
-    form,
-    auth: normalizeRequestAuth(func.auth),
-    extractorCode: String(func.extractorCode ?? `// Extract data from the response\nif (response.status === 200) {\n  return response.body;\n}\nreturn undefined;\n`),
-    autoMapEnabled: func.autoMapEnabled === true,
-    autoMapVariable: typeof func.autoMapVariable === "string" ? func.autoMapVariable.trim() : "",
-    autoMapScope: func.autoMapScope === "environment" ? "environment" : "global",
-    lastHttpResponse: normalizeFunctionLastHttp(func),
-    lastTestResult: normalizeFunctionLastTestResult(func)
+    id: String(raw.id || crypto.randomUUID()),
+    name: String(raw.name ?? "").trim(),
+    description: description || undefined,
+    code: String(raw.code ?? ""),
+    sampleText: String(raw.sampleText ?? "")
   };
 }
 
-function normalizeFunctionLastHttp(func: Record<string, unknown>): AppFunction["lastHttpResponse"] {
-  const stored = normalizeApiResponse(func.lastHttpResponse);
-  if (stored) return stored;
-
-  const legacy = func.lastTestResult as { responseStatus?: number; responseBody?: string } | null | undefined;
-  if (legacy?.responseBody != null && legacy.responseStatus != null) {
-    const body = String(legacy.responseBody);
-    return {
-      status: legacy.responseStatus,
-      status_text: "",
-      duration_ms: 0,
-      headers: [],
-      body,
-      body_is_base64: false,
-      body_size: body.length
-    };
-  }
-  return null;
+/** Extractors replaced the Functions section. A stored function only ever contributed its
+ * extractor script, so anything with one is carried over rather than dropped. Delete the
+ * `legacyFunctionExtractors` branch once no config in the wild still has `functions`. */
+function normalizeExtractors(config: AppConfig & { functions?: unknown }): Extractor[] {
+  const stored = Array.isArray(config.extractors) ? config.extractors : null;
+  const raw = stored ?? legacyFunctionExtractors(config.functions);
+  return raw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map(normalizeExtractor)
+    .filter((extractor) => extractor.name !== "");
 }
 
-function normalizeFunctionLastTestResult(func: Record<string, unknown>): AppFunction["lastTestResult"] {
-  const legacy = func.lastTestResult as AppFunction["lastTestResult"] & {
-    responseStatus?: number;
-    responseBody?: string;
-  };
-  if (!legacy || typeof legacy !== "object") return null;
-  return {
-    success: legacy.success === true,
-    extractedValue: legacy.extractedValue,
-    error: legacy.error ? String(legacy.error) : undefined
-  };
+function legacyFunctionExtractors(functions: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(functions)) return [];
+  return functions
+    .filter((func) => func && typeof func === "object" && String((func as Record<string, unknown>).extractorCode ?? "").trim())
+    .map((func) => {
+      const item = func as Record<string, unknown>;
+      return {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        code: item.extractorCode,
+        sampleText: String((item.lastHttpResponse as { body?: unknown } | null | undefined)?.body ?? "")
+      };
+    });
+}
+
+function normalizeRequestExtractor(raw: unknown): RequestExtractor | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Record<string, unknown>;
+  const extractorId = String(value.extractorId ?? "");
+  if (!extractorId) return undefined;
+  const variable = String(value.variable ?? "").trim();
+  return { extractorId, variable: variable || undefined };
 }
 
 function normalizeVariable(variable: Variable): Variable {
@@ -211,6 +181,7 @@ function normalizeTreeItem(item: TreeItem): TreeItem {
     headers: request.headers ?? [],
     form,
     streamResponse: request.streamResponse ?? false,
+    extractor: normalizeRequestExtractor(request.extractor),
     lastResponse: normalizeApiResponse(request.lastResponse),
     lastError: request.lastError ?? null,
     savedResponses: (request.savedResponses ?? []).map(normalizeSavedResponseHistoryItem)
@@ -232,8 +203,7 @@ export function normalizeConfig(config: AppConfig): AppConfig {
     activeEnvironmentId,
     openTabs: config.openTabs ?? [],
     activeTabId: config.activeTabId ?? "",
-    functions: (config.functions ?? []).map(normalizeFunction),
-    activeFunctionId: config.activeFunctionId ?? null,
+    extractors: normalizeExtractors(config),
     settings: {
       ...defaultSettings(),
       ...config.settings,

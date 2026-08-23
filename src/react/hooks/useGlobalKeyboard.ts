@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { state } from "../../app/state";
 import { removePopovers } from "../../components/popover";
 import { closeRequestPopovers } from "../../ui/request-popovers";
-import { runFunctionExtractor } from "../lib/function-runtime";
 import { closeRequestTab } from "../lib/tab-actions";
 import { trySendRequest } from "../lib/request-send";
 import { bumpRenderGeneration } from "../render-bridge";
@@ -14,7 +13,7 @@ function focusRequestUrl() {
   urlInput.select();
 }
 
-/** Mounts all global keyboard handlers: shortcuts, function extractor, popover close. */
+/** Mounts all global keyboard handlers: shortcuts and popover close. */
 export function useGlobalKeyboard() {
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -23,28 +22,12 @@ export function useGlobalKeyboard() {
       const mod = event.ctrlKey || event.metaKey;
       const inCodeMirror = Boolean((event.target as HTMLElement).closest(".cm-editor"));
 
-      // F9 / Ctrl+Enter — function extractor (when functions panel active)
-      if (state.activePanel === "functions" && state.activeFunctionId) {
-        const isF9 = event.key === "F9";
-        const isCtrlEnter = mod && event.key === "Enter";
-        if (isF9 || isCtrlEnter) {
-          if (isCtrlEnter && inCodeMirror) { /* let CM handle it */ }
-          else {
-            event.preventDefault();
-            const func = state.functions.find((f) => f.id === state.activeFunctionId);
-            if (func) void runFunctionExtractor(func, bumpRenderGeneration);
-            return;
-          }
-        }
-      }
-
       // Escape — close popovers and context menus
       if (event.key === "Escape") {
         const activePopover = document.querySelector(".app-popover");
         if (activePopover) {
           event.stopPropagation();
           closeRequestPopovers();
-          state.activeFunctionPopover = null;
           removePopovers();
           bumpRenderGeneration();
           return;

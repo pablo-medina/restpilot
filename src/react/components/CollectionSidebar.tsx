@@ -8,8 +8,6 @@ import {
   iconClipboard,
   iconExport,
   iconFolderAdd,
-  iconFunction,
-  iconFunctionAdd,
   iconImport,
   iconMoreHorizontal,
   iconPlus,
@@ -17,11 +15,7 @@ import {
   iconSearch
 } from "../../lib/icons";
 import { t } from "../../i18n";
-import type { ActivePanel } from "../../types";
 import { createFolder, createRequest } from "../lib/collection-actions";
-import { createNewFunction } from "../lib/function-actions";
-import { switchActivityPanel } from "../lib/sync-app-frame";
-import { FunctionsTree } from "./functions/FunctionsTree";
 import { CollectionTree } from "./CollectionTree";
 import { Icon } from "./Icon";
 
@@ -81,56 +75,17 @@ function SidebarSearch({
   );
 }
 
-function SidebarNavigation({
-  activePanel,
-  refresh
-}: {
-  activePanel: ActivePanel;
-  refresh: () => void;
-}) {
-  const labels = t();
-  const items = [
-    { panel: "request" as const, label: labels.nav.requests, icon: iconRequestAdd },
-    { panel: "functions" as const, label: labels.nav.functions, icon: iconFunction }
-  ];
-
-  return (
-    <nav className="sidebar-navigation" aria-label={labels.nav.activityBar}>
-      {items.map(({ panel, label, icon }) => (
-        <button
-          key={panel}
-          className={`sidebar-navigation-item${activePanel === panel ? " is-active" : ""}`}
-          type="button"
-          data-activity={panel}
-          data-tauri-drag-region="false"
-          title={label}
-          aria-label={label}
-          aria-current={activePanel === panel ? "page" : "false"}
-          onClick={() => switchActivityPanel(panel, refresh)}
-        >
-          <Icon html={icon} />
-        </button>
-      ))}
-    </nav>
-  );
-}
-
 export function CollectionSidebar({ refresh }: Props) {
   const activePanel = useStore(s => s.activePanel);
   const collectionSearchQuery = useStore(s => s.collectionSearchQuery);
-  const functionSearchQuery = useStore(s => s.functionSearchQuery);
   const sidebarVisible = useStore(s => s.sidebarVisible);
   const labels = t();
 
-  if (!(["request", "functions"] as ActivePanel[]).includes(activePanel)) {
-    return null;
-  }
+  if (activePanel !== "request") return null;
 
-  const contextTitle = activePanel === "request" ? labels.nav.collection : labels.nav.functions;
+  const contextTitle = labels.nav.collection;
 
-  let context: ReactNode;
-  if (activePanel === "request") {
-    context = (
+  const context: ReactNode = (
       <>
         <div className="sidebar-context-header">
           <h2>{contextTitle}</h2>
@@ -227,49 +182,10 @@ export function CollectionSidebar({ refresh }: Props) {
         />
         <CollectionTree refresh={refresh} />
       </>
-    );
-  } else {
-    context = (
-      <>
-        <div className="sidebar-context-header">
-          <h2>{contextTitle}</h2>
-          <button
-            className="mini-btn tool-icon"
-            id="new-function"
-            type="button"
-            data-tauri-drag-region="false"
-            title={labels.nav.newFunction}
-            aria-label={labels.nav.newFunction}
-            onClick={() => createNewFunction(refresh)}
-          >
-            <Icon html={iconFunctionAdd} />
-          </button>
-        </div>
-        <SidebarSearch
-          id="function-search"
-          clearId="function-search-clear"
-          label={labels.functions.search}
-          placeholder={labels.functions.searchPlaceholder}
-          query={functionSearchQuery}
-          onQueryChange={(value) => {
-            setState(prev => ({ ...prev, functionSearchQuery: value }));
-            refresh();
-          }}
-          onClear={() => {
-            setState(prev => ({ ...prev, functionSearchQuery: "" }));
-            refresh();
-          }}
-        />
-        <FunctionsTree refresh={refresh} />
-      </>
-    );
-  }
+  );
 
   return (
     <aside className="app-sidebar collection-sidebar" aria-label={contextTitle} aria-hidden={!sidebarVisible}>
-      <div className="sidebar-header">
-        <SidebarNavigation activePanel={activePanel} refresh={refresh} />
-      </div>
       <div className="sidebar-context">{context}</div>
     </aside>
   );

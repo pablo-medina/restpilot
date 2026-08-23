@@ -112,8 +112,7 @@ export async function persistConfig() {
     activeEnvironmentId: state.activeEnvironmentId,
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
-    functions: state.functions,
-    activeFunctionId: state.activeFunctionId,
+    extractors: state.extractors,
     settings: {
       ...state.settings,
       proxy: proxySettingsForSave(state.settings.proxy)

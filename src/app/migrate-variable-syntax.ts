@@ -1,4 +1,4 @@
-import { LEGACY_CONFIG_VERSION, type AppConfig, type AppFunction, type Pair, type RequestAuth, type SavedRequest } from "../types";
+import { LEGACY_CONFIG_VERSION, type AppConfig, type Pair, type RequestAuth, type SavedRequest } from "../types";
 
 /**
  * One-time rewrite of stored data from the legacy `${name}` template syntax to `{{name}}`.
@@ -68,19 +68,6 @@ function migrateRequest(request: SavedRequest): SavedRequest {
   };
 }
 
-function migrateFunction(func: AppFunction): AppFunction {
-  return {
-    ...func,
-    url: migrateTemplateText(func.url),
-    body: migrateTemplateText(func.body),
-    graphqlVariables: func.graphqlVariables === undefined ? undefined : migrateTemplateText(func.graphqlVariables),
-    queryParams: migratePairs(func.queryParams),
-    headers: migratePairs(func.headers),
-    form: migratePairs(func.form),
-    auth: migrateAuth(func.auth)
-  };
-}
-
 /** True when `storedVersion` predates the `{{name}}` switch. Missing version means a config
  * written before versioning existed, which is by definition legacy. */
 export function needsVariableSyntaxMigration(storedVersion: unknown): boolean {
@@ -91,7 +78,6 @@ export function needsVariableSyntaxMigration(storedVersion: unknown): boolean {
 export function migrateVariableSyntax(config: AppConfig): AppConfig {
   return {
     ...config,
-    items: config.items.map((item) => (item.kind === "request" ? migrateRequest(item) : item)),
-    functions: config.functions.map(migrateFunction)
+    items: config.items.map((item) => (item.kind === "request" ? migrateRequest(item) : item))
   };
 }

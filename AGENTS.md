@@ -29,36 +29,69 @@ The template syntax is **`{{name}}`**, matching Postman and Insomnia (which is w
 
 `applyVariables()` does **not** resolve nested references — a `{{x}}` inside a variable's *value* is literal text (ROADMAP 3.8). It is also never applied to `extractorCode`, which is JavaScript where `${}` is a real template literal.
 
-### Clear all data
+A `{{…}}` is one of two things, and `classifyTemplate()` is what tells them apart:
 
-Settings → **Clear all data** must restore **factory defaults** for everything persisted and in-memory:
+| Written | Means | Resolved from |
+|---------|-------|---------------|
+| `{{name}}` | stored variable | globals, overridden by the active environment |
+| `{{?name}}` | run-time parameter | the answers given when the request runs |
 
-| What | Where to define defaults | Reset via |
-|------|--------------------------|-----------|
-| Collections, tabs, environments, globals | `defaultConfig()` in `src/types.ts` | `resetAppStateToDefaults()` in `src/app/reset-app-state.ts` |
-| User preferences (`AppConfig.settings`) | `defaultSettings()` in `src/types.ts` | same (included in `defaultConfig()`) |
-| Runtime UI only (`AppState` fields not in `AppConfig`) | `defaultRuntimeState()` in `src/app/reset-app-state.ts` | same |
-| Settings panel session (proxy URL reveal, last test result) | `resetSettingsSessionState()` in `src/lib/settings.ts` | called from `clearAllData` in `src/react/components/SettingsPanel.tsx` |
+`replaceTemplates()` is the single walker over both. It makes **one pass**, so whatever a reference resolves to is final — an answer or variable value containing `{{…}}` is substituted verbatim, never expanded again. Anything that needs to scan a request's templated fields should walk `requestTemplateFields()` rather than rebuilding the field list, so a newly templated field is picked up everywhere at once.
 
-**When adding new persisted settings:** extend `UserSettings`, set the value in `defaultSettings()`, and ensure `normalizeConfig()` applies it. Clear all data picks it up automatically through `defaultConfig()`.
+**A template is opaque to URL syntax.** `src/lib/url-params.ts` masks every `{{…}}` behind an unreserved placeholder before parsing or encoding, then restores it — the same thing Postman and Insomnia do with their tokens. Without it the `?` in `{{?name}}` starts a query string and `URLSearchParams` turns the braces into `%7B%7D`. `TEMPLATE_TOKEN` deliberately also matches an **unterminated** trailing template (`{{?num`, `{{?num}`), because typing happens one character at a time. `buildRequestUrl(…, preserveTemplates)` is `true` only for the URL being edited (`displayRequestUrl`); the outbound URL leaves it off so a resolved value containing braces is still encoded.
 
-**When adding new `AppState` fields** (search query, panel memory, etc.): add them to `AppState` in `src/app/state.ts`, set the initial value in `defaultRuntimeState()`, and verify `reset-app-state.test.ts` still passes.
+**The URL field is not re-derived while it has focus.** `UrlField` in `RequestEditor.tsx` holds the typed text in a draft and only falls back to the composed URL on blur. A fully controlled field that re-renders from the parsed parts rewrites the text mid-keystroke — masking alone does not save it, because a half-typed template is not yet a template.
 
-## UI and theming
+### Run-time parameters
 
-- Respect the existing visual language in `src/styles.css` (zen palette, solid chrome, folder/request icons).
-- **No glassmorphism.** There is no `backdrop-filter` anywhere and none should be added: floating surfaces (popovers, dialogs, toasts, the context menu) are solid `var(--rp-surface)` or a near-opaque `--rp-paper-rgb` fill. `--rp-glass-rgb` is plain alpha for selected rows, tab hovers and input fills — the name predates the cleanup, it does not imply frosting.
-- The UI is **React** (`src/react/`). Reuse existing components (`PairRow`, `CodeMirrorEditor`, `PopoverShell`, `AppDialog`) and CSS classes; do not add new string-template rendering.
-- New surfaces should support **light** (default) and **dark** themes via `[data-theme]` on `document.documentElement`.
-- **Palette tokens** (`--rp-*` in `src/styles.css`): shared names for light and dark. Light values live on `:root`; dark remaps the same tokens inside `[data-theme="dark"]`. Prefer `var(--rp-surface)`, `var(--rp-border)`, etc. in new rules.
-- **Never write a colour literal** — not in `styles.css`, not in a React `style={{}}`, not in an injected HTML string. Outside the token blocks the sheet contains zero literals, and it needs to stay that way: a literal is invisible to `[data-theme]` and is the reason a new theme comes out half-broken. The token layer is three tiers:
-  1. **Primitive channels** — `--rp-accent-rgb`, `--rp-ink-rgb`, `--rp-paper-rgb`, `--rp-glass-rgb`, `--rp-shadow-rgb`, `--rp-danger-rgb`, `--rp-warning-rgb`, `--rp-success-rgb`. Every translucent tint is `rgb(var(--rp-x-rgb) / <alpha>)` rather than an `rgba()` literal, so a theme restates eight triplets and every tint follows. Pick by role, not by how light the colour looks: `--rp-ink-rgb` is "pressed into the surface" (dark on light, white on dark), `--rp-paper-rgb` is "lifted off it", and `--rp-glass-rgb` is the frosted panel layer (white on light, near-black on dark).
-  2. **Semantic tokens** — `--rp-bg`, `--rp-chrome*`, `--rp-surface*`, `--rp-text*`, `--rp-border*`, `--rp-input-*`, plus four status families. Accent, danger and warning each have the same three roles, and they are not interchangeable: `--rp-accent` is the fill, `--rp-accent-hover`/`-deep` are its gradient steps, and `--rp-accent-text` is the accent used as label text on a plain surface (darker on light, lighter on dark). `--rp-on-accent` / `--rp-on-danger` are the foregrounds *on* those fills. Syntax colours are `--rp-syntax-*`.
-  3. **Component tokens** — `--field-remove-*`, `--dialog-*`, `--http-method-*`, `--rp-select-chevron`, `--rp-radius`, `--title-bar-height`. Add one only when a component genuinely diverges from the semantic layer. `--dialog-primary-*` derive from the accent tokens; `--field-remove-*` and `--dialog-danger-bg` deliberately do not, because on dark the × and the destructive fill are a pink that diverges from the salmon used for danger text.
-- **Main components stay on five hue families**: neutral ramp, accent, danger, warning, success. `--http-method-*` badges and `--rp-syntax-*` are the deliberate exceptions — they encode data, not chrome. Anything that wants a sixth hue should use the accent or a neutral instead.
-- The `--rp-titlebar-close` red and its white glyph are an OS convention, not theme colours; they are not remapped on dark, so leave them out of palette work.
-- **To sanity-check a palette change**, override the tier-1 and tier-2 tokens in a scratch `:root` block and confirm the whole UI follows. Kill transitions first (`* { transition: none !important }`) — a transitioned `color` reports its old computed value until frames actually composite, which makes a working theme look broken.
-- When adding sections, tabs, or panels: match existing spacing and typography. Reuse `.segmented` / `.tabs` patterns instead of inventing new tab markup. **Before finishing**, walk through [Flex and panel layout](#flex-and-panel-layout) below—most layout bugs come from skipping it.
+A `{{?name}}` is a value the request asks for when it runs. There is nothing to declare or configure: `requestParameterNames()` (`src/lib/parameters.ts`) infers them from the request text on every send, and all values are plain strings.
+
+`trySendRequest()` calls `promptForParameters()` before anything goes on the wire; `null` means cancelled and the run is abandoned. Answers then ride an optional trailing `answers` argument through `resolvedOutboundUrl` / `buildOutboundHeaders` / `buildRequestHeaders` / `buildFormPayload` down to `applyVariables`. All default to `{}`, so cURL generation, previews and export keep working and render parameters as empty.
+
+`ParameterPromptDialog` shows one input for a single parameter and a spreadsheet grid for several (Enter/↓ step forward, ↑ steps back, Enter past the last row sends). It seeds each value from the last answer for that request, else a variable of the same name. Last answers live in a module-level map — runtime only, never in config.json.
+
+### Dialogs — use `AppModal`, do not hand-roll one
+
+**Never build a modal out of a bare `.app-dialog` + `.dialog-title`.** Every hand-rolled one shipped the same three defects: a title bar that looks draggable but is not, a bare `×` glyph instead of the real close control, and its own broken centring. `AppModal` (`src/react/components/dialogs/AppModal.tsx`) is the shell — pass `title`, `variant`, `width`, optional `height`, `onClose` and an optional `footer`, and it provides:
+
+- a **working drag** on the title bar (`cursor: grab`, clamped so a grab strip always stays on screen),
+- the standard close button (`iconWindowClose` in `.dialog-window-btn--close`),
+- Escape to close, and centring via explicit `left`/`top`.
+
+Centring uses `left`/`top`, **not** `transform`: `.app-dialog` carries `animation: rp-dialog-appear … !important`, and its final frame `transform: scale(1)` silently overwrites any `transform: translate(-50%, -50%)`.
+
+`AppDialog` is a different thing — it renders the imperative `applicationDialog()` stack from `components/dialogs.ts`. React-owned modals use `AppModal`.
+
+### Lists and options — reset the button
+
+A `<button>` used as a list row or a dropdown option inherits the UA's `text-align: center` **and** `align-items: center`. Centred option labels have been a repeat complaint. Every such rule needs:
+
+```css
+padding: 0; border: 0; background: transparent;
+color: inherit; font: inherit;
+align-items: stretch; text-align: left; cursor: pointer;
+```
+
+`.rp-dropdown-option`, `.extractors-dialog-list-item` and `.extractors-popover-item-main` all carry it.
+
+**A dropdown list is sized to its content, not to its trigger** — `width: max-content; min-width: 100%; max-width: min(420px, calc(100vw - 32px))`. Tying the list to the trigger's width leaves descriptions unreadable in a 120px control.
+
+### Rows that toggle
+
+A control row must not change height when its state changes, or everything below it jumps. Give the row a fixed height and keep the same controls mounted, disabling rather than unmounting them (see `.extractor-bar`). And do not add a checkbox whose only job is to reveal the control next to it — let the control's own empty/"None" value mean off.
+
+### Extractors
+
+An extractor is a named script that pulls a value out of a response. It replaced the Functions section, which is gone — the sidebar holds collections only, and `ActivePanel` is `request | settings`.
+
+`src/lib/extractors.ts` is the engine: `runExtractor()` evaluates the script with `response` in scope (JSON bodies arrive parsed, repeated headers joined like `Headers.get()`), and never throws — it returns `{ success: false, error }`. Names are required and unique (`extractorNameProblem`).
+
+- Managed from the title-bar **funnel** button (`iconExtractor`): `ExtractorsPopover` lists them, `ExtractorsDialog` edits one. The editor is **draft-based with an explicit Save**, unlike the rest of the app.
+- Per request, `SavedRequest.extractor` (`ExtractorBar`, the row under the URL line) holds the toggle, the chosen extractor and an optional target variable. The checkbox is the disclosure — the rest of the row only renders when it is on.
+- `runRequestExtractor()` runs after a successful send. With a target variable the value lands in the **active environment, or globals when none is active**; without one it opens `ExtractorResultDialog` to copy.
+- Configs that still carry `functions` have each function's `extractorCode` carried over into an extractor (`legacyFunctionExtractors` in `config-normalize.ts`) — delete that branch once no config in the wild has them.
+
+`Dropdown` (`src/react/components/Dropdown.tsx`) is the app's own listbox. Use it instead of a native `<select>` wherever the control sits in app chrome; a native one renders as OS chrome.
 
 ### It is an app, not a web page
 

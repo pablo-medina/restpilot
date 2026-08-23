@@ -1,7 +1,6 @@
 import { activeEnvironmentVariables } from "../app/environments";
-import { requestAuthTextFields } from "../app/request-auth";
 import { state } from "../app/state";
-import { collectTemplateNames, effectiveVariables } from "../lib/variables";
+import { collectTemplateNames, effectiveVariables, requestTemplateFields } from "../lib/variables";
 import type { SavedRequest, TreeItem, Variable } from "../types";
 
 export function collectVariableNamesFromText(value: string): Set<string> {
@@ -10,23 +9,11 @@ export function collectVariableNamesFromText(value: string): Set<string> {
 
 export function collectVariableNamesFromRequest(request: SavedRequest): Set<string> {
   const names = new Set<string>();
-  const fields = [
-    request.url,
-    request.urlHash ?? "",
-    request.body,
-    request.graphqlVariables ?? "",
-    ...request.queryParams.flatMap((pair) => [pair.key, pair.value]),
-    ...request.headers.flatMap((pair) => [pair.key, pair.value]),
-    ...request.form.flatMap((pair) => [pair.key, pair.value]),
-    ...requestAuthTextFields(request)
-  ];
-
-  for (const field of fields) {
+  for (const field of requestTemplateFields(request)) {
     for (const name of collectVariableNamesFromText(field)) {
       names.add(name);
     }
   }
-
   return names;
 }
 

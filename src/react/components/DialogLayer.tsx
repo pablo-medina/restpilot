@@ -1,11 +1,10 @@
-import { useEffect, useLayoutEffect } from "react";
-import { bindFunctionResultDialogs } from "../../app/function-result-dialog-bind";
+import { useEffect } from "react";
 import { endDialogDrag, onPointerMove, onDialogKeydown } from "../../components/dialogs";
 import { useDialogStack } from "../hooks/useDialogStack";
 import { AppDialog } from "./dialogs/AppDialog";
 
 export function DialogLayer() {
-  const { revision, dialogs } = useDialogStack();
+  const { dialogs } = useDialogStack();
 
   useEffect(() => {
     window.addEventListener("pointermove", onPointerMove);
@@ -17,12 +16,6 @@ export function DialogLayer() {
       window.removeEventListener("keydown", onDialogKeydown);
     };
   }, []);
-
-  useLayoutEffect(() => {
-    if (dialogs.some((dialog) => dialog.data?.mode === "function-result")) {
-      bindFunctionResultDialogs();
-    }
-  }, [revision, dialogs]);
 
   if (!dialogs.length) return null;
 

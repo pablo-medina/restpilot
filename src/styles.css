@@ -236,17 +236,6 @@ button {
   flex-shrink: 0;
 }
 
-.function-naming-icon svg {
-  width: 28px;
-  height: 28px;
-}
-
-.function-play-icon {
-  place-items: center;
-  width: 18px;
-  height: 18px;
-}
-
 .icon-btn {
   flex-shrink: 0;
   display: inline-flex;
@@ -474,11 +463,6 @@ button {
   display: none;
 }
 
-.sidebar-navigation-item {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
 .title-bar--tabs .tab-bar .title-bar-drag {
   flex: 1 1 auto;
   min-width: 48px;
@@ -614,14 +598,6 @@ button {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding-right: 0;
-}
-
-.functions-tree .tree-main {
-  padding-right: 32px;
-}
-
-.functions-tree .tree-row.is-editing .tree-main {
   padding-right: 0;
 }
 
@@ -851,14 +827,6 @@ button {
 .tree-action-btn.danger:hover {
   background: var(--field-remove-tint);
   color: var(--field-remove-color);
-}
-
-.func-play-btn {
-  color: var(--rp-success);
-}
-
-.func-play-btn:hover {
-  color: var(--rp-success-strong);
 }
 
 [data-theme="dark"] .tree-rename-input {
@@ -2541,7 +2509,10 @@ select,
 }
 
 .window-layer--settings,
-.window-layer--variables-manager {
+.window-layer--variables-manager,
+.window-layer--parameter-prompt,
+.window-layer--extractors,
+.window-layer--extractor-result {
   z-index: 20;
   pointer-events: auto;
 }
@@ -2549,7 +2520,10 @@ select,
 /* Transparent backdrop in all themes — blocks clicks on content behind any open dialog. */
 .window-layer--stack::before,
 .window-layer--settings::before,
-.window-layer--variables-manager::before {
+.window-layer--variables-manager::before,
+.window-layer--parameter-prompt::before,
+.window-layer--extractors::before,
+.window-layer--extractor-result::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -2559,7 +2533,10 @@ select,
 /* Dark theme: add visible scrim on top of the transparent blocker. */
 [data-theme="dark"] .window-layer--stack::before,
 [data-theme="dark"] .window-layer--settings::before,
-[data-theme="dark"] .window-layer--variables-manager::before {
+[data-theme="dark"] .window-layer--variables-manager::before,
+[data-theme="dark"] .window-layer--parameter-prompt::before,
+[data-theme="dark"] .window-layer--extractors::before,
+[data-theme="dark"] .window-layer--extractor-result::before {
   background: rgb(var(--rp-shadow-rgb) / 0.42);
 }
 
@@ -3321,8 +3298,6 @@ select,
   background: rgb(var(--rp-accent-rgb) / 0.2);
   color: var(--rp-accent-text);
 }
-
-.function-import-popover .app-popover-body,
 .describe-popover .app-popover-body {
   display: flex;
   flex-direction: column;
@@ -3330,176 +3305,10 @@ select,
   min-height: 0;
 }
 
-.function-import-popover .popover-list {
-  max-height: 280px;
-  overflow-y: auto;
-}
 
-.function-import-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
 
-.function-import-item:hover {
-  background: rgb(var(--rp-accent-rgb) / 0.1);
-}
-
-.function-import-item.is-hidden {
-  display: none;
-}
-
-.function-import-item-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--rp-text);
-}
-
-.function-import-item-meta {
-  font-size: 11px;
-  color: var(--rp-text-muted);
-}
-
-.function-description-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.function-description-input {
-  width: 100%;
-  min-height: 48px;
-  resize: vertical;
-  padding: 8px 10px;
-  border-radius: var(--rp-radius);
-  border: 1px solid var(--rp-border);
-  background: var(--rp-surface);
-  color: var(--rp-text);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-/* Per-function "auto-map result to a variable" block in the function workspace. */
-.function-auto-map {
-  /* Shared vertical rhythm for the block: label row, control row, status row. */
-  --auto-map-label-height: 16px;
-  --auto-map-control-height: 34px;
-  --auto-map-status-height: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.function-auto-map-toggle {
-  display: inline-grid;
-  grid-template-columns: auto auto;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  max-width: 100%;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--rp-text);
-  cursor: pointer;
-}
-
-.function-auto-map-toggle input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  min-height: 15px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  accent-color: var(--rp-accent);
-  cursor: pointer;
-}
-
-.function-auto-map-hint {
-  margin: 0;
-  max-width: 60em;
-  color: var(--rp-text-muted);
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-/* Status line under the fields. It is always in the DOM so that showing or
-   clearing the warning never changes the height of the block. */
-.function-auto-map-status {
-  grid-column: 1 / -1;
-  margin: 0;
-  min-height: var(--auto-map-status-height);
-  color: var(--rp-text-muted);
-  font-size: 11px;
-  line-height: var(--auto-map-status-height);
-}
-
-.function-auto-map-warning {
-  color: var(--rp-danger-text);
-}
-
-.function-auto-map-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  align-items: start;
-  column-gap: 12px;
-  row-gap: 4px;
-  margin-top: 4px;
-}
-
-.function-auto-map-fields.is-hidden {
-  display: none;
-}
-
-/* Label row and control row share a fixed track height in every column, so the
-   two fields line up regardless of the intrinsic height of input vs select. */
-.function-auto-map-field {
-  display: grid;
-  grid-template-rows: var(--auto-map-label-height) var(--auto-map-control-height);
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--rp-text-muted);
-}
-
-.function-auto-map-field > span {
-  overflow: hidden;
-  line-height: var(--auto-map-label-height);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.function-auto-map-field input,
-.function-auto-map-field select {
-  width: 100%;
-  min-width: 0;
-  height: var(--auto-map-control-height);
-  padding: 0 10px;
-  border: 1px solid var(--rp-border);
-  border-radius: var(--rp-radius);
-  background: var(--rp-surface);
-  color: var(--rp-text);
-  font-size: 13px;
-  font-weight: 400;
-}
 
 @media (max-width: 900px) {
-  .function-auto-map-fields {
-    grid-template-columns: 1fr;
-  }
 }
 
 .describe-popover-field {
@@ -3544,24 +3353,24 @@ select,
 
 /* Functions popover (title bar) */
 
-.functions-popover {
+.extractors-popover {
   width: min(360px, calc(100vw - 24px));
 }
 
-.functions-popover-content {
+.extractors-popover-content {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
 }
 
-.functions-popover-list {
+.extractors-popover-list {
   max-height: 320px;
   overflow-y: auto;
   gap: 2px;
 }
 
-.functions-popover-item {
+.extractors-popover-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3572,22 +3381,17 @@ select,
   transition: background 0.15s ease;
 }
 
-.functions-popover-item.is-loading {
-  cursor: progress;
-  opacity: 0.7;
-}
-
-.functions-popover-item:hover {
+.extractors-popover-item:hover {
   background: var(--rp-hover);
 }
 
-.functions-popover-item:focus-visible,
-.functions-popover-item:focus {
+.extractors-popover-item:focus-visible,
+.extractors-popover-item:focus {
   background: rgb(var(--rp-accent-rgb) / 0.12);
   box-shadow: inset 0 0 0 1px var(--rp-accent);
 }
 
-.functions-popover-item-main {
+.extractors-popover-item-main {
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -3595,7 +3399,7 @@ select,
   min-width: 0;
 }
 
-.functions-popover-item-name {
+.extractors-popover-item-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--rp-text);
@@ -3604,7 +3408,7 @@ select,
   white-space: nowrap;
 }
 
-.functions-popover-item-desc {
+.extractors-popover-item-desc {
   font-size: 11px;
   color: var(--rp-text-muted);
   overflow: hidden;
@@ -3614,7 +3418,7 @@ select,
 
 /* Row actions stay out of the way until the row is hovered or focused.
    Opacity (not display) so the row layout never shifts. */
-.functions-popover-item-actions {
+.extractors-popover-item-actions {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -3623,13 +3427,12 @@ select,
   transition: opacity 0.12s ease;
 }
 
-.functions-popover-item:hover .functions-popover-item-actions,
-.functions-popover-item:focus-within .functions-popover-item-actions,
-.functions-popover-item.is-loading .functions-popover-item-actions {
+.extractors-popover-item:hover .extractors-popover-item-actions,
+.extractors-popover-item:focus-within .extractors-popover-item-actions {
   opacity: 1;
 }
 
-.mini-btn.functions-popover-action {
+.mini-btn.extractors-popover-action {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3644,64 +3447,31 @@ select,
   cursor: pointer;
 }
 
-.functions-popover .mini-btn.functions-popover-action--edit {
+.extractors-popover .mini-btn.extractors-popover-action--edit {
   color: var(--rp-text-muted);
 }
 
-.functions-popover .mini-btn.functions-popover-action--edit:hover {
+.extractors-popover .mini-btn.extractors-popover-action--edit:hover {
   background: var(--rp-hover);
   color: var(--rp-accent-strong);
 }
 
-/* Scoped by .functions-popover so this beats the generic
+/* Scoped by .extractors-popover so this beats the generic
    `[data-theme="dark"] .mini-btn` override, which otherwise greys out the cross. */
-.functions-popover .mini-btn.functions-popover-action--delete {
+.extractors-popover .mini-btn.extractors-popover-action--delete {
   color: var(--field-remove-color);
 }
 
-.functions-popover .mini-btn.functions-popover-action--delete:hover {
+.extractors-popover .mini-btn.extractors-popover-action--delete:hover {
   color: var(--field-remove-color-hover);
   background: var(--field-remove-tint);
-}
-
-.functions-popover-open-section {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--rp-text-muted);
-  cursor: pointer;
-}
-
-.functions-popover .functions-popover-open-section:hover {
-  background: var(--rp-hover);
-  color: var(--rp-accent-strong);
-}
-
-.functions-popover-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  margin-right: 2px;
-  color: var(--rp-accent);
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: rp-func-spin 0.8s linear infinite;
 }
 
 @keyframes rp-func-spin {
   to { transform: rotate(360deg); }
 }
 
-.functions-popover-empty {
+.extractors-popover-empty {
   text-align: center;
   padding: 16px 4px;
   font-style: italic;
@@ -4785,10 +4555,6 @@ select,
   color: var(--rp-danger);
 }
 
-/* Sidebar navigation tab — hover visible on dark */
-[data-theme="dark"] .sidebar-navigation-item:hover {
-  background: rgb(var(--rp-ink-rgb) / 0.07);
-}
 
 /* Sidebar action popover (+ and ⋯ menus at sidebar header) */
 [data-theme="dark"] .sidebar-action-popover {
@@ -4817,10 +4583,8 @@ select,
   #app.app-frame--request.is-collection-collapsed {
     grid-template-columns: 48px minmax(560px, 1fr);
   }
-
   #app.app-frame--sidebar.is-sidebar-hidden,
-  #app.app-frame--request.is-sidebar-hidden,
-  #app.app-frame--functions.is-sidebar-hidden {
+  #app.app-frame--request.is-sidebar-hidden {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -4947,38 +4711,27 @@ select,
     "titlebar"
     "main";
 }
-
 #app.app-frame--sidebar,
-#app.app-frame--request,
-#app.app-frame--functions {
+#app.app-frame--request {
   grid-template-columns: 260px minmax(0, 1fr);
   grid-template-areas: none;
 }
-
 #app.app-frame--sidebar.is-sidebar-hidden,
-#app.app-frame--request.is-sidebar-hidden,
-#app.app-frame--functions.is-sidebar-hidden {
+#app.app-frame--request.is-sidebar-hidden {
   grid-template-columns: minmax(0, 1fr);
 }
-
 #app.app-frame--sidebar.is-sidebar-hidden .app-sidebar,
-#app.app-frame--request.is-sidebar-hidden .app-sidebar,
-#app.app-frame--functions.is-sidebar-hidden .app-sidebar {
+#app.app-frame--request.is-sidebar-hidden .app-sidebar {
   display: none !important;
 }
-
 #app.app-frame--sidebar:not(.is-sidebar-hidden) .app-sidebar,
-#app.app-frame--request:not(.is-sidebar-hidden) .app-sidebar,
-#app.app-frame--functions:not(.is-sidebar-hidden) .app-sidebar {
+#app.app-frame--request:not(.is-sidebar-hidden) .app-sidebar {
   display: flex;
 }
-
 #app.app-frame--sidebar.is-sidebar-hidden .title-bar,
 #app.app-frame--sidebar.is-sidebar-hidden .shell,
 #app.app-frame--request.is-sidebar-hidden .title-bar,
-#app.app-frame--request.is-sidebar-hidden .shell,
-#app.app-frame--functions.is-sidebar-hidden .title-bar,
-#app.app-frame--functions.is-sidebar-hidden .shell {
+#app.app-frame--request.is-sidebar-hidden .shell {
   grid-column: 1;
 }
 
@@ -4986,25 +4739,18 @@ select,
   grid-column: 1;
   grid-row: 1 / -1;
 }
-
 #app.app-frame--sidebar .title-bar,
 #app.app-frame--sidebar .shell,
 #app.app-frame--request .title-bar,
-#app.app-frame--request .shell,
-#app.app-frame--functions .title-bar,
-#app.app-frame--functions .shell {
+#app.app-frame--request .shell {
   grid-column: 2;
 }
-
 #app.app-frame--sidebar .title-bar,
-#app.app-frame--request .title-bar,
-#app.app-frame--functions .title-bar {
+#app.app-frame--request .title-bar {
   grid-row: 1;
 }
-
 #app.app-frame--sidebar .shell,
-#app.app-frame--request .shell,
-#app.app-frame--functions .shell {
+#app.app-frame--request .shell {
   grid-row: 2;
 }
 
@@ -5012,22 +4758,15 @@ select,
   display: flex;
   flex-direction: column;
   width: 260px;
-  padding: 0;
+  /* Clears the title bar, which the sidebar starts underneath. This used to be the job of
+     `.sidebar-header`, the activity rail that no longer exists. */
+  padding: var(--title-bar-height) 0 0;
   box-sizing: border-box;
   border-right: 1px solid var(--rp-border);
   background: var(--rp-chrome-elevated);
   overflow: visible;
 }
 
-.sidebar-header {
-  flex-shrink: 0;
-  height: var(--title-bar-height);
-  min-height: var(--title-bar-height);
-  display: flex;
-  align-items: stretch;
-  padding: 0;
-  border-bottom: 1px solid var(--rp-border);
-}
 
 .sidebar-context-header,
 .sidebar-context-actions,
@@ -5036,47 +4775,6 @@ select,
   align-items: center;
 }
 
-/* Flat tab strip — no pill container, icon-only, scales to any number of sections */
-.sidebar-navigation {
-  display: flex;
-  gap: 0;
-  padding: 0;
-}
-
-.sidebar-navigation-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  flex-shrink: 0;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--rp-text-muted);
-  cursor: pointer;
-  font: inherit;
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-
-.sidebar-navigation-item svg {
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-}
-
-.sidebar-navigation-item:hover {
-  color: var(--rp-text);
-  background: rgb(var(--rp-ink-rgb) / 0.05);
-}
-
-.sidebar-navigation-item.is-active {
-  color: var(--rp-accent-strong);
-  background: transparent;
-  border-bottom-color: var(--rp-accent-strong);
-}
 
 .sidebar-context {
   display: flex;
@@ -5653,33 +5351,6 @@ select,
   background: var(--field-remove-tint);
 }
 
-/* Variable Dialog Selection Styles */
-.var-dialog-item {
-  text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--rp-text);
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  transition: background 0.12s ease, border-color 0.12s ease;
-  outline: none;
-}
-
-.var-dialog-item:hover {
-  background: rgb(var(--rp-accent-rgb) / 0.06);
-  border-color: rgb(var(--rp-accent-rgb) / 0.15);
-}
-
-.var-dialog-item.selected {
-  background: rgb(var(--rp-accent-rgb) / 0.14) !important;
-  border-color: rgb(var(--rp-accent-rgb) / 0.35) !important;
-}
 
 .variables-workspace-sidebar {
   width: 230px;
@@ -6039,3 +5710,518 @@ select,
   color: var(--rp-danger);
 }
 
+
+/* ---------- Parameter prompt ---------- */
+
+.parameter-prompt-single {
+  display: grid;
+  gap: 4px;
+}
+
+.parameter-prompt-single span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rp-text-secondary);
+}
+
+.parameter-prompt-single input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--rp-input-border);
+  border-radius: 6px;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-size: 13px;
+}
+
+.parameter-grid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.parameter-grid-head,
+.parameter-grid-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.6fr) minmax(140px, 1fr);
+}
+
+/* Fixed height so the separating border does not make every row after the first 1px taller. */
+.parameter-grid-row {
+  height: 29px;
+}
+
+/* Relative tint, not a fixed surface: the name column has to read as chrome against the value
+   cell in both themes, and --rp-surface-muted sits 2 units off --rp-input-bg on dark. */
+.parameter-grid-head,
+.parameter-grid-name {
+  background: rgb(var(--rp-ink-rgb) / 0.06);
+}
+
+.parameter-grid-head {
+  border-bottom: 1px solid var(--rp-border);
+}
+
+.parameter-grid-head span {
+  padding: 4px 10px;
+  color: var(--rp-text-faint);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.parameter-grid-head span:first-child,
+.parameter-grid-name {
+  border-right: 1px solid var(--rp-border);
+}
+
+.parameter-grid-row + .parameter-grid-row {
+  border-top: 1px solid var(--rp-border);
+}
+
+.parameter-grid-name {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--rp-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.parameter-grid-value {
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-size: 12px;
+}
+
+.parameter-grid-value:focus {
+  outline: 1px solid var(--rp-accent);
+  outline-offset: -1px;
+}
+
+
+/* ---------- Shared modal shell ---------- */
+
+.window-layer--extractors,
+.window-layer--extractor-result,
+.window-layer--parameter-prompt {
+  display: block;
+}
+
+.app-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+}
+
+/* The title bar is a drag handle, so say so and keep text from being selected mid-drag. */
+.app-modal-title {
+  cursor: grab;
+  user-select: none;
+}
+
+.app-dialog.is-dragging .app-modal-title {
+  cursor: grabbing;
+}
+
+.app-modal-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+/* ---------- Extractor row under the URL ---------- */
+
+/* Fixed height: the row never grows or shrinks with the selection, so nothing below it moves. */
+.extractor-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 34px;
+  padding-top: 6px;
+  font-size: 12px;
+}
+
+.extractor-bar-label {
+  color: var(--rp-text-muted);
+  white-space: nowrap;
+}
+
+.extractor-bar.is-active .extractor-bar-label {
+  color: var(--rp-text-secondary);
+  font-weight: 600;
+}
+
+.extractor-bar-arrow,
+.extractor-bar-variable {
+  transition: opacity 0.15s ease;
+}
+
+.extractor-bar-arrow {
+  color: var(--rp-text-faint);
+}
+
+.extractor-bar:not(.is-active) .extractor-bar-arrow {
+  opacity: 0.4;
+}
+
+.extractor-bar-variable {
+  width: 180px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--rp-input-border);
+  border-radius: 6px;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-size: 12px;
+}
+
+.extractor-bar-variable:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Dropdown (non-native listbox) ---------- */
+
+.rp-dropdown {
+  position: relative;
+}
+
+.rp-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--rp-input-border);
+  border-radius: 6px;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rp-dropdown-trigger:hover {
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
+}
+
+.rp-dropdown.is-open .rp-dropdown-trigger {
+  border-color: var(--rp-accent);
+}
+
+.rp-dropdown-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-dropdown-value.is-placeholder {
+  color: var(--rp-text-faint);
+}
+
+.rp-dropdown-chevron {
+  display: inline-flex;
+  color: var(--rp-text-faint);
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+
+.rp-dropdown.is-open .rp-dropdown-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Sized to its content, not to the trigger: a description that only fits in 100px of trigger
+   is unreadable. The trigger width is the floor, not the ceiling. */
+.rp-dropdown-list {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max-content;
+  min-width: 100%;
+  max-width: min(420px, calc(100vw - 32px));
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--rp-border);
+  border-radius: 8px;
+  background: var(--rp-surface);
+  box-shadow: 0 12px 32px rgb(var(--rp-shadow-rgb) / 0.22);
+}
+
+.rp-dropdown-list.is-above {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+/* A <button> defaults to centred text and centred flex items — every option in a list has to
+   undo that or the labels float in the middle. */
+.rp-dropdown-option {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  width: 100%;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rp-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rp-dropdown-option.is-active {
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+}
+
+.rp-dropdown-option[aria-selected="true"] .rp-dropdown-option-label {
+  font-weight: 650;
+}
+
+.rp-dropdown-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-dropdown-option-hint {
+  color: var(--rp-text-faint);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-dropdown-empty {
+  margin: 0;
+  padding: 8px;
+  color: var(--rp-text-faint);
+  font-size: 12px;
+}
+
+/* ---------- Extractors dialog ---------- */
+
+.app-modal--extractors .app-modal-body {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.extractors-dialog-body {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.extractors-dialog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--rp-border);
+}
+
+.extractors-dialog-list-item {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rp-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.extractors-dialog-list-item:hover {
+  background: rgb(var(--rp-ink-rgb) / 0.06);
+}
+
+.extractors-dialog-list-item.is-active {
+  background: rgb(var(--rp-accent-rgb) / 0.14);
+  color: var(--rp-text);
+  font-weight: 600;
+}
+
+.extractors-dialog-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+.extractors-dialog-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.extractors-field {
+  display: grid;
+  gap: 4px;
+}
+
+.extractors-field span {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rp-text-faint);
+}
+
+.extractors-field input {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--rp-input-border);
+  border-radius: 6px;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-size: 13px;
+}
+
+.extractors-field input.is-invalid {
+  border-color: var(--rp-danger);
+}
+
+.extractors-name-error {
+  margin: 0;
+  color: var(--rp-danger-text);
+  font-size: 12px;
+}
+
+.extractors-dialog-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.extractors-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+
+.extractors-pane-title {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rp-text-faint);
+}
+
+.extractors-pane .extractors-code {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+}
+
+.extractors-dialog-outcome {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mini-btn.extractors-test-btn {
+  width: auto;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.extractors-output {
+  flex: 1;
+  min-width: 0;
+  max-height: 64px;
+  overflow-y: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  background: var(--rp-surface-muted);
+  color: var(--rp-text-muted);
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.extractors-output.is-error {
+  border-color: rgb(var(--rp-danger-rgb) / 0.35);
+  color: var(--rp-danger-text);
+}
+
+/* ---------- Extractor result ---------- */
+
+.extractor-result-field {
+  position: relative;
+}
+
+.extractor-result-field textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px 38px 8px 10px;
+  border: 1px solid var(--rp-input-border);
+  border-radius: 6px;
+  background: var(--rp-input-bg);
+  color: var(--rp-text);
+  font-family: monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.mini-btn.extractor-result-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+.extractor-result-error {
+  margin: 0;
+  color: var(--rp-danger-text);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+/* Popover rows are buttons too — same UA centring to undo. */
+.extractors-popover-item-main {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  align-items: stretch;
+  text-align: left;
+  cursor: pointer;
+}

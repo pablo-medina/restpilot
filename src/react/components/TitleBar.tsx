@@ -10,7 +10,7 @@ import {
   syncMaximizeControl
 } from "../../ui/window-chrome";
 import {
-  iconFunction,
+  iconExtractor,
   iconSettings,
   iconSidebar,
   iconWindowClose,
@@ -20,8 +20,8 @@ import {
 import { useRenderGeneration } from "../hooks/useRenderGeneration";
 import { openSettingsDialog } from "../lib/settings-dialog";
 import { toggleSidebar } from "../lib/sync-app-frame";
-import { FunctionsPopover } from "./functions/FunctionsPopover";
 import { TabBar } from "./TabBar";
+import { ExtractorsPopover } from "./extractors/ExtractorsPopover";
 
 type Props = {
   refresh: () => void;
@@ -37,7 +37,6 @@ async function runWindowAction(action: string): Promise<void> {
 
 function resolveTitleBarCenter(): string {
   if (state.activePanel === "settings") return t().settings.title;
-  if (state.activePanel === "functions") return "";
   const request = getActiveRequest();
   if (request?.title.trim()) return request.title.trim();
   return t().app.name;
@@ -53,12 +52,12 @@ export function TitleBar({ refresh }: Props) {
   const useTabsChrome = state.activePanel === "request" && state.openTabs.length > 0;
   const center = resolveTitleBarCenter();
   const sidebarLabel = state.sidebarVisible ? nav.hideSidebar : nav.showSidebar;
-  const functionsBtnRef = useRef<HTMLButtonElement>(null);
-  const [functionsOpen, setFunctionsOpen] = useState(false);
+  const extractorsBtnRef = useRef<HTMLButtonElement>(null);
+  const [extractorsOpen, setExtractorsOpen] = useState(false);
 
-  const closeFunctionsPopover = () => {
-    setFunctionsOpen(false);
-    functionsBtnRef.current?.focus();
+  const closeExtractorsPopover = () => {
+    setExtractorsOpen(false);
+    extractorsBtnRef.current?.focus();
   };
 
   useEffect(() => {
@@ -115,25 +114,25 @@ export function TitleBar({ refresh }: Props) {
     </button>
   );
 
-  const functionsButton = (
+  const extractorsButton = (
     <>
       <button
-        ref={functionsBtnRef}
+        ref={extractorsBtnRef}
         type="button"
-        className={`title-bar-settings title-bar-functions${functionsOpen ? " is-active" : ""}`}
-        data-title-bar-functions
-        title={nav.functions}
-        aria-label={nav.functions}
+        className={`title-bar-settings title-bar-extractors${extractorsOpen ? " is-active" : ""}`}
+        data-title-bar-extractors
+        title={nav.extractors}
+        aria-label={nav.extractors}
         aria-haspopup="dialog"
-        aria-expanded={functionsOpen}
-        onClick={() => setFunctionsOpen((open) => !open)}
+        aria-expanded={extractorsOpen}
+        onClick={() => setExtractorsOpen((open) => !open)}
       >
-        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconFunction }} />
+        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconExtractor }} />
       </button>
-      {functionsOpen && (
-        <FunctionsPopover
-          anchor={functionsBtnRef.current}
-          onClose={closeFunctionsPopover}
+      {extractorsOpen && (
+        <ExtractorsPopover
+          anchor={extractorsBtnRef.current}
+          onClose={closeExtractorsPopover}
           refresh={refresh}
         />
       )}
@@ -164,7 +163,7 @@ export function TitleBar({ refresh }: Props) {
         </div>
         <div className="title-bar-drag" data-tauri-drag-region aria-hidden="true" />
         <div className="title-bar-actions">
-          {functionsButton}
+          {extractorsButton}
           {settingsButton}
           {controls}
         </div>
@@ -179,7 +178,7 @@ export function TitleBar({ refresh }: Props) {
         <span className="title-bar-center-text">{center}</span>
       </div>
       <div className="title-bar-actions">
-        {functionsButton}
+        {extractorsButton}
         {settingsButton}
         {controls}
       </div>

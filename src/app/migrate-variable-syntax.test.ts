@@ -108,31 +108,6 @@ describe("migrateVariableSyntax", () => {
     expect(migrateVariableSyntax(config).variables[0].value).toBe("${base_url}/api");
   });
 
-  it("leaves extractorCode alone — its ${} are JavaScript template literals", () => {
-    const config = legacyConfig();
-    config.functions = [
-      {
-        id: "f1",
-        name: "Login",
-        code: "",
-        functionType: "http",
-        method: "POST",
-        url: "${base_url}/auth",
-        queryParams: [],
-        headers: [],
-        bodyMode: "none",
-        rawType: "json",
-        body: "",
-        form: [],
-        auth: { type: "none" },
-        extractorCode: "return `Bearer ${response.body.token}`;"
-      }
-    ];
-
-    const migrated = migrateVariableSyntax(config).functions[0];
-    expect(migrated.url).toBe("{{base_url}}/auth");
-    expect(migrated.extractorCode).toBe("return `Bearer ${response.body.token}`;");
-  });
 
   it("leaves folders untouched", () => {
     const config = legacyConfig();

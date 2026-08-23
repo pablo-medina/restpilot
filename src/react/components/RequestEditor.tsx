@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { scheduleSave } from "../../app/persistence";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { VariableInput } from "./VariableInput";
@@ -15,6 +15,7 @@ import type { BodyMode, FormPartType, Pair, RawType, RequestAuth, RequestTab } f
 import { handleRequestCurlPaste } from "../../app/request-curl-paste";
 import { ensureTab } from "../lib/ensure-tab";
 import { cancelActiveRequest, trySendRequest } from "../lib/request-send";
+import { ExtractorBar } from "./ExtractorBar";
 import { PairRow } from "./PairRow";
 
 type Props = {
@@ -28,6 +29,54 @@ function ensureFormRow(request: NonNullable<ReturnType<typeof getActiveRequest>>
   }
 }
 
+
+/**
+ * The typed text is the source of truth while the field has focus, as in Postman and Insomnia.
+ * Feeding `composed` back on every keystroke re-derives the URL from the parsed parts, which
+ * rewrites what the user is halfway through typing — a `{{?name}}` can never be finished, and
+ * backspacing the closing brace re-splits the URL. On blur the field falls back to the canonical
+ * composed form, so edits made from the query params table still show up.
+ */
+function UrlField({
+  composed,
+  label,
+  onType,
+  onSend,
+  onPaste
+}: {
+  composed: string;
+  label: string;
+  onType: (value: string) => void;
+  onSend: () => void;
+  onPaste: (event: ClipboardEvent) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <VariableInput
+      id="url"
+      className="url-send-input"
+      value={draft ?? composed}
+      spellCheck={false}
+      aria-label={label}
+      onValueChange={(value) => {
+        setDraft(value);
+        onType(value);
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          onSend();
+        }
+      }}
+      onPaste={(event) => {
+        setDraft(null);
+        onPaste(event.nativeEvent);
+      }}
+    />
+  );
+}
 
 /**
  * Shows what actually goes on the wire: the encoded value in credential mode, and what a
@@ -632,25 +681,16 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
           ))}
         </select>
         <div className="url-send-field">
-          <VariableInput
-            id="url"
-            className="url-send-input"
-            value={displayUrl}
-            spellCheck={false}
-            aria-label={labels.resolvedUrl}
-            onValueChange={(value) => {
+          <UrlField
+            key={request.id}
+            composed={displayUrl}
+            label={labels.resolvedUrl}
+            onType={(value) => {
               ingestUrlIntoRequest(request, value, id);
               persist();
             }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void trySendRequest(refresh);
-              }
-            }}
-            onPaste={(event) => {
-              void handleRequestCurlPaste(event.nativeEvent, refresh);
-            }}
+            onSend={() => void trySendRequest(refresh)}
+            onPaste={(event) => void handleRequestCurlPaste(event, refresh)}
           />
           {tab.loading ? (
             <button
@@ -668,11 +708,12 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
             </button>
           )}
         </div>
+        <ExtractorBar request={request} onChange={persist} />
       </section>
       <section className="editor-grid">
         <article className="request-card">
           <div className="tabs">
-            {(["params", "auth", "headers", "body"] as const).map((panel) => (
+            {(["queryParams", "auth", "headers", "body"] as const).map((panel) => (
               <button
                 key={panel}
                 className={tab.selectedRequestTab === panel ? "active" : ""}
@@ -689,7 +730,7 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
             <AuthPanel request={request} onAuthChange={persist} />
           ) : null}
 
-          {tab.selectedRequestTab === "params" ? (
+          {tab.selectedRequestTab === "queryParams" ? (
             <div className="request-tab-panel">
               <div className="request-tab-toolbar">
                 <button

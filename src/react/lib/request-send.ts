@@ -7,11 +7,14 @@ import { getActiveRequest, id, state } from "../../app/state";
 import { buildFormPayload, buildRequestHeaders, withContentType } from "../../app/request-utils";
 import { messageDialog } from "../../components/dialogs";
 import { applyVariables } from "../../lib/variables";
+import { requestParameterNames } from "../../lib/parameters";
 import { hasMissingMultipartFiles, missingMultipartFileNames } from "../../lib/request-multipart";
 import { invalidateResponseRenderCache } from "../../lib/content-display";
 import { scheduleResponseRender } from "../../ui/response-panel";
 import { t } from "../../i18n";
-import type { ApiResponse, HeaderPair, TabState } from "../../types";
+import type { ApiResponse, HeaderPair, ParameterAnswers, TabState } from "../../types";
+import { promptForParameters } from "./parameter-prompt";
+import { runRequestExtractor } from "./run-extractor";
 import { ensureTab } from "./ensure-tab";
 
 const STREAM_EVENT = "restpilot:request-stream";
@@ -99,10 +102,18 @@ export async function trySendRequest(refresh: () => void): Promise<void> {
     return;
   }
 
-  await sendRequest(refresh);
+  // Cancelling the prompt cancels the run, before anything goes on the wire.
+  let answers: ParameterAnswers = {};
+  if (requestParameterNames(request).length) {
+    const given = await promptForParameters(request);
+    if (given === null) return;
+    answers = given;
+  }
+
+  await sendRequest(refresh, answers);
 }
 
-async function sendRequest(refresh: () => void): Promise<void> {
+async function sendRequest(refresh: () => void, answers: ParameterAnswers): Promise<void> {
   const request = getActiveRequest();
   if (!request) return;
   const tab = ensureTab(request.id);
@@ -121,7 +132,7 @@ async function sendRequest(refresh: () => void): Promise<void> {
 
   try {
     const effectiveVariables = getEffectiveVariables();
-    const headers = withContentType(request, buildRequestHeaders(request));
+    const headers = withContentType(request, buildRequestHeaders(request, answers));
 
     const streamFinished = request.streamResponse
       ? new Promise<void>((resolve) => {
@@ -137,13 +148,13 @@ async function sendRequest(refresh: () => void): Promise<void> {
 
     let body = "";
     if (request.bodyMode === "raw") {
-      body = applyVariables(request.body, effectiveVariables);
+      body = applyVariables(request.body, effectiveVariables, answers);
     } else if (request.bodyMode === "graphql") {
-      const query = applyVariables(request.body, effectiveVariables);
+      const query = applyVariables(request.body, effectiveVariables, answers);
       let variables: Record<string, unknown> = {};
       if (request.graphqlVariables) {
         try {
-          variables = JSON.parse(applyVariables(request.graphqlVariables, effectiveVariables));
+          variables = JSON.parse(applyVariables(request.graphqlVariables, effectiveVariables, answers));
         } catch {
           /* send as-is */
         }
@@ -170,12 +181,12 @@ async function sendRequest(refresh: () => void): Promise<void> {
       request: {
         id: runId,
         method: request.method,
-        url: resolvedOutboundUrl(request, effectiveVariables).trim(),
+        url: resolvedOutboundUrl(request, effectiveVariables, answers).trim(),
         headers,
         body_mode: request.bodyMode,
         raw_type: request.bodyMode === "graphql" ? "json" : request.rawType,
         body,
-        form: buildFormPayload(request),
+        form: buildFormPayload(request, answers),
         stream: request.streamResponse
       },
       ...httpTransportPayload(state.settings, request.streamResponse)
@@ -194,6 +205,7 @@ async function sendRequest(refresh: () => void): Promise<void> {
       request.lastResponse = tab.response;
       request.lastError = null;
       scheduleSave();
+      runRequestExtractor(request, tab.response);
     }
   } catch (error) {
     tab.error = error instanceof Error ? error.message : String(error);

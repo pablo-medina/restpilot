@@ -1,6 +1,6 @@
 import { applyVariables } from "../lib/variables";
 import { buildOutboundHeaders, defaultRequestAuth } from "./request-auth";
-import { clampRequestTimeoutSecs, type HeaderPair, type SavedRequest, type UserSettings } from "../types";
+import { clampRequestTimeoutSecs, type HeaderPair, type ParameterAnswers, type SavedRequest, type UserSettings } from "../types";
 import { getEffectiveVariables } from "./environments";
 import { COLLECTION_ROOT_PARENT_ID, normalizeParentId } from "./collection-parent";
 import { id } from "./state";
@@ -36,8 +36,8 @@ export function blankRequest(parentId: string | null | undefined = COLLECTION_RO
   };
 }
 
-export function buildRequestHeaders(request: SavedRequest) {
-  return buildOutboundHeaders(request, getEffectiveVariables());
+export function buildRequestHeaders(request: SavedRequest, answers: ParameterAnswers = {}) {
+  return buildOutboundHeaders(request, getEffectiveVariables(), answers);
 }
 
 export function hasEnabledFormFields(request: SavedRequest) {
@@ -78,10 +78,11 @@ export function withContentType(request: SavedRequest, headers: HeaderPair[]): H
   return headers;
 }
 
-export function buildFormPayload(request: SavedRequest) {
+export function buildFormPayload(request: SavedRequest, answers: ParameterAnswers = {}) {
+  const variables = getEffectiveVariables();
   return request.form.map((field) => ({
-    key: applyVariables(field.key, getEffectiveVariables()),
-    value: field.partType === "file" ? field.value : applyVariables(field.value, getEffectiveVariables()),
+    key: applyVariables(field.key, variables, answers),
+    value: field.partType === "file" ? field.value : applyVariables(field.value, variables, answers),
     enabled: field.enabled,
     part_type: field.partType ?? "text",
     file_name: field.fileName ?? null

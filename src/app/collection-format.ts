@@ -83,8 +83,7 @@ export function parseCollectionExport(raw: string, settings: UserSettings): Coll
     openTabs: [],
     activeTabId: "",
     settings,
-    functions: [],
-    activeFunctionId: null
+    extractors: []
   });
 
   return {

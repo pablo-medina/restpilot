@@ -25,7 +25,6 @@ export function usePopoverClose() {
       if (isTrigger) return;
 
       closeRequestPopovers();
-      state.activeFunctionPopover = null;
       removePopovers();
       queueMicrotask(() => bumpRenderGeneration());
     }

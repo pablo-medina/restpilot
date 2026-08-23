@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   applyAuthHeaders,
+  buildOutboundHeaders,
   defaultRequestAuth,
   mergeAuthQueryParams,
   normalizeRequestAuth,
-  parseAuthFromHeaders
+  parseAuthFromHeaders,
+  resolvedOutboundUrl
 } from "./request-auth";
 import { encodeBasicCredentials } from "../lib/basic-auth";
-import type { Pair, RequestAuth } from "../types";
+import type { Pair, RequestAuth, SavedRequest, Variable } from "../types";
 
 describe("request-auth", () => {
   it("parses bearer authorization headers", () => {
@@ -130,5 +132,59 @@ describe("request-auth", () => {
     const { auth, headers: rest } = parseAuthFromHeaders(headers);
     expect(auth).toMatchObject({ type: "basic", basicMode: "token", basicToken: "not-base-64!!" });
     expect(rest).toHaveLength(0);
+  });
+});
+
+describe("request-auth — run-time parameters", () => {
+  const variables: Variable[] = [{ id: "v1", name: "base_url", value: "https://api.test", enabled: true }];
+
+  function request(overrides: Partial<SavedRequest> = {}): SavedRequest {
+    return {
+      id: "r1",
+      kind: "request",
+      parentId: "/",
+      title: "Login",
+      method: "POST",
+      url: "{{base_url}}/u/{{?user}}",
+      urlHash: "",
+      queryParams: [{ id: "q1", key: "tenant", value: "{{?tenant}}", enabled: true }],
+      headers: [{ id: "h1", key: "X-Actor", value: "{{?user}}", enabled: true }],
+      bodyMode: "raw",
+      rawType: "json",
+      body: "",
+      form: [],
+      streamResponse: false,
+      auth: { type: "none" },
+      lastResponse: null,
+      lastError: null,
+      ...overrides
+    };
+  }
+
+  it("substitutes answers into the outbound URL and query", () => {
+    const url = resolvedOutboundUrl(request(), variables, { user: "alice", tenant: "acme" });
+    expect(url).toBe("https://api.test/u/alice?tenant=acme");
+  });
+
+  it("substitutes answers into manual headers", () => {
+    const headers = buildOutboundHeaders(request(), variables, { user: "alice" });
+    expect(headers).toEqual([["X-Actor", "alice"]]);
+  });
+
+  it("substitutes answers into auth fields", () => {
+    const withAuth = request({ auth: { type: "bearer", bearerToken: "{{?jwt}}" } });
+    const headers = buildOutboundHeaders(withAuth, variables, { jwt: "abc" });
+    expect(headers).toContainEqual(["Authorization", "Bearer abc"]);
+  });
+
+  // An enabled query row still goes on the wire with an empty value, exactly as it would for an
+  // unresolved variable — what matters is that no `{{?…}}` leaks out.
+  it("resolves an unanswered parameter to empty rather than leaving the template on the wire", () => {
+    expect(resolvedOutboundUrl(request(), variables, {})).toBe("https://api.test/u/?tenant=");
+  });
+
+  it("keeps stored variables working when no answers are given at all", () => {
+    const plain = request({ url: "{{base_url}}/ping", queryParams: [], headers: [] });
+    expect(resolvedOutboundUrl(plain, variables)).toBe("https://api.test/ping");
   });
 });

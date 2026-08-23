@@ -12,7 +12,6 @@ import type {
 
 export type ContextMenuState =
   | { kind: "tree"; x: number; y: number; itemId: string | null }
-  | { kind: "functions-tree"; x: number; y: number; functionId: string | null }
   | { kind: "response-copy"; x: number; y: number; requestId: string; canCopySelection?: boolean }
   | { kind: "request-actions"; x: number; y: number; requestId: string }
   | { kind: "request-tab"; x: number; y: number; requestId: string }
@@ -32,15 +31,6 @@ export type AppState = AppConfig & {
   envManageSelectedId: string | null;
   variablesWorkspaceTab: "globals" | "environments";
   collectionSearchQuery: string;
-  editingFunctionId: string | null;
-  selectedFunctionId: string | null;
-  functionSearchQuery: string;
-  activeFunctionRequestTab: "params" | "headers" | "body" | "auth";
-  activeFunctionConsoleTab: "test-result" | "raw-response";
-  activeFunctionHttpLoading: boolean;
-  activeFunctionExtractorLoading: boolean;
-  activeFunctionPopover: "params" | "headers" | "body" | "auth" | null;
-  activeSidebarFunctionPlayLoading: string | null;
   editingEnvId: string | null;
   /** ID of the tab currently in "preview" mode (shown in italic). Null if none. */
   previewTabId: string | null;
@@ -64,15 +54,6 @@ export let state: AppState = {
   envManageSelectedId: null,
   variablesWorkspaceTab: "globals",
   collectionSearchQuery: "",
-  editingFunctionId: null,
-  selectedFunctionId: null,
-  functionSearchQuery: "",
-  activeFunctionRequestTab: "params",
-  activeFunctionConsoleTab: "test-result",
-  activeFunctionHttpLoading: false,
-  activeFunctionExtractorLoading: false,
-  activeFunctionPopover: null,
-  activeSidebarFunctionPlayLoading: null,
   editingEnvId: null,
   previewTabId: null,
   envPopoverVariablesExpanded: false,

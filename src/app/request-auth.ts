@@ -1,7 +1,7 @@
 import { applyVariables } from "../lib/variables";
 import { buildRequestUrl } from "../lib/url-params";
 import { compactBase64, decodeBasicCredentials, encodeBasicCredentials } from "../lib/basic-auth";
-import type { HeaderPair, Pair, RequestAuth, SavedRequest, Variable } from "../types";
+import type { HeaderPair, Pair, ParameterAnswers, RequestAuth, SavedRequest, Variable } from "../types";
 
 export const AUTH_HEADER_NAME = "authorization";
 
@@ -79,12 +79,12 @@ export function parseAuthFromHeaders(headers: Pair[]): { auth: RequestAuth; head
   return { auth: defaultRequestAuth(), headers: remaining };
 }
 
-function headerPairsFromPairs(headers: Pair[], variables: Variable[]): HeaderPair[] {
+function headerPairsFromPairs(headers: Pair[], variables: Variable[], answers: ParameterAnswers): HeaderPair[] {
   return headers
     .filter((header) => header.enabled && header.key.trim())
     .map((header) => [
-      applyVariables(header.key.trim(), variables),
-      applyVariables(header.value, variables)
+      applyVariables(header.key.trim(), variables, answers),
+      applyVariables(header.value, variables, answers)
     ]);
 }
 
@@ -98,12 +98,16 @@ function withoutHeaderNamed(headers: HeaderPair[], name: string): HeaderPair[] {
  * Base64 credentials for `Authorization: Basic …`, whatever the input mode.
  * Token mode is passed through verbatim (already encoded); credential mode is encoded here.
  */
-export function resolvedBasicCredentials(auth: RequestAuth, variables: Variable[]): string {
+export function resolvedBasicCredentials(
+  auth: RequestAuth,
+  variables: Variable[],
+  answers: ParameterAnswers = {}
+): string {
   if (auth.basicMode === "token") {
-    return compactBase64(applyVariables(auth.basicToken ?? "", variables));
+    return compactBase64(applyVariables(auth.basicToken ?? "", variables, answers));
   }
-  const username = applyVariables(auth.basicUsername ?? "", variables);
-  const password = applyVariables(auth.basicPassword ?? "", variables);
+  const username = applyVariables(auth.basicUsername ?? "", variables, answers);
+  const password = applyVariables(auth.basicPassword ?? "", variables, answers);
   if (!username && !password) return "";
   return encodeBasicCredentials(username, password);
 }
@@ -111,25 +115,26 @@ export function resolvedBasicCredentials(auth: RequestAuth, variables: Variable[
 export function applyAuthHeaders(
   headers: HeaderPair[],
   auth: RequestAuth,
-  variables: Variable[]
+  variables: Variable[],
+  answers: ParameterAnswers = {}
 ): HeaderPair[] {
   const next = withoutHeaderNamed(headers, AUTH_HEADER_NAME);
 
   if (auth.type === "bearer") {
-    const token = applyVariables(auth.bearerToken ?? "", variables).trim();
+    const token = applyVariables(auth.bearerToken ?? "", variables, answers).trim();
     if (token) next.push(["Authorization", `Bearer ${token}`]);
     return next;
   }
 
   if (auth.type === "basic") {
-    const credentials = resolvedBasicCredentials(auth, variables);
+    const credentials = resolvedBasicCredentials(auth, variables, answers);
     if (credentials) next.push(["Authorization", `Basic ${credentials}`]);
     return next;
   }
 
   if (auth.type === "apikey" && auth.apiKeyIn !== "query") {
-    const name = applyVariables(auth.apiKeyName ?? "", variables).trim();
-    const value = applyVariables(auth.apiKeyValue ?? "", variables);
+    const name = applyVariables(auth.apiKeyName ?? "", variables, answers).trim();
+    const value = applyVariables(auth.apiKeyValue ?? "", variables, answers);
     if (name) {
       const withoutExisting = withoutHeaderNamed(next, name);
       withoutExisting.push([name, value]);
@@ -140,33 +145,43 @@ export function applyAuthHeaders(
   return next;
 }
 
-export function mergeAuthQueryParams(params: Pair[], auth: RequestAuth, variables: Variable[]): Pair[] {
+export function mergeAuthQueryParams(
+  params: Pair[],
+  auth: RequestAuth,
+  variables: Variable[],
+  answers: ParameterAnswers = {}
+): Pair[] {
   if (auth.type !== "apikey" || auth.apiKeyIn !== "query") {
     return params.map((pair) => ({ ...pair }));
   }
 
-  const name = applyVariables(auth.apiKeyName ?? "", variables).trim();
+  const name = applyVariables(auth.apiKeyName ?? "", variables, answers).trim();
   if (!name) return params.map((pair) => ({ ...pair }));
 
-  const value = applyVariables(auth.apiKeyValue ?? "", variables);
+  const value = applyVariables(auth.apiKeyValue ?? "", variables, answers);
   const withoutKey = params.filter((pair) => pair.key.trim() !== name);
   return [...withoutKey, { id: "auth-query", key: name, value, enabled: true }];
 }
 
 export function buildOutboundHeaders(
   request: SavedRequest,
-  variables: Variable[]
+  variables: Variable[],
+  answers: ParameterAnswers = {}
 ): HeaderPair[] {
-  const manual = headerPairsFromPairs(request.headers, variables);
-  return applyAuthHeaders(manual, normalizeRequestAuth(request.auth), variables);
+  const manual = headerPairsFromPairs(request.headers, variables, answers);
+  return applyAuthHeaders(manual, normalizeRequestAuth(request.auth), variables, answers);
 }
 
-export function buildOutboundQueryParams(request: SavedRequest, variables: Variable[]): Pair[] {
+export function buildOutboundQueryParams(
+  request: SavedRequest,
+  variables: Variable[],
+  answers: ParameterAnswers = {}
+): Pair[] {
   const auth = normalizeRequestAuth(request.auth);
   if (auth.type !== "apikey" || auth.apiKeyIn !== "query") {
     return request.queryParams.map((pair) => ({ ...pair }));
   }
-  return mergeAuthQueryParams(request.queryParams, auth, variables);
+  return mergeAuthQueryParams(request.queryParams, auth, variables, answers);
 }
 
 export function requestAuthTextFields(request: SavedRequest): string[] {
@@ -180,16 +195,20 @@ export function requestAuthTextFields(request: SavedRequest): string[] {
   return [];
 }
 
-export function resolvedOutboundUrl(request: SavedRequest, variables: Variable[]) {
-  const params = buildOutboundQueryParams(request, variables);
-  const base = applyVariables(request.url.trim(), variables);
-  const hash = applyVariables(request.urlHash ?? "", variables);
+export function resolvedOutboundUrl(
+  request: SavedRequest,
+  variables: Variable[],
+  answers: ParameterAnswers = {}
+) {
+  const params = buildOutboundQueryParams(request, variables, answers);
+  const base = applyVariables(request.url.trim(), variables, answers);
+  const hash = applyVariables(request.urlHash ?? "", variables, answers);
   const resolvedParams = params
     .filter((pair) => pair.enabled && pair.key.trim())
     .map((pair) => ({
       ...pair,
-      key: applyVariables(pair.key, variables),
-      value: applyVariables(pair.value, variables)
+      key: applyVariables(pair.key, variables, answers),
+      value: applyVariables(pair.value, variables, answers)
     }));
   return buildRequestUrl(base, resolvedParams, hash);
 }
