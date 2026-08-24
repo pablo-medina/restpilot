@@ -1,8 +1,50 @@
 import { unmountRequestTabEditors } from "../../app/request-workspace";
+import { planTabLimitEviction } from "../../app/open-tabs";
 import { scheduleSave } from "../../app/persistence";
 import { getRequest, setState, state } from "../../app/state";
+import { forgetTabUsage, markTabUsed, tabUsedAt } from "../../app/tab-usage";
+import { clampMaxOpenTabs } from "../../types";
 import { bumpRenderGeneration } from "../render-bridge";
 import { ensureTab } from "./ensure-tab";
+
+/**
+ * Applies the open-tab limit (Settings → Editor → Tabs): the least recently used tabs leave
+ * the strip so at most `maxOpenTabs` stay open. Only the tab is closed — the request itself
+ * stays in the collection. The active tab and `protectedIds` are never dropped.
+ *
+ * Returns the ids that were closed.
+ */
+export function enforceOpenTabLimit(protectedIds: readonly string[] = []): string[] {
+  if (!state.settings.limitOpenTabs) return [];
+
+  const protect = [state.activeTabId, ...protectedIds].filter(Boolean);
+  const evicted = planTabLimitEviction(
+    state.openTabs,
+    clampMaxOpenTabs(state.settings.maxOpenTabs),
+    tabUsedAt,
+    protect
+  );
+  if (!evicted.length) return [];
+
+  const dropped = new Set(evicted);
+  for (const tabId of evicted) {
+    unmountRequestTabEditors(tabId);
+    forgetTabUsage(tabId);
+  }
+
+  setState(prev => {
+    const nextTabs = { ...prev.tabs };
+    for (const tabId of evicted) delete nextTabs[tabId];
+    return {
+      ...prev,
+      tabs: nextTabs,
+      openTabs: prev.openTabs.filter((id) => !dropped.has(id)),
+      previewTabId: prev.previewTabId && dropped.has(prev.previewTabId) ? null : prev.previewTabId
+    };
+  });
+
+  return evicted;
+}
 
 export function openRequestTab(requestId: string, refresh: () => void): void {
   if (!getRequest(requestId)) return;
@@ -27,6 +69,9 @@ export function openRequestTab(requestId: string, refresh: () => void): void {
     // Opening permanently always promotes: clear preview status if this tab was it.
     previewTabId: prev.previewTabId === requestId ? null : prev.previewTabId,
   }));
+
+  markTabUsed(requestId);
+  enforceOpenTabLimit([requestId]);
 
   scheduleSave();
   refresh();
@@ -74,6 +119,9 @@ export function openRequestTabAsPreview(requestId: string, refresh: () => void):
     };
   });
 
+  markTabUsed(requestId);
+  enforceOpenTabLimit([requestId]);
+
   scheduleSave();
   refresh();
 }
@@ -82,6 +130,7 @@ export function closeRequestTab(requestId: string, refresh: () => void): void {
   if (!requestId || !state.openTabs.includes(requestId)) return;
 
   unmountRequestTabEditors(requestId);
+  forgetTabUsage(requestId);
 
   setState(prev => {
     const nextTabs = { ...prev.tabs };
@@ -108,6 +157,8 @@ export function closeRequestTab(requestId: string, refresh: () => void): void {
     };
   });
 
+  markTabUsed(state.activeTabId);
+
   scheduleSave();
   refresh();
 }
@@ -115,7 +166,9 @@ export function closeRequestTab(requestId: string, refresh: () => void): void {
 export function closeOtherTabs(keepId: string, refresh: () => void): void {
   if (!state.openTabs.includes(keepId)) return;
   for (const tabId of state.openTabs) {
-    if (tabId !== keepId) unmountRequestTabEditors(tabId);
+    if (tabId === keepId) continue;
+    unmountRequestTabEditors(tabId);
+    forgetTabUsage(tabId);
   }
   setState(prev => {
     const nextTabs: typeof prev.tabs = {};
@@ -134,7 +187,10 @@ export function closeOtherTabs(keepId: string, refresh: () => void): void {
 }
 
 export function closeAllTabs(refresh: () => void): void {
-  for (const tabId of state.openTabs) unmountRequestTabEditors(tabId);
+  for (const tabId of state.openTabs) {
+    unmountRequestTabEditors(tabId);
+    forgetTabUsage(tabId);
+  }
   setState(prev => ({ ...prev, tabs: {}, openTabs: [], activeTabId: "", previewTabId: null }));
   scheduleSave();
   refresh();

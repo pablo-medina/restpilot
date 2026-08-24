@@ -103,3 +103,30 @@ export function reorderTabsToInsertIndex(
   return next;
 }
 
+
+/**
+ * Tabs to drop so `openTabs` fits `limit`, least recently used first.
+ *
+ * `usedAt` ranks tabs by activation (see `app/tab-usage.ts`); tabs never activated in this
+ * session share rank 0 and are broken apart by strip position, so the oldest tab on the left
+ * goes first. `protectedIds` (the active tab, the one being opened) is never returned, so the
+ * result can be shorter than the overflow when almost everything is protected.
+ */
+export function planTabLimitEviction(
+  openTabs: readonly string[],
+  limit: number,
+  usedAt: (requestId: string) => number,
+  protectedIds: readonly string[] = []
+): string[] {
+  const max = Math.max(1, Math.floor(limit));
+  const overflow = openTabs.length - max;
+  if (overflow <= 0) return [];
+
+  const keep = new Set(protectedIds);
+  const candidates = openTabs
+    .map((id, index) => ({ id, index }))
+    .filter((entry) => !keep.has(entry.id))
+    .sort((a, b) => usedAt(a.id) - usedAt(b.id) || a.index - b.index);
+
+  return candidates.slice(0, overflow).map((entry) => entry.id);
+}

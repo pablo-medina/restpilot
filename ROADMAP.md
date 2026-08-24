@@ -143,6 +143,7 @@ Goal: refined experience across all surfaces — search, navigation, context men
 | 4.12 | **Improve multipart file UX** — warn before close that file parts will be lost on restart | Save guard + UI hint in request tab | planned |
 | 4.13 | **Draggable splitter between request and response panes** — `.editor-grid` is fixed at `minmax(420px, 0.95fr) / minmax(420px, 1.05fr)`; add a draggable divider plus a layout toggle (side-by-side / stacked), position persisted in settings | `UserSettings` (`editorSplitRatio`, `editorLayout`) + `styles.css` — also fixes cramped cards below ~1180px width | planned |
 | 4.14 | **Inline collapsible request description** — `SavedRequest.description` today is only editable from a context-menu popover and never shown in the editor; add a "+ Add description" collapsible line under the URL (Insomnia-style) | `RequestEditor.tsx` | planned |
+| 4.15 | **Open-tab limit** — optional cap on open tabs (off by default, 5), dropping the oldest least recently used tabs from the strip while the request stays in the collection; the active tab is always scrolled into view and marked VS Code style | `UserSettings` (`limitOpenTabs`, `maxOpenTabs`) + `src/app/tab-usage.ts`, `src/ui/tabs-bar.ts` | done |
 
 **Exit criteria:** All surfaces searchable; tab management feels complete; visual feedback on all async operations.
 

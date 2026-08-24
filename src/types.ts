@@ -39,6 +39,11 @@ export type ActivePanel = "request" | "settings";
 
 export const DEFAULT_PROXY_TEST_URL = "https://jsonplaceholder.typicode.com/posts/1";
 
+/** Open-tab cap applied when the limit is switched on. */
+export const DEFAULT_MAX_OPEN_TABS = 5;
+export const MIN_MAX_OPEN_TABS = 1;
+export const MAX_MAX_OPEN_TABS = 50;
+
 export type ProxySettings = {
   mode: ProxyMode;
   /** Full proxy URL for HTTP requests (e.g. http://user:pass@proxy:8080). */
@@ -72,6 +77,11 @@ export type UserSettings = {
   followRedirects: boolean;
   /** Single-click a request with an open tab focuses that tab; does not open closed requests. */
   clickToSelect: boolean;
+  /** Cap how many request tabs stay open; the least recently used leave the strip when a
+   * new one opens. The request itself is never deleted. */
+  limitOpenTabs: boolean;
+  /** Tabs kept open while `limitOpenTabs` is on (1-50). */
+  maxOpenTabs: number;
   /** How duplicated folder and request titles are named. */
   duplicateNaming: DuplicateNamingMode;
   /** Last URL used in Settings → network proxy test. */
@@ -243,6 +253,8 @@ export function defaultSettings(): UserSettings {
     requestTimeoutSecs: 60,
     followRedirects: true,
     clickToSelect: true,
+    limitOpenTabs: false,
+    maxOpenTabs: DEFAULT_MAX_OPEN_TABS,
     duplicateNaming: "copyOf",
     proxyTestUrl: DEFAULT_PROXY_TEST_URL
   };
@@ -252,6 +264,12 @@ export function clampRequestTimeoutSecs(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return defaultSettings().requestTimeoutSecs;
   return Math.max(5, Math.min(300, Math.round(parsed)));
+}
+
+export function clampMaxOpenTabs(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return DEFAULT_MAX_OPEN_TABS;
+  return Math.max(MIN_MAX_OPEN_TABS, Math.min(MAX_MAX_OPEN_TABS, Math.round(parsed)));
 }
 
 export function clampTabSize(value: unknown): number {

@@ -19,6 +19,8 @@ import { bindOverlayBindings } from "./react/lib/overlay-bindings";
 import { syncAppFrameLayout } from "./react/lib/sync-app-frame";
 import { focusTreeSelection } from "./react/lib/collection-tree-actions";
 import { ensureTab } from "./react/lib/ensure-tab";
+import { enforceOpenTabLimit } from "./react/lib/tab-actions";
+import { markTabUsed } from "./app/tab-usage";
 import { requestUsesSecretVariables, variablesForCurl } from "./lib/variables";
 import "./styles.css";
 import { COLLECTION_ROOT_PARENT_ID } from "./app/collection-parent";
@@ -86,6 +88,10 @@ export async function startApp(
   applyUserSettings(state.settings);
 
   initWindowChrome();
+  // A restored session has no usage history, so the limit ranks by strip order: the tabs
+  // furthest from the restored active one are the ones that do not come back.
+  markTabUsed(state.activeTabId);
+  enforceOpenTabLimit();
   for (const id of state.openTabs) ensureTab(id);
   render();
   bindEvents();

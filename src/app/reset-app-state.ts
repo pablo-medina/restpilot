@@ -1,5 +1,6 @@
 import { defaultConfig, type AppConfig } from "../types";
 import type { AppState } from "./state";
+import { resetTabUsage } from "./tab-usage";
 
 /** Ephemeral UI state (not in config.json). Reset via Clear all data. */
 export function defaultRuntimeState(): Pick<
@@ -62,5 +63,6 @@ export function resetAppStateToDefaults(target: AppState): void {
   target.settings = fresh.settings;
   target.extractors = fresh.extractors;
 
+  resetTabUsage();
   Object.assign(target, runtime);
 }

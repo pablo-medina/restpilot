@@ -333,6 +333,12 @@ export const es = {
     clickToSelect: "Clic para seleccionar solicitudes abiertas",
     clickToSelectHint:
       "Muestra una solicitud que ya tiene pestaña abierta. Sin pestaña, use doble clic, Enter o Mostrar en el menú contextual.",
+    tabsSection: "Pestañas",
+    limitOpenTabs: "Limitar pestañas abiertas",
+    limitOpenTabsHint:
+      "Al superar el límite, se quitan las pestañas más antiguas y menos usadas. Las solicitudes permanecen en la colección.",
+    maxOpenTabs: "Máximo de pestañas abiertas",
+    maxOpenTabsHint: "Entre 1 y 50. Se aplica apenas cambia el valor.",
     languageSection: "Idioma",
     language: "Idioma de la interfaz",
     languageEn: "Inglés",

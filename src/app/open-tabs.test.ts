@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeReorderedTabs,
   computeTabInsertIndexFromStrip,
+  planTabLimitEviction,
   reorderTabsToInsertIndex,
   type TabSlotRect
 } from "./open-tabs";
@@ -73,5 +74,39 @@ describe("computeTabInsertIndexFromStrip", () => {
   it("maps over the source tab span to its edges", () => {
     expect(computeTabInsertIndexFromStrip(slots, "b", 120)).toBe(1);
     expect(computeTabInsertIndexFromStrip(slots, "b", 180)).toBe(2);
+  });
+});
+
+describe("planTabLimitEviction", () => {
+  const never = () => 0;
+  const usage = (ranks: Record<string, number>) => (id: string) => ranks[id] ?? 0;
+
+  it("keeps every tab while the limit is not exceeded", () => {
+    expect(planTabLimitEviction(["a", "b", "c"], 5, never)).toEqual([]);
+    expect(planTabLimitEviction(["a", "b", "c"], 3, never)).toEqual([]);
+  });
+
+  it("drops the least recently used tab first", () => {
+    const tabs = ["a", "b", "c", "d"];
+    const ranks = usage({ a: 4, b: 1, c: 3, d: 2 });
+    expect(planTabLimitEviction(tabs, 3, ranks)).toEqual(["b"]);
+    expect(planTabLimitEviction(tabs, 2, ranks)).toEqual(["b", "d"]);
+  });
+
+  it("falls back to strip order for tabs never used in this session", () => {
+    expect(planTabLimitEviction(["a", "b", "c", "d"], 2, never)).toEqual(["a", "b"]);
+  });
+
+  it("never drops a protected tab", () => {
+    const ranks = usage({ a: 1, b: 2, c: 3 });
+    expect(planTabLimitEviction(["a", "b", "c"], 1, ranks, ["a", "c"])).toEqual(["b"]);
+  });
+
+  it("returns fewer tabs than the overflow when the rest is protected", () => {
+    expect(planTabLimitEviction(["a", "b"], 1, never, ["a", "b"])).toEqual([]);
+  });
+
+  it("treats a limit below one as one", () => {
+    expect(planTabLimitEviction(["a", "b"], 0, never, ["b"])).toEqual(["a"]);
   });
 });

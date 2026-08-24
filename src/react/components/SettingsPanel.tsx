@@ -7,7 +7,15 @@ import { state } from "../../app/state";
 import { applicationDialog, messageDialog } from "../../components/dialogs";
 import { iconEye, iconEyeOff } from "../../lib/icons";
 import { t } from "../../i18n";
-import { clampRequestTimeoutSecs, DEFAULT_PROXY_TEST_URL, type UserSettings } from "../../types";
+import {
+  clampMaxOpenTabs,
+  clampRequestTimeoutSecs,
+  DEFAULT_PROXY_TEST_URL,
+  MAX_MAX_OPEN_TABS,
+  MIN_MAX_OPEN_TABS,
+  type UserSettings
+} from "../../types";
+import { enforceOpenTabLimit } from "../lib/tab-actions";
 import { resetSettingsSessionState, type SettingsTabId } from "../../lib/settings";
 
 type Props = {
@@ -337,6 +345,48 @@ export function SettingsPanel({ refresh }: Props) {
                     <span className="settings-option-label">{labels.clickToSelect}</span>
                   </label>
                   <p className="settings-option-hint">{labels.clickToSelectHint}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="settings-card settings-tabs-card">
+              <h2>{labels.tabsSection}</h2>
+              <div className="settings-options">
+                <div className="settings-option settings-option--compact">
+                  <label className="settings-toggle-row" htmlFor="setting-limit-open-tabs">
+                    <input
+                      id="setting-limit-open-tabs"
+                      type="checkbox"
+                      checked={settings.limitOpenTabs}
+                      onChange={(event) => {
+                        settings.limitOpenTabs = event.target.checked;
+                        enforceOpenTabLimit();
+                        persist();
+                      }}
+                    />
+                    <span className="settings-option-label">{labels.limitOpenTabs}</span>
+                  </label>
+                  <p className="settings-option-hint">{labels.limitOpenTabsHint}</p>
+                </div>
+                <div className="settings-option">
+                  <label className="settings-field">
+                    <span className="settings-option-label">{labels.maxOpenTabs}</span>
+                    <input
+                      id="setting-max-open-tabs"
+                      type="number"
+                      min={MIN_MAX_OPEN_TABS}
+                      max={MAX_MAX_OPEN_TABS}
+                      step={1}
+                      value={settings.maxOpenTabs}
+                      disabled={!settings.limitOpenTabs}
+                      onChange={(event) => {
+                        settings.maxOpenTabs = clampMaxOpenTabs(event.target.value);
+                        enforceOpenTabLimit();
+                        persist();
+                      }}
+                    />
+                  </label>
+                  <p className="settings-option-hint">{labels.maxOpenTabsHint}</p>
                 </div>
               </div>
             </section>

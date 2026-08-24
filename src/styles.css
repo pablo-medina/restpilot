@@ -1090,6 +1090,11 @@ button {
   color: var(--rp-text);
 }
 
+/* Inactive tabs sit back so the active one reads at a glance (VS Code contrast). */
+.request-tab:not(.active) .tab-label {
+  opacity: 0.78;
+}
+
 .request-tab.is-preview .tab-label {
   font-style: italic;
 }
@@ -4374,10 +4379,6 @@ select,
   color: var(--rp-text);
 }
 
-[data-theme="dark"] .request-tab.active {
-  box-shadow: inset 0 2px 0 var(--rp-accent);
-}
-
 [data-theme="dark"] .tab-bar-tools {
   border-left-color: var(--rp-border-subtle);
 }
@@ -4907,20 +4908,39 @@ select,
   width: 100%;
 }
 
-/* Clean, flat bottom active bar indicator on request tabs */
+/* VS Code-style active tab: an accent bar along the whole top edge, the workspace
+   surface carried up into the tab under a faint accent wash, and a full-contrast label.
+   The bar spans the tab edge to edge — an inset bar reads as a highlight, not as "this
+   is the request you are editing". Weight is deliberately unchanged: bolding the active
+   label re-measures the tab and nudges every tab to its right on each switch. */
 .request-tab.active {
   box-shadow: none !important;
+  background:
+    linear-gradient(180deg, rgb(var(--rp-accent-rgb) / 0.13), rgb(var(--rp-accent-rgb) / 0) 68%),
+    var(--rp-bg) !important;
+  color: var(--rp-text) !important;
+}
+
+.request-tab.active .tab-label {
+  opacity: 1;
 }
 
 .request-tab.active::after {
   content: "" !important;
   position: absolute !important;
-  left: 12px !important;
-  right: 12px !important;
-  bottom: 0 !important;
-  height: 3px !important;
-  border-radius: 2px 2px 0 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: auto !important;
+  height: 2px !important;
+  border-radius: 0 !important;
   background: var(--rp-accent) !important;
+}
+
+[data-theme="dark"] .request-tab.active {
+  background:
+    linear-gradient(180deg, rgb(var(--rp-accent-rgb) / 0.18), rgb(var(--rp-accent-rgb) / 0) 68%),
+    var(--rp-bg) !important;
 }
 
 [data-theme="dark"] .request-tab.active::after {

@@ -1,5 +1,5 @@
 import { useLayoutEffect } from "react";
-import { applyOpenTabOrder, updateTabStripScroll } from "../../ui/tabs-bar";
+import { applyOpenTabOrder, scrollActiveTabIntoView, updateTabStripScroll } from "../../ui/tabs-bar";
 import { scheduleSave } from "../../app/persistence";
 import { attachTabStripReorder } from "../../app/tab-strip-reorder";
 import { setState, state } from "../../app/state";
@@ -22,7 +22,10 @@ export function useTabReorder({ stripRef, refresh }: Options): void {
     const observer = new ResizeObserver(() => updateTabStripScroll());
     observer.observe(viewport);
     observer.observe(strip);
-    requestAnimationFrame(updateTabStripScroll);
+    requestAnimationFrame(() => {
+      updateTabStripScroll();
+      scrollActiveTabIntoView();
+    });
 
     attachTabStripReorder({
       getHost: () => strip.closest<HTMLElement>(".tab-strip-wrap")?.parentElement ?? null,
@@ -31,7 +34,10 @@ export function useTabReorder({ stripRef, refresh }: Options): void {
         setState(prev => ({ ...prev, openTabs: [...next] }));
         scheduleSave();
         applyOpenTabOrder(strip, next);
-        requestAnimationFrame(updateTabStripScroll);
+        requestAnimationFrame(() => {
+          updateTabStripScroll();
+          scrollActiveTabIntoView();
+        });
         refresh();
       }
     });

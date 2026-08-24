@@ -333,6 +333,12 @@ export const en = {
     clickToSelect: "Click to select open requests",
     clickToSelectHint:
       "Shows a request that already has an open tab. Without a tab, use double-click, Enter, or Show in the context menu.",
+    tabsSection: "Tabs",
+    limitOpenTabs: "Limit open tabs",
+    limitOpenTabsHint:
+      "Past the limit, the oldest least recently used tabs leave the strip. The requests stay in the collection.",
+    maxOpenTabs: "Maximum open tabs",
+    maxOpenTabsHint: "Between 1 and 50. Applied as soon as it changes.",
     languageSection: "Language",
     language: "Display language",
     languageEn: "English",

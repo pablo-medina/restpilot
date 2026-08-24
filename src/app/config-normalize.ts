@@ -1,4 +1,4 @@
-import { clampTabSize } from "../types";
+import { clampMaxOpenTabs, clampTabSize } from "../types";
 import { normalizeProxySettings } from "./proxy-settings";
 import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth, normalizeRequestAuth } from "./request-auth";
@@ -212,6 +212,8 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       requestTimeoutSecs: clampRequestTimeoutSecs(config.settings?.requestTimeoutSecs),
       followRedirects: config.settings?.followRedirects !== false,
       clickToSelect: config.settings?.clickToSelect !== false,
+      limitOpenTabs: config.settings?.limitOpenTabs === true,
+      maxOpenTabs: clampMaxOpenTabs(config.settings?.maxOpenTabs),
       duplicateNaming: normalizeDuplicateNaming(
         config.settings?.duplicateNaming,
         (config.settings as { numberDuplicateNames?: boolean } | undefined)?.numberDuplicateNames

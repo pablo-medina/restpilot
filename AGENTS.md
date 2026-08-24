@@ -215,10 +215,39 @@ RestPilot uses high-density Excel-style datagrids for Globals and Environment Va
 
 ## Settings
 
-- User preferences live in `AppConfig.settings` (theme, language, proxy).
+- User preferences live in `AppConfig.settings` (theme, language, proxy, editor and tab behaviour).
 - Proxy modes: `none`, `system`, `manual`. Default: `none`.
 
 Auto-mapping a function result to a variable is **per function**, not a user preference — see [Functions](#functions).
+
+### Open-tab limit and the tab strip
+
+Off by default. `settings.limitOpenTabs` plus `settings.maxOpenTabs` (default 5, clamped 1-50 by
+`clampMaxOpenTabs()`) cap how many tabs the strip holds. Past the cap, `enforceOpenTabLimit()`
+(`src/react/lib/tab-actions.ts`) drops the least recently used ones. **Only the tab closes** — the
+request stays in the collection with its saved responses; this is the same path as closing a tab by
+hand, never a delete.
+
+- Ranking lives in `src/app/tab-usage.ts`: a runtime-only LRU, `markTabUsed()` on every activation.
+  It is deliberately **not** persisted, so a restored session ranks everything 0 and
+  `planTabLimitEviction()` (`src/app/open-tabs.ts`) falls back to strip position — leftmost, i.e.
+  oldest, leaves first.
+- The active tab and the tab being opened are never evicted, so the plan can be shorter than the
+  overflow.
+- Enforced when a tab opens (permanent or preview), at boot after the config restore, and on every
+  change to either setting in Settings → Editor → Tabs.
+
+**The strip does not scroll itself.** An overflow container has no idea which tab is active, so
+`scrollActiveTabIntoView()` (`src/ui/tabs-bar.ts`) is what keeps the active tab on screen when it
+changes from the tree, a shortcut, or a closed neighbour. `useTabReorder` calls it after each tab
+render. It runs **two passes**: revealing a scroll arrow takes 26 px off the viewport and can put the
+tab it just scrolled to back under that arrow.
+
+**The active-tab indicator is `.request-tab.active::after`** — a 2 px accent bar along the whole top
+edge, over the workspace surface and a faint accent wash (VS Code). Both the bar and the background
+are written with `!important` in the overrides block near the end of `styles.css`; change them there,
+not by adding a fourth layer. Do not bold the active label: re-measuring the tab nudges every tab to
+its right on each switch.
 
 ### Proxy (user settings)
 

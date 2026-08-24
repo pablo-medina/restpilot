@@ -7,6 +7,57 @@ export function applyOpenTabOrder(strip: HTMLElement, tabIds: readonly string[])
   }
 }
 
+/** One measure-and-scroll pass. `true` when it moved the viewport. */
+function alignActiveTab(behavior: ScrollBehavior): boolean {
+  const wrap = document.querySelector<HTMLElement>(".title-bar-tabs-host .tab-strip-wrap");
+  if (!wrap) return false;
+
+  const viewport = wrap.querySelector<HTMLElement>(".tab-strip-viewport");
+  const strip = wrap.querySelector<HTMLElement>(".tab-strip");
+  if (!viewport || !strip || strip.classList.contains("is-reordering")) return false;
+
+  const tab = strip.querySelector<HTMLElement>(".request-tab.active");
+  if (!tab) return false;
+
+  const tabRect = tab.getBoundingClientRect();
+  const viewRect = viewport.getBoundingClientRect();
+  if (!tabRect.width || !viewRect.width) return false;
+
+  // Stop short of the edge so the neighbouring tab still peeks in and the strip keeps
+  // reading as scrollable. Never more than the slack a tab this wide leaves.
+  const peek = Math.min(24, Math.max(0, (viewRect.width - tabRect.width) / 2));
+  let left = viewport.scrollLeft;
+  if (tabRect.left < viewRect.left + peek) {
+    left += tabRect.left - viewRect.left - peek;
+  } else if (tabRect.right > viewRect.right - peek) {
+    left += tabRect.right - viewRect.right + peek;
+  } else {
+    return false;
+  }
+
+  const max = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+  const next = Math.max(0, Math.min(left, max));
+  if (Math.abs(next - viewport.scrollLeft) < 1) return false;
+
+  viewport.scrollTo({ left: next, behavior });
+  return true;
+}
+
+/**
+ * Brings the active tab fully inside the scroll viewport. The strip is a plain overflow
+ * container, so nothing scrolls it on its own when the active tab changes from the tree, a
+ * keyboard shortcut or a closed neighbour — the tab would simply sit off-screen.
+ *
+ * Two passes, because revealing a scroll arrow takes 26px off the viewport and can put the
+ * tab we just scrolled to back under that arrow. No-op while a reorder drag is running:
+ * the pointer owns the scroll then.
+ */
+export function scrollActiveTabIntoView(behavior: ScrollBehavior = "auto"): void {
+  for (let pass = 0; pass < 2 && alignActiveTab(behavior); pass += 1) {
+    updateTabStripScroll();
+  }
+}
+
 export function updateTabStripScroll(): void {
   const wrap = document.querySelector<HTMLElement>(".title-bar-tabs-host .tab-strip-wrap");
   if (!wrap) return;
