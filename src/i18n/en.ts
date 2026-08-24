@@ -182,6 +182,12 @@ export const en = {
       promptRun: "Send"
     },
     resolvedUrl: "Resolved URL",
+    breadcrumb: {
+      location: "Location in the collection",
+      root: "Collection",
+      reveal: 'Show "{name}" in the collection',
+      moreFolders: "{count} more folders"
+    },
     headers: "Headers",
     raw: "Raw",
     form: "x-form",
@@ -414,7 +420,8 @@ export const en = {
     copySuccess: "Copied to clipboard.",
     copyFailed: "Could not copy to clipboard.",
     deleteTitle: "Delete",
-    deleteBody: 'Delete "{name}" and its contents?'
+    deleteBody: 'Delete "{name}" and its contents?',
+    formatJsonFailed: "The body is not valid JSON, so it could not be formatted."
   },
   pairs: {
     header: "Header",

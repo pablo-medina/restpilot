@@ -82,6 +82,15 @@ Those three lay their content out in a column, where `align-items: stretch` is w
 
 A control row must not change height when its state changes, or everything below it jumps. Give the row a fixed height and keep the same controls mounted, disabling rather than unmounting them (see `.extractor-bar`). And do not add a checkbox whose only job is to reveal the control next to it — let the control's own empty/"None" value mean off.
 
+### Breadcrumb (collection path above the URL)
+
+`RequestBreadcrumb` (`src/react/components/RequestBreadcrumb.tsx`) is the first row of `.request-editor`: `Collection › folder › … › request` for the open request. It is a **fixed-height** row (see [Rows that toggle](#rows-that-toggle)) — a deeper path must never push the URL line down.
+
+- Segments come from `collectionAncestorFolders()` (`src/app/collection-breadcrumb.ts`), the item-level counterpart of `collection-path.ts`'s string walk. Both guard against a parent cycle, so neither can hang the render on a hand-edited config.
+- Every crumb calls `revealTreeItem()` / `revealCollectionRoot()` (`src/react/lib/collection-tree-actions.ts`): open the sidebar, expand the ancestors, select the row and scroll it into view. A crumb **never opens or switches a tab** — it navigates the tree, not the workspace.
+- Opening the sidebar goes through `showSidebar()` in `sync-app-frame.ts`. Setting `state.sidebarVisible` alone does nothing: the layout is driven by the `is-sidebar-hidden` class that `syncAppFrameLayout()` writes on `#app`.
+- Paths deeper than `MAX_FOLDER_CRUMBS` fold their middle into one `…` crumb whose tooltip lists the hidden folders; the root and the request keep their width and the folders between them truncate first.
+
 ### Extractors
 
 An extractor is a named script that pulls a value out of a response. It replaced the Functions section, which is gone — the sidebar holds collections only, and `ActivePanel` is `request | settings`.
@@ -334,6 +343,7 @@ Settings UI: `src/react/components/SettingsPanel.tsx`. Persisted in `AppConfig.s
 ## Import
 
 - Import sources: RestPilot's own export (JSON), Postman v2.1 (JSON), OpenAPI 3.x/Swagger 2.0 (**JSON or YAML** — `parseSpecDocument()` in `src/import/openapi.ts` tries `JSON.parse` then falls back to the `yaml` package), and raw cURL. Each parser (`src/import/postman.ts`, `src/import/openapi.ts`, `parseCollectionExport` in `src/app/collection-format.ts`, `parseCurl` in `src/lib/curl.ts`) produces the shared `ImportParseResult` (`src/import/types.ts`): `{ folders, requests, tree, name, description }`.
+- **cURL parsing** (`src/lib/curl.ts`) reads a command the way a shell does. `tokenizeCurl()` splits *and* unescapes in one pass — single quotes are literal, double quotes drop the backslash in front of a quote, adjacent quoted runs concatenate — so `-d "{\"a\":1}"` imports as a real JSON body. Never strip quotes off a token afterwards; that was the old shape and it left the backslashes in the body. The one rule the shells disagree on is `\\` (POSIX collapses it, cmd.exe/PowerShell do not), so `detectShellStyle()` picks the rule from the markers a generated command carries — `curl.exe`, or a `^`/`` ` `` line continuation. Accepted program words: `curl`, `curl.exe`, and either one reached through a path. Options RestPilot does not model but that take a value belong in `SKIPPED_VALUE_FLAGS`, otherwise their value is imported as the URL.
 - **OpenAPI `$ref` resolution** lives in `src/import/openapi-ref.ts` (`dereference()` for JSON Pointers into the document root, `synthesizeExample()` for turning a — possibly `$ref`'d — JSON Schema into a plausible example value). Both are bounded: `dereference` guards against ref cycles (A → B → A), `synthesizeExample` stops after `MAX_SCHEMA_DEPTH` levels so a self-referencing schema (a `Node` with `children: Node[]`, common for trees/threads) terminates instead of recursing forever. Any new field read off an operation/parameter/schema in `src/import/openapi.ts` that *could* be a `$ref` per the OpenAPI spec (parameters, `requestBody`, any `schema`) must go through `dereference()` first — reading `.in`/`.name`/`.properties` etc. straight off a `$ref` object silently returns `undefined` instead of erroring, which is an easy way to reintroduce "real specs import empty."
 - Two entry points share the same parse → preview → apply pipeline (`src/import/source-dialog.ts`, `src/import/index.ts`):
   - **Import collection** (`startImport`): pick a source, then a file (or paste for cURL).

@@ -1136,6 +1136,103 @@ button {
   flex-shrink: 0;
 }
 
+/* ---------- Collection path above the URL line ---------- */
+
+/* Fixed height: opening a request with a deeper path must not move the URL line below it.
+   The negative margin eats part of `.request-editor`'s 10px gap so the path reads as a
+   caption of the URL line rather than as a band of its own. */
+.request-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  min-width: 0;
+  height: 22px;
+  margin-bottom: -4px;
+  overflow: hidden;
+  font-size: 11.5px;
+  color: var(--rp-text-muted);
+}
+
+/* A crumb is a <button>, so it needs the list-option reset (see AGENTS.md): the UA
+   centres its text and drops the inherited font otherwise. */
+.request-breadcrumb-crumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.request-breadcrumb-crumb {
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+button.request-breadcrumb-crumb:hover {
+  background: var(--rp-hover);
+  color: var(--rp-text);
+}
+
+button.request-breadcrumb-crumb:focus-visible {
+  outline: 2px solid rgb(var(--rp-accent-rgb) / 0.35);
+  outline-offset: -1px;
+}
+
+.request-breadcrumb-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The root and the request keep their width; the folders between them truncate first. */
+.request-breadcrumb-crumb--root {
+  flex-shrink: 0;
+}
+
+.request-breadcrumb-crumb--current {
+  flex-shrink: 0;
+  max-width: 45%;
+  color: var(--rp-text);
+  font-weight: 600;
+}
+
+.request-breadcrumb-icon {
+  display: flex;
+  color: var(--rp-text-faint);
+  transition: color 0.12s ease;
+}
+
+button.request-breadcrumb-crumb:hover .request-breadcrumb-icon {
+  color: var(--rp-accent);
+}
+
+.request-breadcrumb-sep {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--rp-text-faint);
+  opacity: 0.6;
+}
+
+.request-breadcrumb-sep svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* Middle of a deep path, folded away behind a tooltip. */
+.request-breadcrumb-gap {
+  flex-shrink: 0;
+  color: var(--rp-text-faint);
+  cursor: default;
+}
+
 .request-line {
   display: grid;
   grid-template-columns: 104px minmax(240px, 1fr);

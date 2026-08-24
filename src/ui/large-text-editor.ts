@@ -1,4 +1,6 @@
 import { tryPrettifyJson } from "../lib/content-display";
+import { pushToast } from "../react/components/Toast";
+import { t } from "../i18n";
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
 import { javascript } from "@codemirror/lang-javascript";
@@ -106,6 +108,9 @@ function sendKeymap(onSend?: () => void) {
   ]);
 }
 
+/** Ctrl/Cmd+Shift+F — the VS Code "format document" shortcut, on a JSON body. A body that
+ * does not parse used to leave the key doing nothing at all, which is indistinguishable
+ * from a broken shortcut, so say why instead. */
 function prettifyJsonKeymap(rawType: ViewerMode, onChange: (value: string) => void) {
   return keymap.of([
     {
@@ -113,8 +118,15 @@ function prettifyJsonKeymap(rawType: ViewerMode, onChange: (value: string) => vo
       run(view) {
         if (rawType !== "json") return false;
         const current = view.state.doc.toString();
+        if (!current.trim()) return true;
+
         const pretty = tryPrettifyJson(current);
-        if (!pretty || pretty === current) return false;
+        if (!pretty) {
+          pushToast(t().messages.formatJsonFailed);
+          return true;
+        }
+        if (pretty === current) return true;
+
         view.dispatch({
           changes: { from: 0, to: current.length, insert: pretty },
           selection: EditorSelection.cursor(pretty.length)

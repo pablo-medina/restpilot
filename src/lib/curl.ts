@@ -9,59 +9,171 @@ import { encodeBasicCredentials } from "./basic-auth";
 import type { BodyMode, HeaderPair, Pair, RawType, SavedRequest, Variable } from "../types";
 import { buildRequestUrl, migrateRequestQuery } from "./url-params";
 
-export function looksLikeCurl(value: string) {
-  return /^\s*curl\s+/i.test(value.replace(/\r?\n\s*\^/g, " "));
+/** The program word of a pasted command: `curl`, Windows' `curl.exe`, and either one reached
+ * through a path (`/usr/bin/curl`, `.\curl.exe`). Assistants and PowerShell users routinely
+ * write `curl.exe` because plain `curl` is an alias for `Invoke-WebRequest` there. */
+const CURL_COMMAND = /^["']?(?:[^\s"']*[\\/])?curl(?:\.exe)?["']?$/i;
+
+/** The same word, still followed by an argument — the sniffing in `detectImportSource()`
+ * runs on every keystroke and must not claim a half-typed word. */
+const CURL_COMMAND_PREFIX = /^\s*["']?(?:[^\s"']*[\\/])?curl(?:\.exe)?["']?\s/i;
+
+function isCurlCommand(token: string) {
+  return CURL_COMMAND.test(token);
 }
 
+export function looksLikeCurl(value: string) {
+  return CURL_COMMAND_PREFIX.test(value);
+}
+
+/** Joins the line continuations of every shell that hands out a copyable cURL command:
+ * POSIX `\`, cmd.exe `^` and PowerShell `` ` ``. Whitespace *inside* a quoted argument is
+ * left alone, so a pretty-printed JSON body keeps its line breaks. */
 export function normalizeCurlInput(input: string) {
   return input
-    .replace(/\r?\n\s*\^/g, " ")
-    .replace(/\^\r?\n/g, " ")
-    .replace(/\\\r?\n/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\s*\r?\n\s*\^\s*/g, " ")
+    .replace(/\s*\^\r?\n\s*/g, " ")
+    .replace(/\s*\\\r?\n\s*/g, " ")
+    .replace(/\s*`\r?\n\s*/g, " ")
     .trim();
 }
 
-function stripQuotes(value: string) {
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-    return value.slice(1, -1);
-  }
-  return value.replace(/^['"]|['"]$/g, "");
+type ShellStyle = "posix" | "windows";
+
+/** Both families unescape `\"` inside double quotes — that is how every generated command
+ * carries a JSON body — but they disagree on `\\`: POSIX shells collapse it to one
+ * backslash, cmd.exe and PowerShell keep both unless the run escapes a quote. Guessing
+ * wrong silently corrupts a body (a collapsed `"C:\\tmp"` leaves the JSON invalid), so the
+ * markers a generated command carries pick the rule. */
+function detectShellStyle(input: string): ShellStyle {
+  if (/(^|\s)["']?[^\s"']*curl\.exe\b/i.test(input)) return "windows";
+  if (/\^\s*\r?\n/.test(input) || /\r?\n\s*\^/.test(input)) return "windows";
+  if (/`\s*\r?\n/.test(input)) return "windows";
+  return "posix";
 }
+
+const POSIX_ESCAPES = new Set(['"', "\\", "`", "$"]);
+const WINDOWS_ESCAPES = new Set(['"']);
 
 function shellQuote(value: string) {
   if (/^[A-Za-z0-9_./:?&=#%@*,;+-]+$/.test(value)) return value;
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-function tokenizeCurl(input: string): string[] {
+/** Splits a command into arguments the way a shell does, unescaping as it goes: single
+ * quotes are literal, double quotes drop the escape character in front of a quote (and of
+ * `` ` ``, `$`, `\` under POSIX rules), and adjacent quoted runs concatenate into a single
+ * argument. Every other backslash is kept, so JSON escapes such as `\n` survive. */
+function tokenizeCurl(input: string, style: ShellStyle): string[] {
+  const escapes = style === "windows" ? WINDOWS_ESCAPES : POSIX_ESCAPES;
   const tokens: string[] = [];
   let current = "";
-  let quote: "'" | '"' | null = null;
+  let quoted = false;
+  let index = 0;
 
-  for (let i = 0; i < input.length; i += 1) {
-    const char = input[i];
-    if (quote) {
-      current += char;
-      if (char === quote && input[i - 1] !== "\\") quote = null;
-      continue;
-    }
-    if (char === "'" || char === '"') {
-      quote = char;
-      current += char;
-      continue;
-    }
+  while (index < input.length) {
+    const char = input[index];
+
     if (/\s/.test(char)) {
-      if (current) {
-        tokens.push(current);
-        current = "";
-      }
+      if (current || quoted) tokens.push(current);
+      current = "";
+      quoted = false;
+      index += 1;
       continue;
     }
+
+    if (char === "'") {
+      quoted = true;
+      index += 1;
+      while (index < input.length && input[index] !== "'") {
+        current += input[index];
+        index += 1;
+      }
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = true;
+      index += 1;
+      while (index < input.length && input[index] !== '"') {
+        const next = input[index + 1];
+        if (input[index] === "\\" && next !== undefined && escapes.has(next)) {
+          current += next;
+          index += 2;
+          continue;
+        }
+        current += input[index];
+        index += 1;
+      }
+      index += 1;
+      continue;
+    }
+
+    // Outside quotes only a quote may be escaped — the `'\''` idiom bash uses to put a
+    // quote inside a single-quoted argument. Leaving every other backslash alone keeps an
+    // unquoted Windows path intact.
+    if (char === "\\" && (input[index + 1] === '"' || input[index + 1] === "'")) {
+      current += input[index + 1];
+      index += 2;
+      continue;
+    }
+
     current += char;
+    index += 1;
   }
-  if (current) tokens.push(current);
+
+  if (current || quoted) tokens.push(current);
   return tokens;
+}
+
+/** Options RestPilot does not model that still consume the next argument. Without this the
+ * value would be read as the URL — `curl -b session=1 https://…` imported the cookie. */
+const SKIPPED_VALUE_FLAGS = new Set([
+  "-A",
+  "--user-agent",
+  "-b",
+  "--cookie",
+  "-c",
+  "--cookie-jar",
+  "-e",
+  "--referer",
+  "-o",
+  "--output",
+  "-w",
+  "--write-out",
+  "-x",
+  "--proxy",
+  "--proxy-user",
+  "-m",
+  "--max-time",
+  "--connect-timeout",
+  "--retry",
+  "--resolve",
+  "-E",
+  "--cert",
+  "--key",
+  "--cacert",
+  "--capath",
+  "--limit-rate",
+  "--max-redirs",
+  "-T",
+  "--upload-file",
+  "--interface",
+  "--dns-servers"
+]);
+
+function isSkippedValueFlag(token: string) {
+  return SKIPPED_VALUE_FLAGS.has(token.startsWith("--") ? token.toLowerCase() : token);
+}
+
+/** curl accepts a short option with its value glued on (`-XPOST`, `-H"Accept: text/xml"`).
+ * Splitting them up front keeps the parser loop reading one option per token. */
+function expandAttachedValues(tokens: string[]): string[] {
+  return tokens.flatMap((token) => {
+    const match = /^-([XHduF])(.+)$/.exec(token);
+    return match ? [`-${match[1]}`, match[2]] : [token];
+  });
 }
 
 function upsertHeader(headers: Pair[], key: string, value: string, id: () => string) {
@@ -105,8 +217,8 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
   const normalized = normalizeCurlInput(input);
   if (!looksLikeCurl(normalized)) return null;
 
-  const tokens = tokenizeCurl(normalized);
-  if (!tokens.length || tokens[0].toLowerCase() !== "curl") return null;
+  const tokens = expandAttachedValues(tokenizeCurl(normalized, detectShellStyle(input)));
+  if (!tokens.length || !isCurlCommand(tokens[0])) return null;
 
   const request: SavedRequest = {
     id: id(),
@@ -141,13 +253,19 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     }
 
     if (token === "-X" || lower === "--request") {
-      request.method = stripQuotes(next).toUpperCase();
+      request.method = next.toUpperCase();
+      index += 1;
+      continue;
+    }
+
+    if (lower === "--url") {
+      request.url = next;
       index += 1;
       continue;
     }
 
     if (token === "-H" || lower === "--header") {
-      const header = stripQuotes(next);
+      const header = next;
       const colon = header.indexOf(":");
       if (colon > 0) {
         const key = header.slice(0, colon).trim();
@@ -165,7 +283,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     }
 
     if (token === "-u" || lower === "--user") {
-      const credentials = stripQuotes(next);
+      const credentials = next;
       const colon = credentials.indexOf(":");
       const encoded = encodeBasicCredentials(
         colon >= 0 ? credentials.slice(0, colon) : credentials,
@@ -177,7 +295,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     }
 
     if (lower === "--json") {
-      request.body = stripQuotes(next);
+      request.body = next;
       request.bodyMode = "raw";
       request.rawType = "json";
       request.method = request.method === "GET" ? "POST" : request.method;
@@ -187,7 +305,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     }
 
     if (token === "-F" || lower === "--form") {
-      request.form.push(parseFormField(stripQuotes(next), id));
+      request.form.push(parseFormField(next, id));
       request.bodyMode = "multipart";
       request.method = request.method === "GET" ? "POST" : request.method;
       index += 1;
@@ -195,7 +313,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     }
 
     if (token === "--data-urlencode") {
-      const field = stripQuotes(next);
+      const field = next;
       const eq = field.indexOf("=");
       const key = eq >= 0 ? field.slice(0, eq) : field;
       const value = eq >= 0 ? field.slice(eq + 1) : "";
@@ -211,7 +329,7 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
     }
 
     if (["-d", "--data", "--data-raw", "--data-binary", "--data-ascii"].includes(token)) {
-      const body = stripQuotes(next);
+      const body = next;
       const type = contentTypeHeader(request);
       if (type.includes("application/x-www-form-urlencoded")) {
         request.form = parseUrlEncodedBody(body, id);
@@ -231,8 +349,13 @@ export function parseCurl(input: string, id: () => string): SavedRequest | null 
       continue;
     }
 
+    if (isSkippedValueFlag(token)) {
+      index += 1;
+      continue;
+    }
+
     if (!token.startsWith("-") && !request.url) {
-      request.url = stripQuotes(token);
+      request.url = token;
     }
   }
 

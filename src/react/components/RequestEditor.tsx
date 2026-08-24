@@ -17,6 +17,7 @@ import { ensureTab } from "../lib/ensure-tab";
 import { cancelActiveRequest, trySendRequest } from "../lib/request-send";
 import { ExtractorBar } from "./ExtractorBar";
 import { PairRow } from "./PairRow";
+import { RequestBreadcrumb } from "./RequestBreadcrumb";
 
 type Props = {
   refresh: () => void;
@@ -661,6 +662,7 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
 
   return (
     <div className="request-editor">
+      <RequestBreadcrumb request={request} refresh={refresh} />
       <section className="request-line">
         <select
           id="method"

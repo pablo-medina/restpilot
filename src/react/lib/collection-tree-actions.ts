@@ -1,11 +1,13 @@
 import { messageDialog } from "../../components/dialogs";
 import { duplicateFolderItem, duplicateRequestItem } from "../../app/collection-duplicate";
+import { collectionAncestorFolders } from "../../app/collection-breadcrumb";
 import { isCollectionRoot } from "../../app/collection-parent";
 import { scheduleSave } from "../../app/persistence";
 import { childrenOf, collectChildren, getItem, setState, state } from "../../app/state";
 import type { SiblingNameConflict } from "../../app/collection-sibling-names";
 import { visibleTreeItems } from "../../ui/collection-tree";
 import { t } from "../../i18n";
+import { showSidebar } from "./sync-app-frame";
 import { openRequestTab } from "./tab-actions";
 
 /** Warn that a sibling already uses this name, listing the colliding paths. */
@@ -50,6 +52,40 @@ export function focusTreeSelection(): void {
     }
   }
   document.querySelector<HTMLElement>(".tree")?.focus();
+}
+
+/**
+ * Shows an item where it lives: opens the sidebar, expands every folder above it,
+ * selects it and scrolls its row into view. Used by the breadcrumb above the URL line.
+ * It never opens a tab — this is navigation of the tree, not of the workspace.
+ */
+export function revealTreeItem(itemId: string, refresh: () => void): void {
+  const item = getItem(itemId);
+  if (!item) return;
+
+  for (const folder of collectionAncestorFolders(item.parentId)) folder.expanded = true;
+  if (item.kind === "folder") item.expanded = true;
+
+  showSidebar();
+  setState(prev => ({ ...prev, selectedTreeId: itemId, contextMenu: null }));
+  scheduleSave();
+  refresh();
+  requestAnimationFrame(() => {
+    document
+      .querySelector<HTMLElement>(`.tree-row[data-tree-id="${itemId}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  });
+}
+
+/** Same idea for the root crumb: open the sidebar and scroll the tree back to the top. */
+export function revealCollectionRoot(refresh: () => void): void {
+  showSidebar();
+  setState(prev => ({ ...prev, contextMenu: null }));
+  refresh();
+  requestAnimationFrame(() => {
+    const tree = document.querySelector<HTMLElement>(".tree");
+    if (tree) tree.scrollTop = 0;
+  });
 }
 
 function pickTreeFocusAfterDelete(itemId: string): string | null {

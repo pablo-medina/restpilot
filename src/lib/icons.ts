@@ -24,6 +24,9 @@ export const iconImport = strokeIcon('<path d="M8 2.5v8M5.25 7.75 8 10.5l2.75-2.
 
 export const iconClipboard = strokeIcon('<rect x="4" y="3.5" width="8" height="10.5" rx="1.25"/><path d="M6 3.5V2.75a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V3.5"/><path d="M6.25 7.5h3.5M6.25 10h3.5"/>');
 
+/** Collection root — a stack of sheets, i.e. the whole collection rather than one folder. */
+export const iconCollection = strokeIcon('<path d="M4.5 2.75h7M2.75 5.25h10.5"/><rect x="2.25" y="7.75" width="11.5" height="5.5" rx="1.25"/>', 14);
+
 export const iconChevronRight = strokeIcon('<path d="m6 3.75 4.25 4.25L6 12.25"/>', 14);
 
 export const iconChevronLeft = strokeIcon('<path d="m10 3.75-4.25 4.25L10 12.25"/>', 14);

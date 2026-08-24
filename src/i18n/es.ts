@@ -182,6 +182,12 @@ export const es = {
       promptRun: "Enviar"
     },
     resolvedUrl: "URL resuelta",
+    breadcrumb: {
+      location: "Ubicación en la colección",
+      root: "Colección",
+      reveal: 'Mostrar "{name}" en la colección',
+      moreFolders: "{count} carpetas más"
+    },
     headers: "Encabezados",
     raw: "Raw",
     form: "x-form",
@@ -414,7 +420,8 @@ export const es = {
     copySuccess: "Copiado al portapapeles.",
     copyFailed: "No se pudo copiar al portapapeles.",
     deleteTitle: "Eliminar",
-    deleteBody: '¿Desea eliminar "{name}" y su contenido?'
+    deleteBody: '¿Desea eliminar "{name}" y su contenido?',
+    formatJsonFailed: "El cuerpo no es JSON válido, no se pudo formatear."
   },
   pairs: {
     header: "Encabezado",

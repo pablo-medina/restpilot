@@ -11,6 +11,13 @@ export function syncAppFrameLayout(): void {
   appRoot.classList.remove("is-collection-collapsed");
 }
 
+/** Opens the sidebar when something needs to be shown in it; no-op when already visible. */
+export function showSidebar(): void {
+  if (state.sidebarVisible) return;
+  setState(prev => ({ ...prev, sidebarVisible: true }));
+  syncAppFrameLayout();
+}
+
 export function toggleSidebar(refresh: () => void): void {
   setState(prev => ({ ...prev, sidebarVisible: !prev.sidebarVisible }));
   syncAppFrameLayout();
