@@ -4758,9 +4758,6 @@ select,
   display: flex;
   flex-direction: column;
   width: 260px;
-  /* Clears the title bar, which the sidebar starts underneath. This used to be the job of
-     `.sidebar-header`, the activity rail that no longer exists. */
-  padding: var(--title-bar-height) 0 0;
   box-sizing: border-box;
   border-right: 1px solid var(--rp-border);
   background: var(--rp-chrome-elevated);
@@ -4768,8 +4765,8 @@ select,
 }
 
 
-.sidebar-context-header,
-.sidebar-context-actions,
+.sidebar-rail,
+.sidebar-rail-actions,
 .sidebar-action-popover button {
   display: flex;
   align-items: center;
@@ -4784,45 +4781,60 @@ select,
   padding: 12px 12px 0;
 }
 
-.sidebar-context-header {
-  justify-content: space-between;
-  min-height: 28px;
-  margin-bottom: 8px;
-  padding: 0 2px;
-}
-
-.sidebar-context-header h2 {
-  margin: 0;
-  color: var(--rp-text);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.sidebar-context-actions {
+/* Sits alongside the title bar, which only spans the main column — same height and bottom
+   border so the chrome line runs unbroken across the window. */
+.sidebar-rail {
+  flex-shrink: 0;
   gap: 2px;
+  height: var(--title-bar-height);
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--rp-border);
+}
+
+/* Fills the gap between the toggle and the actions, and is the only part of the sidebar the
+   window can be dragged by. */
+.sidebar-rail-drag {
+  flex: 1;
+  align-self: stretch;
+  min-width: 12px;
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+  cursor: default;
+}
+
+.sidebar-rail-actions {
+  gap: 2px;
+}
+
+.sidebar-rail-toggle {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+}
+
+.sidebar-rail-toggle:hover {
+  background: var(--rp-accent-soft);
+  color: var(--rp-accent-strong);
+}
+
+.sidebar-rail-toggle svg {
+  width: 16px;
+  height: 16px;
 }
 
 .sidebar-action-menu {
   position: relative;
 }
 
-.sidebar-action-menu summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  list-style: none;
-  cursor: pointer;
-}
-
-.sidebar-action-menu summary::-webkit-details-marker {
-  display: none;
-}
-
+/* Both rail menus hang off the right edge, so the list stays inside the sidebar instead of
+   spilling over the request panel. */
 .sidebar-action-popover {
   position: absolute;
   top: calc(100% + 5px);
-  left: 0;
+  right: 0;
   z-index: 20;
   width: max-content;
   min-width: 158px;
@@ -4833,12 +4845,10 @@ select,
   box-shadow: 0 8px 24px rgb(var(--rp-shadow-rgb) / 0.14);
 }
 
-.sidebar-action-menu--end .sidebar-action-popover {
-  right: 0;
-  left: auto;
-}
-
+/* `justify-content` is the one the UA button default gets you on a row: `text-align: left`
+   alone leaves the icon and label centred as a pair. See AGENTS.md, "Lists and options". */
 .sidebar-action-popover button {
+  justify-content: flex-start;
   gap: 8px;
   width: 100%;
   height: 30px;
@@ -4853,6 +4863,11 @@ select,
   cursor: pointer;
 }
 
+.sidebar-action-popover button:focus-visible {
+  background: var(--rp-accent-soft);
+  outline: none;
+}
+
 .sidebar-action-popover button:hover {
   background: var(--rp-accent-soft);
 }
@@ -4860,6 +4875,12 @@ select,
 .sidebar-action-popover svg {
   width: 15px;
   height: 15px;
+}
+
+/* The trigger stays lit while its menu is open, so it is obvious which one is showing. */
+.sidebar-rail-actions .tool-icon.is-open {
+  background: var(--rp-accent-soft);
+  color: var(--rp-accent-strong);
 }
 
 .app-sidebar .collection-search {

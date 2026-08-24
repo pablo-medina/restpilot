@@ -74,6 +74,8 @@ align-items: stretch; text-align: left; cursor: pointer;
 
 `.rp-dropdown-option`, `.extractors-dialog-list-item` and `.extractors-popover-item-main` all carry it.
 
+Those three lay their content out in a column, where `align-items: stretch` is what pins the text left. An option that is a **row** — icon next to label, like `.sidebar-action-popover button` — also needs `justify-content: flex-start`, or the UA's `justify-content: center` centres the icon and label as a pair no matter what `text-align` says.
+
 **A dropdown list is sized to its content, not to its trigger** — `width: max-content; min-width: 100%; max-width: min(420px, calc(100vw - 32px))`. Tying the list to the trigger's width leaves descriptions unreadable in a 120px control.
 
 ### Rows that toggle

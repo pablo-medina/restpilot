@@ -6,6 +6,7 @@ import { COLLECTION_ROOT_PARENT_ID } from "../../app/collection-parent";
 import { state } from "../../app/state";
 import { bumpRenderGeneration } from "../render-bridge";
 import { defaultConfig } from "../../types";
+import { CollectionSidebar } from "./CollectionSidebar";
 import { TitleBar } from "./TitleBar";
 import { TabBar } from "./TabBar";
 
@@ -68,15 +69,55 @@ describe("title bar chrome actions", () => {
     document.body.innerHTML = '<div id="app"></div>';
   });
 
-  it("sidebar toggle hides and shows the sidebar", async () => {
+  it("sidebar toggle hides and shows the sidebar, handing off between rail and title bar", async () => {
     const user = userEvent.setup();
-    render(<TitleBar refresh={refresh} />);
+    render(
+      <>
+        <CollectionSidebar refresh={refresh} />
+        <TitleBar refresh={refresh} />
+      </>
+    );
+
+    // Open: the sidebar rail owns the toggle and the title bar leaves its slot empty.
+    expect(document.querySelector(".sidebar-rail [data-title-bar-sidebar]")).not.toBeNull();
+    expect(document.querySelector(".title-bar-leading [data-title-bar-sidebar]")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /hide sidebar/i }));
     expect(state.sidebarVisible).toBe(false);
 
+    // Hidden: the rail goes with the sidebar, so the toggle is back in the title bar.
+    expect(document.querySelector(".title-bar-leading [data-title-bar-sidebar]")).not.toBeNull();
+
     await user.click(screen.getByRole("button", { name: /show sidebar/i }));
     expect(state.sidebarVisible).toBe(true);
+  });
+
+  it("rail menus open one at a time and close on outside click or Escape", async () => {
+    const user = userEvent.setup();
+    render(<CollectionSidebar refresh={refresh} />);
+
+    const openMenus = () => document.querySelectorAll(".sidebar-action-popover");
+    const newTrigger = screen.getByRole("button", { name: /new request at collection root/i });
+    const moreTrigger = screen.getByRole("button", { name: /import collection/i });
+
+    await user.click(newTrigger);
+    expect(openMenus()).toHaveLength(1);
+    expect(screen.getByRole("menuitem", { name: /new folder/i })).toBeTruthy();
+
+    // The other trigger takes over rather than leaving both menus up.
+    await user.click(moreTrigger);
+    expect(openMenus()).toHaveLength(1);
+    expect(screen.getByRole("menuitem", { name: /export collection/i })).toBeTruthy();
+
+    // A click anywhere else dismisses it.
+    await user.click(document.querySelector(".sidebar-context")!);
+    expect(openMenus()).toHaveLength(0);
+
+    await user.click(moreTrigger);
+    expect(openMenus()).toHaveLength(1);
+    await user.keyboard("{Escape}");
+    expect(openMenus()).toHaveLength(0);
+    expect(document.activeElement).toBe(moreTrigger);
   });
 
   it("settings button opens the registered settings dialog", async () => {

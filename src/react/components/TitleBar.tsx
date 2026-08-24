@@ -52,6 +52,9 @@ export function TitleBar({ refresh }: Props) {
   const useTabsChrome = state.activePanel === "request" && state.openTabs.length > 0;
   const center = resolveTitleBarCenter();
   const sidebarLabel = state.sidebarVisible ? nav.hideSidebar : nav.showSidebar;
+  /* While the sidebar is open its own rail hosts the toggle, so the title bar drops it and
+     the tabs start flush at the sidebar edge. See `CollectionSidebar`. */
+  const railHostsSidebarToggle = state.activePanel === "request" && state.sidebarVisible;
   const extractorsBtnRef = useRef<HTMLButtonElement>(null);
   const [extractorsOpen, setExtractorsOpen] = useState(false);
 
@@ -100,7 +103,7 @@ export function TitleBar({ refresh }: Props) {
     </div>
   ) : null;
 
-  const sidebarToggle = (
+  const sidebarToggle = railHostsSidebarToggle ? null : (
     <button
       type="button"
       className={`title-bar-sidebar-toggle${state.sidebarVisible ? " is-active" : ""}`}
