@@ -3,6 +3,11 @@ import {
   detectContentKind,
   formatResponseBody
 } from "../lib/content-display";
+import {
+  responseBodyBytes,
+  responseFileExtension,
+  suggestedResponseFileName
+} from "../lib/response-binary";
 import { messageDialog } from "../components/dialogs";
 import { bumpRenderGeneration } from "../react/render-bridge";
 import { pushToast } from "../react/components/index";
@@ -51,6 +56,38 @@ export async function copyResponseHeaders(request: SavedRequest, tab: TabState):
   if (!response) return;
   const text = response.headers.map(([key, value]) => `${key}: ${value}`).join("\n");
   await copyText(text);
+}
+
+/** Write the raw response bytes to a file the user picks. Works for text, binary and PDF bodies. */
+export async function downloadResponseBody(request: SavedRequest, tab: TabState): Promise<void> {
+  const response = getActiveResponse(request, tab);
+  if (!response) return;
+  const labels = t().request;
+
+  const bytes = responseBodyBytes(response);
+  if (!bytes) {
+    await messageDialog("error", labels.downloadResponseFailedTitle, labels.downloadResponseFailedBody);
+    return;
+  }
+
+  const defaultPath = suggestedResponseFileName(response);
+  const extension = defaultPath.split(".").pop() ?? responseFileExtension(response.headers);
+
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const path = await save({
+    title: labels.downloadResponse,
+    defaultPath,
+    filters: [{ name: extension.toUpperCase(), extensions: [extension] }]
+  });
+  if (!path) return;
+
+  try {
+    const { writeFile } = await import("@tauri-apps/plugin-fs");
+    await writeFile(path, bytes);
+    pushToast(labels.downloadResponseSuccess);
+  } catch {
+    await messageDialog("error", labels.downloadResponseFailedTitle, labels.downloadResponseFailedBody);
+  }
 }
 
 async function copyText(text: string): Promise<void> {

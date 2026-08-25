@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { hasResponseBodySelection } from "../../app/context-menu";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { HeadersTable } from "./HeadersTable";
@@ -7,12 +7,14 @@ import { formatBytes, getRequest, setState, state } from "../../app/state";
 import { inputDialog } from "../../components/dialogs";
 import { pushToast } from "./index";
 import {
+  downloadResponseBody,
   getActiveResponse,
   getResponseBodyForDisplay,
   responseViewerMode
 } from "../../ui/response-panel";
+import { isImageResponse, isPdfResponse, responseBodyBytes, responseMimeType } from "../../lib/response-binary";
 import { highlightResponse, isLargeText } from "../../lib/content-display";
-import { iconBookmark, iconCopy } from "../../lib/icons";
+import { iconBookmark, iconCopy, iconDownload } from "../../lib/icons";
 import { t } from "../../i18n";
 import type { ApiResponse, ResponseTab, SavedRequest, SavedResponseHistoryItem, TabState } from "../../types";
 import { ensureTab } from "../lib/ensure-tab";
@@ -166,6 +168,16 @@ function ResponseHead({
         ) : null}
         <button
           className="icon-btn"
+          data-action-download-response
+          type="button"
+          aria-label={labels.downloadResponse}
+          title={labels.downloadResponse}
+          style={{ marginRight: 6, color: "var(--rp-text-muted)" }}
+          onClick={() => void downloadResponseBody(request, tab)}
+          dangerouslySetInnerHTML={{ __html: iconDownload }}
+        />
+        <button
+          className="icon-btn"
           data-copy-menu-trigger
           id="copy-response-menu"
           type="button"
@@ -180,12 +192,156 @@ function ResponseHead({
   );
 }
 
-function BinaryBodyPlaceholder({ response }: { response: ApiResponse }) {
+function DownloadBodyButton({ request, tab }: { request: SavedRequest; tab: TabState }) {
   const labels = t().request;
+  return (
+    <button
+      className="mini-btn response-download-btn"
+      data-download-response-body
+      type="button"
+      onClick={() => void downloadResponseBody(request, tab)}
+    >
+      {labels.downloadResponseAction}
+    </button>
+  );
+}
+
+function BinaryBodyPlaceholder({
+  request,
+  tab,
+  response,
+  message
+}: {
+  request: SavedRequest;
+  tab: TabState;
+  response: ApiResponse;
+  message?: string;
+}) {
+  const labels = t().request;
+  const body = message ?? labels.binaryBodyBody;
   return (
     <div className="response-empty">
       <h2>{labels.binaryBodyTitle}</h2>
-      <p>{labels.binaryBodyBody.replace("{size}", formatBytes(response.body_size))}</p>
+      <p>{body.replace("{size}", formatBytes(response.body_size))}</p>
+      <div className="response-empty-actions">
+        <DownloadBodyButton request={request} tab={tab} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One blob URL per rendered response, revoked when the body changes or the view unmounts.
+ * This is what lets the webview render PDFs and images with no bundled library.
+ */
+type ObjectUrlState = { url: string | null; decodeFailed: boolean };
+
+function useResponseObjectUrl(response: ApiResponse, mimeType: string): ObjectUrlState {
+  const [entry, setEntry] = useState<ObjectUrlState>({ url: null, decodeFailed: false });
+
+  useEffect(() => {
+    const bytes = responseBodyBytes(response);
+    if (!bytes) {
+      setEntry({ url: null, decodeFailed: true });
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+    setEntry({ url, decodeFailed: false });
+    return () => {
+      URL.revokeObjectURL(url);
+      setEntry({ url: null, decodeFailed: false });
+    };
+  }, [response.body, response.body_is_base64, mimeType]);
+
+  return entry;
+}
+
+/** Renders the body with the webview's built-in PDF viewer — no bundled PDF library. */
+function PdfBodyView({
+  request,
+  tab,
+  response
+}: {
+  request: SavedRequest;
+  tab: TabState;
+  response: ApiResponse;
+}) {
+  const labels = t().request;
+  const { url: objectUrl, decodeFailed } = useResponseObjectUrl(response, "application/pdf");
+  const bodyKey = `${response.body_is_base64}:${response.body.length}`;
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+
+  if (decodeFailed || failedKey === bodyKey) {
+    return (
+      <BinaryBodyPlaceholder
+        request={request}
+        tab={tab}
+        response={response}
+        message={labels.pdfPreviewUnavailable}
+      />
+    );
+  }
+
+  return (
+    <div className="response-body response-body-pdf" data-response-pdf>
+      {objectUrl ? (
+        <iframe
+          className="response-pdf-frame"
+          src={objectUrl}
+          title={labels.pdfPreviewTitle}
+          onError={() => setFailedKey(bodyKey)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** Shows an image response as a picture, with its pixel size once the webview has decoded it. */
+function ImageBodyView({
+  request,
+  tab,
+  response
+}: {
+  request: SavedRequest;
+  tab: TabState;
+  response: ApiResponse;
+}) {
+  const labels = t().request;
+  const mime = responseMimeType(response.headers);
+  const { url: objectUrl, decodeFailed } = useResponseObjectUrl(response, mime.startsWith("image/") ? mime : "");
+  const bodyKey = `${response.body_is_base64}:${response.body.length}`;
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+
+  if (decodeFailed || failedKey === bodyKey) {
+    return (
+      <BinaryBodyPlaceholder
+        request={request}
+        tab={tab}
+        response={response}
+        message={labels.imagePreviewUnavailable}
+      />
+    );
+  }
+
+  return (
+    <div className="response-body response-body-image" data-response-image>
+      {objectUrl ? (
+        <img
+          className="response-image-preview"
+          src={objectUrl}
+          alt={labels.imagePreviewTitle}
+          onLoad={(event) =>
+            setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
+          }
+          onError={() => setFailedKey(bodyKey)}
+        />
+      ) : null}
+      {size ? (
+        <div className="response-image-meta">
+          {size.width} × {size.height}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -210,8 +366,16 @@ function ResponseBodyView({
     }
   }, [displayBody, useStream]);
 
+  if (!tab.streaming && isPdfResponse(response)) {
+    return <PdfBodyView request={request} tab={tab} response={response} />;
+  }
+
+  if (!tab.streaming && isImageResponse(response)) {
+    return <ImageBodyView request={request} tab={tab} response={response} />;
+  }
+
   if (response.body_is_base64) {
-    return <BinaryBodyPlaceholder response={response} />;
+    return <BinaryBodyPlaceholder request={request} tab={tab} response={response} />;
   }
 
   if (useStream) {

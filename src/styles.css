@@ -2080,6 +2080,58 @@ select,
   overflow: hidden;
 }
 
+/* PDF responses render full-bleed in the webview's built-in viewer. */
+.response-body.response-body-pdf {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.response-pdf-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: var(--rp-surface-muted);
+}
+
+.response-empty-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+/* Image responses: centred, scaled down to fit, never upscaled. */
+.response-body.response-body-image {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: auto;
+}
+
+.response-image-preview {
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: var(--rp-shadow-card);
+}
+
+.response-image-meta {
+  flex-shrink: 0;
+  color: var(--rp-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .response-headers-panel,
 .headers-table-host {
   display: flex;

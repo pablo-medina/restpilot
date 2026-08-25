@@ -22,6 +22,9 @@ export const iconExport = strokeIcon('<path d="M8 10.5v-8M5.25 5.25 8 2.5l2.75 2
 
 export const iconImport = strokeIcon('<path d="M8 2.5v8M5.25 7.75 8 10.5l2.75-2.75M3 9.75v3.5h10v-3.5"/>');
 
+/** Save a response body to disk — same arrow-into-tray glyph as import. */
+export const iconDownload = iconImport;
+
 export const iconClipboard = strokeIcon('<rect x="4" y="3.5" width="8" height="10.5" rx="1.25"/><path d="M6 3.5V2.75a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V3.5"/><path d="M6.25 7.5h3.5M6.25 10h3.5"/>');
 
 /** Collection root — a stack of sheets, i.e. the whole collection rather than one folder. */
