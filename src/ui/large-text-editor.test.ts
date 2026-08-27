@@ -97,7 +97,11 @@ describe("scriptCompletions", () => {
   }
 
   it("offers what the engine puts in scope", () => {
-    expect(labels("  en")).toEqual(["env", "lib", "response", "args", "console"]);
+    expect(labels("  en")).toEqual(["env", "lib", "response", "args", "console", "ui"]);
+  });
+
+  it("offers the one thing on `ui`", () => {
+    expect(labels("  ui.")).toEqual(["showToast"]);
   });
 
   it("offers the library by name after lib.", () => {

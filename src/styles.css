@@ -6732,3 +6732,26 @@ select,
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* A script speaking through `ui.showToast`: prose, so no monospace, but roomier than a passing
+   confirmation because someone wrote it on purpose. */
+.app-toast--message {
+  max-width: min(92vw, 460px);
+  padding: 10px 16px;
+  border-color: rgb(var(--rp-accent-rgb) / 0.3);
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-toast-title {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--rp-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.app-toast--message .app-toast-message {
+  color: var(--rp-text-secondary);
+}

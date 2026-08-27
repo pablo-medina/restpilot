@@ -18,6 +18,7 @@ mod script_signature;
 
 const STREAM_EVENT: &str = "restpilot:request-stream";
 const SCRIPT_LOG_EVENT: &str = "restpilot:script-log";
+const SCRIPT_TOAST_EVENT: &str = "restpilot:script-toast";
 
 #[derive(Default)]
 struct RuntimeState {
@@ -236,6 +237,13 @@ struct ScriptLogEvent {
     text: String,
 }
 
+/// A message a script asked to put on screen, shown wherever the run was started from.
+#[derive(Clone, Serialize)]
+struct ScriptToastEvent {
+    title: String,
+    message: String,
+}
+
 /// Runs a library script. Blocking on purpose: QuickJS is synchronous, and keeping it that way
 /// is what lets a script call out to the host without the author writing `async`/`await`.
 #[tauri::command]
@@ -265,8 +273,20 @@ async fn run_script(
         );
     });
 
-    let outcome =
-        tauri::async_runtime::spawn_blocking(move || script::run_script(payload, cancel, on_log))
+    let toast_app = app.clone();
+    let on_toast: Arc<dyn Fn(&script::ToastLine) + Send + Sync> = Arc::new(move |line| {
+        let _ = toast_app.emit(
+            SCRIPT_TOAST_EVENT,
+            ScriptToastEvent {
+                title: line.title.clone(),
+                message: line.message.clone(),
+            },
+        );
+    });
+
+    let outcome = tauri::async_runtime::spawn_blocking(move || {
+        script::run_script(payload, cancel, on_log, on_toast)
+    })
             .await
             .map_err(|error| error.to_string())?;
 

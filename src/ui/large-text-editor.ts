@@ -196,7 +196,8 @@ const SCRIPT_GLOBALS: Completion[] = [
   { label: "lib", type: "variable", detail: "the script library" },
   { label: "response", type: "variable", detail: "the response, when there is one" },
   { label: "args", type: "variable", detail: "the arguments this run was given" },
-  { label: "console", type: "variable", detail: "log / warn / error" }
+  { label: "console", type: "variable", detail: "log / warn / error" },
+  { label: "ui", type: "variable", detail: "showToast" }
 ];
 
 const MEMBERS: Record<string, Completion[]> = {
@@ -205,6 +206,7 @@ const MEMBERS: Record<string, Completion[]> = {
     { label: "warn", type: "method" },
     { label: "error", type: "method" }
   ],
+  ui: [{ label: "showToast", type: "method" }],
   response: [
     { label: "status", type: "property" },
     { label: "statusText", type: "property" },

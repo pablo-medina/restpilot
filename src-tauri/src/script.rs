@@ -196,6 +196,15 @@ pub(crate) struct RunScriptPayload {
     pub timeout_ms: u64,
 }
 
+/// A message a script asked to show the person running it. Not `console`: that is the
+/// author's debugging channel, and it stays inside the editor's output panel.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct ToastLine {
+    /// Empty when `ui.showToast` was called with plain text.
+    pub title: String,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct LogLine {
     pub level: String,
@@ -312,6 +321,23 @@ function __format(value) {
   return String(value);
 }
 
+/**
+ * A script speaking to whoever ran it. Both shapes go through one host call, with an empty
+ * title standing for the plain-text form.
+ *
+ * Deliberately unthrottled: a loop that fires eighty of these is the author's own doing, and
+ * a cap would only make the honest cases harder to reason about.
+ */
+globalThis.ui = {
+  showToast(arg) {
+    if (arg !== null && typeof arg === "object") {
+      __toast(__format(arg.title === undefined ? "" : arg.title), __format(arg.message));
+    } else {
+      __toast("", __format(arg));
+    }
+  }
+};
+
 globalThis.console = {
   log: (...parts) => __log("log", parts.map(__format).join(" ")),
   info: (...parts) => __log("log", parts.map(__format).join(" ")),
@@ -381,12 +407,13 @@ fn parse_env_writes(raw: &str) -> Vec<EnvWrite> {
         .collect()
 }
 
-/// Runs `payload` to completion. `cancel` is polled from the interrupt handler, and `on_log`
-/// is called as each line is written so the UI can show output while the script is still going.
+/// Runs `payload` to completion. `cancel` is polled from the interrupt handler; `on_log` and
+/// `on_toast` are called as each is written, so the UI shows them while the script is going.
 pub(crate) fn run_script(
     payload: RunScriptPayload,
     cancel: Arc<dyn Fn() -> bool + Send + Sync>,
     on_log: Arc<dyn Fn(&LogLine) + Send + Sync>,
+    on_toast: Arc<dyn Fn(&ToastLine) + Send + Sync>,
 ) -> ScriptOutcome {
     let started = Instant::now();
     let mut outcome = ScriptOutcome::default();
@@ -443,6 +470,14 @@ pub(crate) fn run_script(
             .and_then(|()| globals.set("__responseJson", response_json))
             .and_then(|()| globals.set("__argsJson", args_json))
             .and_then(|()| globals.set("__undefinedArgsJson", undefined_args_json))
+            .and_then(|()| {
+                globals.set(
+                    "__toast",
+                    Func::from(move |title: String, message: String| {
+                        on_toast(&ToastLine { title, message });
+                    }),
+                )
+            })
             .and_then(|()| {
                 globals.set(
                     "__log",
@@ -527,6 +562,28 @@ mod tests {
         Arc::new(|_| {})
     }
 
+    fn noop_toast() -> Arc<dyn Fn(&ToastLine) + Send + Sync> {
+        Arc::new(|_| {})
+    }
+
+    /// Runs `payload` and returns the toasts it asked for, in order.
+    fn toasts(code: &str) -> Vec<(String, String)> {
+        let collected: Arc<Mutex<Vec<(String, String)>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = collected.clone();
+        run_script(
+            payload(code),
+            noop_cancel(),
+            noop_log(),
+            Arc::new(move |line: &ToastLine| {
+                if let Ok(mut all) = sink.lock() {
+                    all.push((line.title.clone(), line.message.clone()));
+                }
+            }),
+        );
+        let all = collected.lock().unwrap().clone();
+        all
+    }
+
     fn payload(code: &str) -> RunScriptPayload {
         RunScriptPayload {
             run_id: "test".to_string(),
@@ -541,7 +598,7 @@ mod tests {
     }
 
     fn run(payload: RunScriptPayload) -> ScriptOutcome {
-        run_script(payload, noop_cancel(), noop_log())
+        run_script(payload, noop_cancel(), noop_log(), noop_toast())
     }
 
     #[test]
@@ -659,6 +716,35 @@ mod tests {
         let mut input = payload("return args[0] + args[1];");
         input.args = vec![serde_json::json!("a"), serde_json::json!("b")];
         assert_eq!(run(input).value.as_deref(), Some(r#""ab""#));
+    }
+
+    #[test]
+    fn ui_show_toast_takes_plain_text_or_a_title_and_message() {
+        assert_eq!(
+            toasts("ui.showToast('listo'); ui.showToast({ title: 'Falló', message: 'sin token' });"),
+            vec![
+                (String::new(), "listo".to_string()),
+                ("Falló".to_string(), "sin token".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_toast_formats_what_it_is_given_the_way_console_does() {
+        assert_eq!(
+            toasts("ui.showToast({ message: { a: 1 } }); ui.showToast(42);"),
+            vec![
+                (String::new(), r#"{"a":1}"#.to_string()),
+                (String::new(), "42".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn toasts_are_not_capped() {
+        // Deliberate: a loop firing eighty of these is the author's own doing, and a throttle
+        // would only make the honest cases harder to reason about.
+        assert_eq!(toasts("for (let i = 0; i < 80; i++) ui.showToast('x');").len(), 80);
     }
 
     #[test]
@@ -806,7 +892,7 @@ function cuil(dni) { return '20-' + pad(dni) + '-9'; }"
     fn cancellation_stops_a_running_script() {
         let mut input = payload("while (true) {}");
         input.timeout_ms = 60_000;
-        let outcome = run_script(input, Arc::new(|| true), noop_log());
+        let outcome = run_script(input, Arc::new(|| true), noop_log(), noop_toast());
         assert!(outcome.error.is_some());
     }
 }

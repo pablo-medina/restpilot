@@ -205,11 +205,14 @@ What a script sees, all built by the JS prelude in `script.rs`:
 | `lib` | a `Proxy` compiling each function on first use with `new Function(...params, code)` |
 | `args` | the entry script's arguments |
 | `console` | `log`/`warn`/`error`, emitted live on `restpilot:script-log` **and** returned in the outcome |
+| `ui` | `showToast(text)` or `showToast({ title, message })`, emitted live on `restpilot:script-toast` |
 
 Things that will bite if they are undone:
 
 - **`env.x = undefined` clears the variable**, the same as `delete env.x` — `undefined` is JavaScript for "there is no such thing". A `null` is kept as an empty value instead, because that is a value an API actually returned.
 - **A run that clears several variables at once asks first** (`CONFIRM_CLEARED_FROM` in `run-script.ts`). Deleting a token or two is ordinary; a loop over `Object.keys(env)` wiping an environment is not, and by then it is gone. Answering no applies **nothing** — not the deletions and not the run's other writes — so the environment is left exactly as the script found it. Note there is no way to wipe the environment wholesale: `env = {}` only reassigns a local binding, and the only things ever applied are the names the `Proxy` traps recorded.
+- **`console` is the author's channel, `ui.showToast` is the runner's.** Console output stays in the editor's output panel; a toast goes on screen wherever the run was started from, through **one** app-wide subscription (`startScriptToasts`) rather than a hook per caller — whether a message is seen must not depend on which surface ran the function.
+- **Toasts are deliberately unthrottled.** A loop firing eighty of them is the author's own doing, and a cap would only make the honest cases harder to reason about. `console` *is* capped, because that one buffers into memory.
 - **`env` writes are applied by the caller, never by the engine**, and a script that throws applies **none** of them. Half-written variables are impossible to debug. `applyScriptWrites()` puts them in the active environment, or globals when there is none — the same destination a request's target variable uses.
 - **`lib` needs no cycle guard.** An entry is compiled by evaluating its source and taking the function it declares; compiling does not run the body, so a function calling another one resolves lazily at call time and cannot recurse at definition time.
 - **The entry wrapper carries no newline** (`wrap_entry`). That is what makes the line numbers in an error match the lines the user wrote; add one and every reported line is off by one.

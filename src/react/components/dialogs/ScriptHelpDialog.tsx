@@ -13,7 +13,7 @@ const EXAMPLE = `/**
 function saveToken(response, minStatus = 200) {
   if (response.status < minStatus) return null;
 
-  console.log("token for", response.body.user);
+  ui.showToast({ title: "Sesión", message: "token para " + response.body.user });
   env.APP_TOKEN = response.body.token;
   env.LAST_USER = undefined;
 
@@ -68,6 +68,7 @@ export function ScriptHelpDialog({ onClose }: Props) {
           <Entry term="env.NAME = undefined" text={labels.scopeEnvClear} />
           <Entry term="response" text={labels.scopeResponse} />
           <Entry term="console.log(…)" text={labels.scopeConsole} />
+          <Entry term="ui.showToast(…)" text={labels.scopeUi} />
         </Section>
 
         <Section title={labels.typesTitle}>

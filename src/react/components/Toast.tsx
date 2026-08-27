@@ -2,20 +2,31 @@ import { useEffect, useRef, useState } from "react";
 
 /**
  * `result` is for something the user asked to see — what a function returned — so it gets more
- * room, monospace, and longer on screen than a passing confirmation.
+ * room, monospace, and longer on screen than a passing confirmation. `message` is a script
+ * speaking through `ui.showToast`, which is prose rather than a value.
  */
-export type ToastVariant = "default" | "result";
+export type ToastVariant = "default" | "result" | "message";
 
-type Pushed = { message: string; variant: ToastVariant };
+export type ToastOptions = {
+  variant?: ToastVariant;
+  /** Shown above the message, for `ui.showToast({ title, message })`. */
+  title?: string;
+};
 
-const DURATION: Record<ToastVariant, number> = { default: 2200, result: 5200 };
+type Pushed = { message: string; variant: ToastVariant; title?: string };
+
+const DURATION: Record<ToastVariant, number> = { default: 2200, result: 5200, message: 4200 };
 /** How long the fade lasts after the timer, matching `.app-toast`'s transition. */
 const FADE_MS = 220;
 
 let toastListener: ((toast: Pushed) => void) | null = null;
 
-export function pushToast(message: string, variant: ToastVariant = "default"): void {
-  toastListener?.({ message, variant });
+export function pushToast(message: string, options: ToastOptions = {}): void {
+  toastListener?.({
+    message,
+    variant: options.variant ?? "default",
+    title: options.title?.trim() || undefined
+  });
 }
 
 export function Toast() {
@@ -48,7 +59,8 @@ export function Toast() {
       role="status"
       aria-live="polite"
     >
-      {toast.message}
+      {toast.title ? <strong className="app-toast-title">{toast.title}</strong> : null}
+      <span className="app-toast-message">{toast.message}</span>
     </div>
   );
 }

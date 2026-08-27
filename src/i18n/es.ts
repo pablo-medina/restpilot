@@ -158,6 +158,8 @@ export const es = {
       scopeEnv: "Lee y escribe variables de RestPilot. Lo escrito va al entorno activo, o a las globales si no hay ninguno.",
       scopeEnvClear: "Limpia la variable, igual que delete env.NAME. Una ejecución que limpia varias a la vez pregunta antes.",
       scopeResponse: "La respuesta, cuando la función recibió una: status, statusText, headers y el cuerpo ya parseado.",
+      scopeUi:
+        "Muestra un mensaje a quien ejecutó la función — texto suelto, o { title, message }. A diferencia de console, es para esa persona y no para usted.",
       scopeConsole: "Salida, visible debajo del editor mientras la función todavía se ejecuta. También warn y error.",
       typesTitle: "Tipar los argumentos",
       typesIntro:

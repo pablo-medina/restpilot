@@ -79,7 +79,7 @@ export async function runRequestFunction(
   if (returned !== undefined) {
     pushToast(
       labels.returnedValue.replace("{value}", stringifyReturnedValue(returned).slice(0, 200)),
-      "result"
+      { variant: "result" }
     );
   }
 }

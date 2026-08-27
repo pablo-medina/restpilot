@@ -43,6 +43,7 @@ import {
   getRequestFrom,
   state
 } from "./app/state";
+import { startScriptToasts } from "./react/lib/script-toasts";
 import { initWindowChrome } from "./ui/window-chrome";
 
 export async function startApp(
@@ -53,6 +54,9 @@ export async function startApp(
     close: closeContextMenu
   });
   initDialogs(render);
+  // A script's `ui.showToast` reaches the screen through one app-wide subscription, so it
+  // does not matter which surface started the run.
+  void startScriptToasts();
   setRenderApp(renderApp);
   setRequestPopoverHooks({
     onVariablesChanged: onEffectiveVariablesChanged
