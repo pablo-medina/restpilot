@@ -24,6 +24,14 @@ export type RunHelperOptions = {
   library?: readonly Helper[];
   /** A response to hand the first parameter instead of asking for it. */
   sample?: string | null;
+  /**
+   * Arguments to call with, skipping the prompt entirely.
+   *
+   * This is how a request runs its function after a send: stopping mid-send to ask for values
+   * is not something anyone wants, so whatever the declaration takes beyond these gets its
+   * declared default.
+   */
+  args?: unknown[];
   /** Called once the run has a cancellable id. */
   onStart?: (runId: string) => void;
   /** Called as each `console.*` line arrives, while the script is still running. */
@@ -63,6 +71,11 @@ export async function runHelper(options: RunHelperOptions): Promise<RunHelperRes
 
   const name = signature.name;
   const params = signature.params;
+
+  // Given the arguments outright, there is nothing to ask and nothing to coerce.
+  if (options.args) {
+    return await runWith(options, name, options.args);
+  }
 
   // With a sample the first parameter is the response, so it is injected rather than asked for.
   const injects = options.sample != null && params.length > 0;
@@ -105,13 +118,23 @@ export async function runHelper(options: RunHelperOptions): Promise<RunHelperRes
     given.push(coerced.value);
   }
 
+  return await runWith(options, name, injects ? [injected, ...given] : given);
+}
+
+/** The run itself, once the arguments are settled however they were settled. */
+async function runWith(
+  options: RunHelperOptions,
+  name: string,
+  args: unknown[]
+): Promise<ScriptOutcome> {
+  const labels = t().functions;
   const runId = crypto.randomUUID();
   options.onStart?.(runId);
 
   const outcome = await runScript({
     runId,
     code: helperCallCode(name),
-    args: injects ? [injected, ...given] : given,
+    args,
     helpers: options.library,
     onLog: options.onLog
   }).catch((error: unknown) => failed(error instanceof Error ? error.message : String(error)));

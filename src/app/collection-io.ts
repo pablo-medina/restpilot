@@ -235,7 +235,6 @@ export async function importCollection() {
       openTabs: state.openTabs,
       activeTabId: state.activeTabId,
       settings: state.settings,
-      extractors: state.extractors,
       helpers: state.helpers
     }) &&
     (state.items.length > 0 || state.variables.length > 0 || state.environments.length > 0);

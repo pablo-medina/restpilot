@@ -42,7 +42,6 @@ function mockPopulatedState(): AppState {
     envManageSelectedId: "e1",
     variablesWorkspaceTab: "environments",
     collectionSearchQuery: "find me",
-    extractors: [{ id: "x1", name: "Token", code: "return response.body.token;", sampleText: "" }],
     editingEnvId: "e1",
     previewTabId: "1",
     envPopoverVariablesExpanded: true,
@@ -59,7 +58,6 @@ describe("resetAppStateToDefaults", () => {
     expect(state.environments).toEqual(expected.environments);
     expect(state.settings).toEqual(expected.settings);
     expect(state.openTabs).toEqual(expected.openTabs);
-    expect(state.extractors).toEqual(expected.extractors);
     expect(state.helpers).toEqual(expected.helpers);
   });
 

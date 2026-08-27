@@ -135,8 +135,8 @@ export type SavedRequest = {
   graphqlVariables?: string;
   streamResponse: boolean;
   auth: RequestAuth;
-  /** Runs an extractor over the response. Absent when the request does not use one. */
-  extractor?: RequestExtractor;
+  /** Runs a library function over the response. Absent when the request does not use one. */
+  functionCall?: RequestFunction;
   lastResponse: ApiResponse | null;
   lastError: string | null;
   savedResponses?: SavedResponseHistoryItem[];
@@ -144,16 +144,6 @@ export type SavedRequest = {
 
 /** Answers to a request's run-time parameters, keyed by parameter name. */
 export type ParameterAnswers = Record<string, string>;
-
-/** A named script that pulls a value out of a response body. */
-export type Extractor = {
-  id: string;
-  name: string;
-  description?: string;
-  code: string;
-  /** Response body the editor's Test button runs against. */
-  sampleText: string;
-};
 
 /** An entry of the script library: plain JavaScript declaring a function, reachable from any
  * script as `lib.<name>`.
@@ -176,10 +166,15 @@ export type Helper = {
   sampleArgs?: string[];
 };
 
-/** Present only when an extractor is assigned; choosing one is what enables the feature. */
-export type RequestExtractor = {
-  extractorId: string;
-  /** Variable that receives the value; blank shows the result in a dialog instead. */
+/** Present only when a function is assigned; choosing one is what enables the feature.
+ *
+ * The response is handed to the function as its first argument. `variable` is optional: a
+ * function that returns something can have it stored, and one that writes `env` directly has
+ * nothing to store. */
+export type RequestFunction = {
+  helperId: string;
+  /** Variable that receives what the function returned. Absent means it returned for nothing,
+   * or did its work through `env`. */
   variable?: string;
 };
 
@@ -237,7 +232,7 @@ export type CollectionSnapshot = {
 /** Schema version of `config.json`. Bumped when stored data needs a one-time rewrite;
  * `normalizeConfig()` upgrades anything older on load. Version 2 switched the template
  * syntax from `${name}` to `{{name}}`. */
-export const CONFIG_VERSION = 2;
+export const CONFIG_VERSION = 3;
 
 /** Version assumed for configs written before `configVersion` existed. */
 export const LEGACY_CONFIG_VERSION = 1;
@@ -252,7 +247,6 @@ export type AppConfig = {
   openTabs: string[];
   activeTabId: string;
   settings: UserSettings;
-  extractors: Extractor[];
   helpers: Helper[];
 };
 
@@ -319,7 +313,6 @@ export function defaultConfig(): AppConfig {
     openTabs: [],
     activeTabId: "",
     settings: defaultSettings(),
-    extractors: [],
     helpers: []
   };
 }

@@ -14,7 +14,7 @@ import { scheduleResponseRender } from "../../ui/response-panel";
 import { t } from "../../i18n";
 import type { ApiResponse, HeaderPair, ParameterAnswers, TabState } from "../../types";
 import { promptForParameters } from "./parameter-prompt";
-import { runRequestExtractor } from "./run-extractor";
+import { runRequestFunction } from "./run-request-function";
 import { ensureTab } from "./ensure-tab";
 
 const STREAM_EVENT = "restpilot:request-stream";
@@ -205,7 +205,7 @@ async function sendRequest(refresh: () => void, answers: ParameterAnswers): Prom
       request.lastResponse = tab.response;
       request.lastError = null;
       scheduleSave();
-      runRequestExtractor(request, tab.response);
+      void runRequestFunction(request, tab.response);
     }
   } catch (error) {
     tab.error = error instanceof Error ? error.message : String(error);

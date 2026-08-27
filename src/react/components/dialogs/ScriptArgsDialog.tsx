@@ -76,7 +76,7 @@ export function ScriptArgsDialog() {
         onSubmit={submit}
       />
       {problems.length > 0 ? (
-        <p className="extractors-name-error">
+        <p className="script-error">
           {labels.argInvalid.replace("{names}", problems.join(", "))}
         </p>
       ) : null}

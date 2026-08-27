@@ -84,7 +84,6 @@ export function parseCollectionExport(raw: string, settings: UserSettings): Coll
     openTabs: [],
     activeTabId: "",
     settings,
-    extractors: []
   });
 
   return {

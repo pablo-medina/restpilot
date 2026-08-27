@@ -6,7 +6,7 @@ import { Icon } from "../Icon";
 type Props = {
   open: boolean;
   title: string;
-  /** Layer modifier, e.g. `extractors` → `.window-layer--extractors`. */
+  /** Layer modifier, e.g. `functions` → `.window-layer--functions`. */
   variant: string;
   width: number;
   height?: number;
@@ -186,7 +186,7 @@ export function AppModal({
   const labels = t().dialog;
 
   return (
-    <section className={`window-layer window-layer--${variant}`}>
+    <section className={`window-layer window-layer--modal window-layer--${variant}`}>
       <div
         ref={dialogRef}
         className={`app-dialog application app-modal app-modal--${variant}${

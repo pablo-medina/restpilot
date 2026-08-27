@@ -1,4 +1,4 @@
-import type { ApiResponse, Helper } from "../types";
+import type { ApiResponse, Helper, Variable } from "../types";
 import { isIdentifier, uniqueNameProblem, type NameProblem } from "./unique-names";
 
 /** What a new entry starts as: a real declaration, because the declaration is the whole form.
@@ -224,3 +224,40 @@ export function parseSampleResponse(sample: string): SampleParse {
   }
 }
 
+
+/**
+ * Writes `value` into the variable named `name`, creating it when missing. Mutates `list`.
+ *
+ * Lived with the extractors until they were replaced; the only part of that feature worth
+ * keeping was this, because it is what "a script wrote a variable" means.
+ */
+export function applyHelperVariable(
+  list: Variable[],
+  name: string,
+  value: string,
+  newId: () => string
+): { created: boolean } {
+  const target = name.trim();
+  const existing = list.find((variable) => variable.name.trim() === target);
+  if (existing) {
+    existing.value = value;
+    existing.enabled = true;
+    return { created: false };
+  }
+  list.push({ id: newId(), name: target, value, enabled: true });
+  return { created: true };
+}
+
+/** What a function returned, as text a variable can hold. Objects and arrays keep their
+ * structure as compact JSON, because the value is going back into a request. */
+export function stringifyReturnedValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value) ?? "";
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}

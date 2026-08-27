@@ -5,8 +5,7 @@ import { scheduleSave } from "../../app/persistence";
 import { id, state } from "../../app/state";
 import { applicationDialog } from "../../components/dialogs";
 import { t } from "../../i18n";
-import { applyExtractedVariable } from "../../lib/extractors";
-import type { HelperSignature } from "../../lib/helpers";
+import { applyHelperVariable, type HelperSignature } from "../../lib/helpers";
 import type { Helper } from "../../types";
 
 const SCRIPT_LOG_EVENT = "restpilot:script-log";
@@ -110,7 +109,7 @@ export type AppliedWrites = { applied: string[]; cancelled: boolean };
 
 /**
  * Writes what the script put in `env` into the active environment, or globals when there is
- * none — the same destination an extractor's target variable uses.
+ * none — the same destination a request's target variable uses.
  *
  * Applied in order, so the last write to a name wins. A run that clears several variables at
  * once asks first, and nothing is applied if the answer is no — not the deletions and not the
@@ -154,7 +153,7 @@ export async function applyScriptWrites(writes: ScriptEnvWrite[]): Promise<Appli
       const at = list.findIndex((variable) => variable.name.trim() === name);
       if (at >= 0) list.splice(at, 1);
     } else {
-      applyExtractedVariable(list, name, write.value, id);
+      applyHelperVariable(list, name, write.value, id);
     }
     if (!touched.includes(name)) touched.push(name);
   }

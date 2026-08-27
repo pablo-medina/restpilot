@@ -74,15 +74,15 @@ color: inherit; font: inherit;
 align-items: stretch; text-align: left; cursor: pointer;
 ```
 
-`.rp-dropdown-option`, `.extractors-dialog-list-item` and `.extractors-popover-item-main` all carry it.
+`.rp-dropdown-option`, `.function-list-main` and `.functions-popover-item-main` all carry it.
 
-Those three lay their content out in a column, where `align-items: stretch` is what pins the text left. An option that is a **row** — icon next to label, like `.sidebar-action-popover button` — also needs `justify-content: flex-start`, or the UA's `justify-content: center` centres the icon and label as a pair no matter what `text-align` says.
+Those lay their content out in a column, where `align-items: stretch` is what pins the text left. An option that is a **row** — icon next to label, like `.sidebar-action-popover button` — also needs `justify-content: flex-start`, or the UA's `justify-content: center` centres the icon and label as a pair no matter what `text-align` says.
 
 **A dropdown list is sized to its content, not to its trigger** — `width: max-content; min-width: 100%; max-width: min(420px, calc(100vw - 32px))`. Tying the list to the trigger's width leaves descriptions unreadable in a 120px control.
 
 ### Rows that toggle
 
-A control row must not change height when its state changes, or everything below it jumps. Give the row a fixed height and keep the same controls mounted, disabling rather than unmounting them (see `.extractor-bar`). And do not add a checkbox whose only job is to reveal the control next to it — let the control's own empty/"None" value mean off.
+A control row must not change height when its state changes, or everything below it jumps. Give the row a fixed height and keep the same controls mounted, disabling rather than unmounting them (see `.function-bar`). And do not add a checkbox whose only job is to reveal the control next to it — let the control's own empty/"None" value mean off.
 
 ### Breadcrumb (collection path above the URL)
 
@@ -93,20 +93,19 @@ A control row must not change height when its state changes, or everything below
 - Opening the sidebar goes through `showSidebar()` in `sync-app-frame.ts`. Setting `state.sidebarVisible` alone does nothing: the layout is driven by the `is-sidebar-hidden` class that `syncAppFrameLayout()` writes on `#app`.
 - Paths deeper than `MAX_FOLDER_CRUMBS` fold their middle into one `…` crumb whose tooltip lists the hidden folders; the root and the request keep their width and the folders between them truncate first.
 
-### Extractors
+### Extractors — gone, replaced by the script library
 
-An extractor is a named script that pulls a value out of a response. It replaced the Functions section, which is gone — the sidebar holds collections only, and `ActivePanel` is `request | settings`.
+Extractors were named scripts that pulled a value out of a response. They and library functions did the same job from different ends — an extractor was a bare function *body* with `response` in scope, a function is a declaration anything can call — so extractors were removed and the stored ones migrated (`migrate-extractors.ts`, `CONFIG_VERSION` 3). That module also picks up the pre-extractor `functions` key, so an ancient config makes one hop instead of two; delete it once nothing in the wild predates the change.
 
-`src/lib/extractors.ts` is the engine: `runExtractor()` evaluates the script with `response` in scope (JSON bodies arrive parsed, repeated headers joined like `Headers.get()`), and never throws — it returns `{ success: false, error }`. Names are required and unique (`extractorNameProblem`).
+A request now applies a **library function**: `SavedRequest.functionCall = { helperId, variable? }`, edited in `FunctionBar` under the URL. The response goes in as the function's **first argument** and further parameters take their declared defaults — a send never stops to ask, because a prompt in the middle of a request is not a thing anyone wants. The variable is **optional**: with one, what the function returned is stored; without one the function did its work through `env`, and anything it still returned is reported in a toast rather than dropped in silence.
 
-- Managed from the title-bar **funnel** button (`iconExtractor`): `ExtractorsPopover` lists them, `ExtractorsDialog` edits one. The editor is **draft-based with an explicit Save**, unlike the rest of the app.
-- Per request, `SavedRequest.extractor` (`ExtractorBar`, the row under the URL line) holds the toggle, the chosen extractor and an optional target variable. The checkbox is the disclosure — the rest of the row only renders when it is on.
-- `runRequestExtractor()` runs after a successful send. With a target variable the value lands in the **active environment, or globals when none is active**; without one it opens `ExtractorResultDialog` to copy.
-- Configs that still carry `functions` have each function's `extractorCode` carried over into an extractor (`legacyFunctionExtractors` in `config-normalize.ts`) — delete that branch once no config in the wild has them.
+There is **one** title-bar button for scripting. The extractors one is gone; the functions picker covers it.
+
+**Nothing is called `extractor` any more.** The classes were renamed with the feature — `function-bar-*`, `functions-popover-*`, `functions-dialog-*`, and `script-pane` / `script-code` / `script-output` / `script-field` / `script-error` for the parts shared across script surfaces — and the rules only the old dialogs used were deleted. A name that outlives its feature is a lie the next reader has to disprove.
 
 ### Script library
 
-A **library function** is a named piece of JavaScript reachable from any script as `lib.<name>`. It is a different thing from an extractor: an extractor is attached to a request and pulls a value out of one response, a library function is a reusable helper anything can call.
+A **library function** is a named piece of JavaScript reachable from any script as `lib.<name>`. A request can apply one to its response (see above), and any script can call it.
 
 **The source is the only form.** The author writes an ordinary declaration —
 
@@ -155,9 +154,11 @@ Switching rows goes through the same `guard()` as closing, and **saving does not
 
 There is deliberately **no full-window panel**. `Workspace` still branches on `activePanel === "settings"` and `switchActivityPanel()` still exists, but **nothing calls it** — Settings went the same route (one `SettingsPanel`, rendered by a dialog) and the panel frame was left behind. A functions panel would be the only screen of its kind, so the editor is a resizable dialog instead. Revisit when ROADMAP 3.9/3.10 make scripting a workspace rather than something you open, edit and close.
 
+**Every React modal's layer carries `window-layer--modal`**, and the backdrop, `z-index` and `display` rules key on that. They used to list variants by hand, which is exactly how the function dialogs shipped with no backdrop for several rounds — clicks fell through to the app behind them. Add a variant to the list and you have already made the mistake; carry the class instead.
+
 **`AppModal` resizes and maximizes** (`resizable`), using the same `.resize-handle`/`.maximized` classes `AppDialog` has always had, so the existing styles apply unchanged. Handles are not rendered while maximized, and restoring returns the exact bounds it left. Maximized also drops `.app-modal`'s `max-height`, which exists to keep a *normal* dialog on screen and only fights a size that was already worked out.
 
-**A code editor gets `--rp-bg`, not the dialog's surface.** CodeMirror is transparent, so without a background of its own the code area inherits `--rp-surface-raised` and ends up the *lightest* thing in the dialog — backwards for an editor, and in dark mode it reads as a wash of similar greys. `.extractors-pane .extractors-code` sets the app canvas instead: `#141312` in dark against the dialog's `#2a2926`, with the gutter a shade lighter at `#181715`.
+**A code editor gets `--rp-bg`, not the dialog's surface.** CodeMirror is transparent, so without a background of its own the code area inherits `--rp-surface-raised` and ends up the *lightest* thing in the dialog — backwards for an editor, and in dark mode it reads as a wash of similar greys. `.script-pane .script-code` sets the app canvas instead: `#141312` in dark against the dialog's `#2a2926`, with the gutter a shade lighter at `#181715`.
 
 Measuring a maximized dialog in the Browser pane gives numbers ~3% small: the `rp-dialog-appear` animation never finishes while the pane is not compositing, so it stays at its `scale(0.97)` first frame. Divide it out before concluding anything about margins.
 
@@ -209,10 +210,10 @@ Things that will bite if they are undone:
 
 - **`env.x = undefined` clears the variable**, the same as `delete env.x` — `undefined` is JavaScript for "there is no such thing". A `null` is kept as an empty value instead, because that is a value an API actually returned.
 - **A run that clears several variables at once asks first** (`CONFIRM_CLEARED_FROM` in `run-script.ts`). Deleting a token or two is ordinary; a loop over `Object.keys(env)` wiping an environment is not, and by then it is gone. Answering no applies **nothing** — not the deletions and not the run's other writes — so the environment is left exactly as the script found it. Note there is no way to wipe the environment wholesale: `env = {}` only reassigns a local binding, and the only things ever applied are the names the `Proxy` traps recorded.
-- **`env` writes are applied by the caller, never by the engine**, and a script that throws applies **none** of them. Half-written variables are impossible to debug. `applyScriptWrites()` puts them in the active environment, or globals when there is none — the same destination an extractor's target variable uses.
+- **`env` writes are applied by the caller, never by the engine**, and a script that throws applies **none** of them. Half-written variables are impossible to debug. `applyScriptWrites()` puts them in the active environment, or globals when there is none — the same destination a request's target variable uses.
 - **`lib` needs no cycle guard.** An entry is compiled by evaluating its source and taking the function it declares; compiling does not run the body, so a function calling another one resolves lazily at call time and cannot recurse at definition time.
 - **The entry wrapper carries no newline** (`wrap_entry`). That is what makes the line numbers in an error match the lines the user wrote; add one and every reported line is off by one.
-- **The library is stored under `helpers`, never `functions`.** The `functions` key belongs to the removed Functions section and is still read by `legacyFunctionExtractors()`; reusing it would silently turn library functions into extractors.
+- **The library is stored under `helpers`, never `functions`.** The `functions` key belongs to a removed section that `migrate-extractors.ts` still reads on upgrade; writing to it would feed the migration its own output.
 - Two entries declaring the **same function name** is the one name rule left (`helperNameProblem`); everything else about the name is JavaScript's problem and the engine already reported it.
 - `FunctionsDialog` runs the **unsaved draft**, not the stored version — it passes its own library through `runScript({ helpers })`.
 

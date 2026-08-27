@@ -15,7 +15,7 @@ import type { BodyMode, FormPartType, Pair, RawType, RequestAuth, RequestTab } f
 import { handleRequestCurlPaste } from "../../app/request-curl-paste";
 import { ensureTab } from "../lib/ensure-tab";
 import { cancelActiveRequest, trySendRequest } from "../lib/request-send";
-import { ExtractorBar } from "./ExtractorBar";
+import { FunctionBar } from "./FunctionBar";
 import { PairRow } from "./PairRow";
 import { RequestBreadcrumb } from "./RequestBreadcrumb";
 
@@ -710,7 +710,7 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
             </button>
           )}
         </div>
-        <ExtractorBar request={request} onChange={persist} />
+        <FunctionBar request={request} onChange={persist} />
       </section>
       <section className="editor-grid">
         <article className="request-card">

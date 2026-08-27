@@ -40,7 +40,7 @@ export function FunctionEditor({ draft: fn }: Props) {
         <code className={`functions-signature${fn.runnable ? "" : " is-invalid"}`}>
           {fn.name ? typedSignatureText(fn.name, fn.params) : labels.noFunction}
         </code>
-        <label className="extractors-field functions-description">
+        <label className="script-field functions-description">
           <span>{labels.description}</span>
           <input
             value={draft.description ?? ""}
@@ -50,14 +50,14 @@ export function FunctionEditor({ draft: fn }: Props) {
         </label>
       </div>
 
-      {problem ? <p className="extractors-name-error">{problem}</p> : null}
+      {problem ? <p className="script-error">{problem}</p> : null}
 
-      <div className={`extractors-dialog-panes${fn.sample === null ? " is-single" : ""}`}>
+      <div className={`script-panes${fn.sample === null ? " is-single" : ""}`}>
         {fn.sample !== null ? (
-          <div className="extractors-pane">
-            <span className="extractors-pane-title">{labels.sample}</span>
+          <div className="script-pane">
+            <span className="script-pane-title">{labels.sample}</span>
             <CodeMirrorEditor
-              className="extractors-code"
+              className="script-code"
               language="json"
               value={fn.sample}
               tabSize={state.settings.tabSize}
@@ -65,10 +65,10 @@ export function FunctionEditor({ draft: fn }: Props) {
             />
           </div>
         ) : null}
-        <div className="extractors-pane functions-code-pane">
-          <span className="extractors-pane-title">{labels.code}</span>
+        <div className="script-pane functions-code-pane">
+          <span className="script-pane-title">{labels.code}</span>
           <CodeMirrorEditor
-            className="extractors-code"
+            className="script-code"
             language="javascript"
             value={draft.code}
             tabSize={state.settings.tabSize}

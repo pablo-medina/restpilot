@@ -26,9 +26,9 @@ export function ScriptOutput({ outcome, logs }: Props) {
   return (
     <div className="functions-output" ref={scrollRef}>
       {outcome?.error ? (
-        <pre className="extractors-output is-error functions-output-value">{outcome.error}</pre>
+        <pre className="script-output is-error functions-output-value">{outcome.error}</pre>
       ) : outcome ? (
-        <pre className="extractors-output functions-output-value">
+        <pre className="script-output functions-output-value">
           {outcome.value ?? labels.noValue}
         </pre>
       ) : null}

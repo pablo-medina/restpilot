@@ -4,6 +4,11 @@ import { normalizeDuplicateNaming } from "./collection-names";
 import { hydrateRequestAuth, normalizeRequestAuth } from "./request-auth";
 import { migrateRequestQuery } from "../lib/url-params";
 import { normalizeParentId } from "./collection-parent";
+import {
+  migrateExtractors,
+  needsExtractorMigration,
+  type LegacyExtractorSource
+} from "./migrate-extractors";
 import { migrateVariableSyntax, needsVariableSyntaxMigration } from "./migrate-variable-syntax";
 import {
   clampRequestTimeoutSecs,
@@ -15,9 +20,8 @@ import {
   type AppConfig,
   type BodyMode,
   type Environment,
-  type Extractor,
   type Helper,
-  type RequestExtractor,
+  type RequestFunction,
   type FormPartType,
   type HeaderPair,
   type Pair,
@@ -76,45 +80,6 @@ export function normalizeSavedResponseHistoryItem(raw: Record<string, unknown>):
   };
 }
 
-function normalizeExtractor(raw: Record<string, unknown>): Extractor {
-  const description = typeof raw.description === "string" ? raw.description.trim() : "";
-  return {
-    id: String(raw.id || crypto.randomUUID()),
-    name: String(raw.name ?? "").trim(),
-    description: description || undefined,
-    code: String(raw.code ?? ""),
-    sampleText: String(raw.sampleText ?? "")
-  };
-}
-
-/** Extractors replaced the Functions section. A stored function only ever contributed its
- * extractor script, so anything with one is carried over rather than dropped. Delete the
- * `legacyFunctionExtractors` branch once no config in the wild still has `functions`. */
-function normalizeExtractors(config: AppConfig & { functions?: unknown }): Extractor[] {
-  const stored = Array.isArray(config.extractors) ? config.extractors : null;
-  const raw = stored ?? legacyFunctionExtractors(config.functions);
-  return raw
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
-    .map(normalizeExtractor)
-    .filter((extractor) => extractor.name !== "");
-}
-
-function legacyFunctionExtractors(functions: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(functions)) return [];
-  return functions
-    .filter((func) => func && typeof func === "object" && String((func as Record<string, unknown>).extractorCode ?? "").trim())
-    .map((func) => {
-      const item = func as Record<string, unknown>;
-      return {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        code: item.extractorCode,
-        sampleText: String((item.lastHttpResponse as { body?: unknown } | null | undefined)?.body ?? "")
-      };
-    });
-}
-
 function normalizeHelper(raw: Record<string, unknown>): Helper {
   const description = String(raw.description ?? "").trim();
   const code = String(raw.code ?? "");
@@ -142,13 +107,13 @@ function normalizeHelpers(config: AppConfig): Helper[] {
     .filter((helper) => helper.code.trim() !== "");
 }
 
-function normalizeRequestExtractor(raw: unknown): RequestExtractor | undefined {
+function normalizeRequestFunction(raw: unknown): RequestFunction | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const value = raw as Record<string, unknown>;
-  const extractorId = String(value.extractorId ?? "");
-  if (!extractorId) return undefined;
+  const helperId = String(value.helperId ?? "");
+  if (!helperId) return undefined;
   const variable = String(value.variable ?? "").trim();
-  return { extractorId, variable: variable || undefined };
+  return { helperId, variable: variable || undefined };
 }
 
 function normalizeVariable(variable: Variable): Variable {
@@ -201,8 +166,12 @@ function normalizeTreeItem(item: TreeItem): TreeItem {
     typeof (request as SavedRequest & { description?: string }).description === "string"
       ? (request as SavedRequest & { description?: string }).description!.trim() || undefined
       : undefined;
+  // The migration has already read `extractor` off the raw config by now; dropping it here
+  // is what stops a key nothing understands from being written back out forever.
+  const { extractor, ...withoutLegacy } = request as SavedRequest & { extractor?: unknown };
+  void extractor;
   const normalized = {
-    ...request,
+    ...withoutLegacy,
     parentId,
     description,
     bodyMode: migrateBodyMode(String(request.bodyMode ?? "raw"), form),
@@ -210,7 +179,7 @@ function normalizeTreeItem(item: TreeItem): TreeItem {
     headers: request.headers ?? [],
     form,
     streamResponse: request.streamResponse ?? false,
-    extractor: normalizeRequestExtractor(request.extractor),
+    functionCall: normalizeRequestFunction((request as SavedRequest & { functionCall?: unknown }).functionCall),
     lastResponse: normalizeApiResponse(request.lastResponse),
     lastError: request.lastError ?? null,
     savedResponses: (request.savedResponses ?? []).map(normalizeSavedResponseHistoryItem)
@@ -232,7 +201,6 @@ export function normalizeConfig(config: AppConfig): AppConfig {
     activeEnvironmentId,
     openTabs: config.openTabs ?? [],
     activeTabId: config.activeTabId ?? "",
-    extractors: normalizeExtractors(config),
     helpers: normalizeHelpers(config),
     settings: {
       ...defaultSettings(),
@@ -260,9 +228,16 @@ export function normalizeConfig(config: AppConfig): AppConfig {
     }
   };
 
-  // Runs after normalization so every field is already the right shape. Idempotent, so an
-  // already-migrated config passed through here again is unchanged.
-  return needsVariableSyntaxMigration(config.configVersion) ? migrateVariableSyntax(normalized) : normalized;
+  // Upgrades run after normalization so every field is already the right shape, and each one
+  // is idempotent — the import path re-runs them on already-current data.
+  const templated = needsVariableSyntaxMigration(config.configVersion)
+    ? migrateVariableSyntax(normalized)
+    : normalized;
+  // The raw config goes in beside the normalized one: normalization has already dropped
+  // `extractors` and each request's `extractor`, so there would be nothing left to read.
+  return needsExtractorMigration(config.configVersion)
+    ? migrateExtractors(templated, config as LegacyExtractorSource)
+    : templated;
 }
 
 

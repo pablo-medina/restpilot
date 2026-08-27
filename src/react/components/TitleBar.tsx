@@ -10,7 +10,6 @@ import {
   syncMaximizeControl
 } from "../../ui/window-chrome";
 import {
-  iconExtractor,
   iconFunction,
   iconSettings,
   iconSidebar,
@@ -22,7 +21,6 @@ import { useRenderGeneration } from "../hooks/useRenderGeneration";
 import { openSettingsDialog } from "../lib/settings-dialog";
 import { toggleSidebar } from "../lib/sync-app-frame";
 import { TabBar } from "./TabBar";
-import { ExtractorsPopover } from "./extractors/ExtractorsPopover";
 import { FunctionsPopover } from "./functions/FunctionsPopover";
 
 type Props = {
@@ -57,19 +55,12 @@ export function TitleBar({ refresh }: Props) {
   /* While the sidebar is open its own rail hosts the toggle, so the title bar drops it and
      the tabs start flush at the sidebar edge. See `CollectionSidebar`. */
   const railHostsSidebarToggle = state.activePanel === "request" && state.sidebarVisible;
-  const extractorsBtnRef = useRef<HTMLButtonElement>(null);
-  const [extractorsOpen, setExtractorsOpen] = useState(false);
   const functionsBtnRef = useRef<HTMLButtonElement>(null);
   const [functionsOpen, setFunctionsOpen] = useState(false);
 
   const closeFunctionsPopover = () => {
     setFunctionsOpen(false);
     functionsBtnRef.current?.focus();
-  };
-
-  const closeExtractorsPopover = () => {
-    setExtractorsOpen(false);
-    extractorsBtnRef.current?.focus();
   };
 
   useEffect(() => {
@@ -126,31 +117,6 @@ export function TitleBar({ refresh }: Props) {
     </button>
   );
 
-  const extractorsButton = (
-    <>
-      <button
-        ref={extractorsBtnRef}
-        type="button"
-        className={`title-bar-settings title-bar-extractors${extractorsOpen ? " is-active" : ""}`}
-        data-title-bar-extractors
-        title={nav.extractors}
-        aria-label={nav.extractors}
-        aria-haspopup="dialog"
-        aria-expanded={extractorsOpen}
-        onClick={() => setExtractorsOpen((open) => !open)}
-      >
-        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconExtractor }} />
-      </button>
-      {extractorsOpen && (
-        <ExtractorsPopover
-          anchor={extractorsBtnRef.current}
-          onClose={closeExtractorsPopover}
-          refresh={refresh}
-        />
-      )}
-    </>
-  );
-
   const functionsButton = (
     <>
       <button
@@ -201,7 +167,6 @@ export function TitleBar({ refresh }: Props) {
         <div className="title-bar-drag" data-tauri-drag-region aria-hidden="true" />
         <div className="title-bar-actions">
           {functionsButton}
-          {extractorsButton}
           {settingsButton}
           {controls}
         </div>
@@ -217,7 +182,6 @@ export function TitleBar({ refresh }: Props) {
       </div>
       <div className="title-bar-actions">
         {functionsButton}
-        {extractorsButton}
         {settingsButton}
         {controls}
       </div>

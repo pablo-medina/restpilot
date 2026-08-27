@@ -103,12 +103,12 @@ export function FunctionsPopover({ anchor, onClose, refresh }: Props) {
 
   return (
     <PopoverShell
-      className="extractors-popover functions-popover selection-popover"
+      className="functions-popover selection-popover"
       title={labels.popoverTitle}
       anchor={anchor}
       onClose={onClose}
     >
-      <div ref={rootRef} className="extractors-popover-content">
+      <div ref={rootRef} className="functions-popover-content">
         <input
           ref={searchRef}
           className="popover-search"
@@ -121,32 +121,32 @@ export function FunctionsPopover({ anchor, onClose, refresh }: Props) {
         />
 
         {helpers.length === 0 ? (
-          <p className="popover-empty extractors-popover-empty">
+          <p className="popover-empty functions-popover-empty">
             {state.helpers.length === 0 ? labels.empty : labels.noMatches}
           </p>
         ) : (
-          <div className="popover-list extractors-popover-list" role="list">
+          <div className="popover-list functions-popover-list" role="list">
             {helpers.map((helper) => (
-              <div className="extractors-popover-item" role="listitem" key={helper.id}>
+              <div className="functions-popover-item" role="listitem" key={helper.id}>
                 <button
                   type="button"
-                  className="extractors-popover-item-main"
+                  className="functions-popover-item-main"
                   title={labels.run}
                   onClick={() => void run(helper)}
                 >
-                  <span className="extractors-popover-item-name">
+                  <span className="functions-popover-item-name">
                     <span className="functions-popover-item-signature">
                       {helperSignatureText(helper.name || labels.unnamed, helper.params)}
                     </span>
                   </span>
                   {helper.description ? (
-                    <span className="extractors-popover-item-desc">{helper.description}</span>
+                    <span className="functions-popover-item-desc">{helper.description}</span>
                   ) : null}
                 </button>
-                <div className="extractors-popover-item-actions">
+                <div className="functions-popover-item-actions">
                   <button
                     type="button"
-                    className="mini-btn extractors-popover-action extractors-popover-action--edit"
+                    className="mini-btn functions-popover-action functions-popover-action--edit"
                     title={labels.edit}
                     aria-label={`${labels.edit}: ${helper.name}`}
                     onClick={() => edit(helper.id)}
@@ -155,7 +155,7 @@ export function FunctionsPopover({ anchor, onClose, refresh }: Props) {
                   </button>
                   <button
                     type="button"
-                    className="mini-btn extractors-popover-action extractors-popover-action--delete"
+                    className="mini-btn functions-popover-action functions-popover-action--delete"
                     title={labels.delete}
                     aria-label={`${labels.delete}: ${helper.name}`}
                     onClick={() => remove(helper.id)}

@@ -10,7 +10,7 @@ import { scheduleSave } from "./persistence";
 import { render } from "./render";
 import { getItem, state } from "./state";
 
-export type DescribeTarget = { kind: "request" | "function"; id: string };
+export type DescribeTarget = { kind: "request"; id: string };
 
 function escapeAttribute(value: string): string {
   return value
@@ -22,25 +22,14 @@ function escapeAttribute(value: string): string {
 }
 
 function readDescription(target: DescribeTarget): string {
-  if (target.kind === "request") {
-    const item = getItem(target.id);
-    return item?.kind === "request" ? (item.description ?? "") : "";
-  }
-  const extractor = state.extractors.find((item) => item.id === target.id);
-  return extractor?.description ?? "";
+  const item = getItem(target.id);
+  return item?.kind === "request" ? (item.description ?? "") : "";
 }
 
 function writeDescription(target: DescribeTarget, description: string): void {
-  const trimmed = description.trim();
-  if (target.kind === "request") {
-    const item = getItem(target.id);
-    if (!item || item.kind !== "request") return;
-    item.description = trimmed || undefined;
-  } else {
-    const extractor = state.extractors.find((item) => item.id === target.id);
-    if (!extractor) return;
-    extractor.description = trimmed || undefined;
-  }
+  const item = getItem(target.id);
+  if (!item || item.kind !== "request") return;
+  item.description = description.trim() || undefined;
   scheduleSave();
   render();
 }
@@ -49,7 +38,7 @@ export function openDescribePopover(target: DescribeTarget, anchor: HTMLElement)
   removePopovers();
   const labels = t().describe;
   const current = readDescription(target);
-  const title = target.kind === "request" ? labels.requestTitle : labels.functionTitle;
+  const title = labels.requestTitle;
 
   const html = renderPopoverShell({
     className: "describe-popover",

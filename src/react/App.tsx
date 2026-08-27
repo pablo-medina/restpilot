@@ -18,8 +18,6 @@ import {
   SettingsDialog,
   TitleBar,
   Toast,
-  ExtractorResultDialog,
-  ExtractorsDialog,
   FunctionsDialog,
   ScriptArgsDialog,
   ScriptResultDialog,
@@ -81,8 +79,6 @@ export function App() {
         <SettingsDialog open={settingsOpen} onClose={closeSettings} refresh={refresh} />
         <VariablesManagerDialog open={variablesManagerOpen} onClose={closeVariablesManager} refresh={refresh} />
         <ParameterPromptDialog />
-        <ExtractorsDialog refresh={refresh} />
-        <ExtractorResultDialog />
         <FunctionsDialog refresh={refresh} />
         <ScriptArgsDialog />
         <ScriptResultDialog />

@@ -79,7 +79,6 @@ export async function startApp(
         openTabs: (migrated.openTabs ?? []).filter((tabId) => Boolean(getRequestFrom(migrated.items, tabId))),
         activeTabId: "",
         settings: migrated.settings,
-        extractors: migrated.extractors ?? [],
         helpers: migrated.helpers ?? []
       };
       Object.assign(state, restored);

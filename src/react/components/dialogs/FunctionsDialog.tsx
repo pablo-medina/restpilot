@@ -125,7 +125,7 @@ export function FunctionsDialog({ refresh }: Props) {
       }
     >
       <div
-        className={`extractors-dialog-body functions-dialog-body${browsing ? " is-library" : ""}`}
+        className={`functions-dialog-body${browsing ? " is-library" : ""}`}
       >
         {browsing ? (
           <FunctionList
@@ -135,7 +135,7 @@ export function FunctionsDialog({ refresh }: Props) {
             onDelete={remove}
           />
         ) : null}
-        <div className="extractors-dialog-editor">
+        <div className="functions-dialog-editor">
           <FunctionEditor draft={fn} />
         </div>
       </div>

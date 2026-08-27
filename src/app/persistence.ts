@@ -112,7 +112,6 @@ export async function persistConfig() {
     activeEnvironmentId: state.activeEnvironmentId,
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
-    extractors: state.extractors,
     helpers: state.helpers,
     settings: {
       ...state.settings,

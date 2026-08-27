@@ -61,7 +61,6 @@ export function resetAppStateToDefaults(target: AppState): void {
   target.openTabs = fresh.openTabs;
   target.activeTabId = fresh.activeTabId;
   target.settings = fresh.settings;
-  target.extractors = fresh.extractors;
   target.helpers = fresh.helpers;
 
   resetTabUsage();

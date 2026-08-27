@@ -1,13 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 
-let toastListener: ((message: string) => void) | null = null;
+/**
+ * `result` is for something the user asked to see — what a function returned — so it gets more
+ * room, monospace, and longer on screen than a passing confirmation.
+ */
+export type ToastVariant = "default" | "result";
 
-export function pushToast(message: string): void {
-  toastListener?.(message);
+type Pushed = { message: string; variant: ToastVariant };
+
+const DURATION: Record<ToastVariant, number> = { default: 2200, result: 5200 };
+/** How long the fade lasts after the timer, matching `.app-toast`'s transition. */
+const FADE_MS = 220;
+
+let toastListener: ((toast: Pushed) => void) | null = null;
+
+export function pushToast(message: string, variant: ToastVariant = "default"): void {
+  toastListener?.({ message, variant });
 }
 
 export function Toast() {
-  const [message, setMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<Pushed | null>(null);
   const [visible, setVisible] = useState(false);
   const timersRef = useRef<number[]>([]);
 
@@ -15,10 +27,11 @@ export function Toast() {
     toastListener = (next) => {
       for (const timer of timersRef.current) window.clearTimeout(timer);
       timersRef.current = [];
-      setMessage(next);
+      setToast(next);
       setVisible(true);
-      timersRef.current.push(window.setTimeout(() => setVisible(false), 2200));
-      timersRef.current.push(window.setTimeout(() => setMessage(null), 2420));
+      const stay = DURATION[next.variant];
+      timersRef.current.push(window.setTimeout(() => setVisible(false), stay));
+      timersRef.current.push(window.setTimeout(() => setToast(null), stay + FADE_MS));
     };
     return () => {
       toastListener = null;
@@ -26,16 +39,16 @@ export function Toast() {
     };
   }, []);
 
-  if (!message) return null;
+  if (!toast) return null;
 
   return (
     <div
       id="app-toast"
-      className={`app-toast${visible ? " app-toast--visible" : ""}`}
+      className={`app-toast app-toast--${toast.variant}${visible ? " app-toast--visible" : ""}`}
       role="status"
       aria-live="polite"
     >
-      {message}
+      {toast.message}
     </div>
   );
 }

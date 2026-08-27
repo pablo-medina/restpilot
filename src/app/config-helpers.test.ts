@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultConfig, type AppConfig, type Helper } from "../types";
+import { CONFIG_VERSION, defaultConfig, type AppConfig, type Helper } from "../types";
 import { normalizeConfig } from "./config-normalize";
 
 function stored(helpers: unknown): AppConfig {
@@ -45,17 +45,15 @@ describe("normalizeConfig — script library", () => {
     expect(normalizeConfig(withoutHelpers as AppConfig).helpers).toEqual([]);
   });
 
-  it("does not read the removed Functions section, which becomes extractors instead", () => {
-    // The legacy branch only runs for a config written before `extractors` existed.
-    const { extractors, helpers, ...base } = defaultConfig();
-    void extractors;
+  it("ignores an unrelated `functions` key: the migration is what reads it", () => {
+    const { helpers, ...base } = defaultConfig();
     void helpers;
     const legacy = {
       ...base,
+      configVersion: CONFIG_VERSION,
       functions: [{ id: "f1", name: "old", extractorCode: "return response.body;" }]
     } as unknown as AppConfig;
-    const config = normalizeConfig(legacy);
-    expect(config.helpers).toEqual([]);
-    expect(config.extractors).toHaveLength(1);
+    // Already current, so no upgrade runs and `functions` is somebody else's leftover.
+    expect(normalizeConfig(legacy).helpers).toEqual([]);
   });
 });

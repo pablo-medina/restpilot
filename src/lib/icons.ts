@@ -40,8 +40,6 @@ export const iconEye = strokeIcon('<path d="M1.5 8S4 3.75 8 3.75 14.5 8 14.5 8 1
 
 export const iconEyeOff = strokeIcon('<path d="M2 2l12 12M3.65 4.15A8.8 8.8 0 0 0 1.5 8S4 12.25 8 12.25c1.05 0 2-.3 2.85-.75M6.35 3.95A6.3 6.3 0 0 1 8 3.75c4 0 6.5 4.25 6.5 4.25a10.2 10.2 0 0 1-1.65 2.15M6.55 6.55A2 2 0 0 0 9.45 9.45"/>');
 
-/** Funnel — an extractor narrows a response down to one value. */
-export const iconExtractor = strokeIcon('<path d="M2.75 3.5h10.5L9.25 8.25v4.9l-2.5-1.65V8.25z"/>');
 
 export const iconFunction = strokeIcon('<path d="M6.75 2.75c-1.4 0-1.9.85-1.9 2.1s.1 2.4-1.6 2.4h-.5"/><path d="M2.75 8.75h.5c1.7 0 1.6 1.15 1.6 2.4s.5 2.1 1.9 2.1"/><path d="M9.25 2.75c1.4 0 1.9.85 1.9 2.1s-.1 2.4 1.6 2.4h.5"/><path d="M13.25 8.75h-.5c-1.7 0-1.6 1.15-1.6 2.4s-.5 2.1-1.9 2.1"/>');
 

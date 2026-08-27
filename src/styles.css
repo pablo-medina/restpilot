@@ -2662,22 +2662,20 @@ select,
   pointer-events: auto;
 }
 
+/* Every React modal carries `--modal`, so a new one is covered by being one. Listing
+   variants here is how the function dialogs ended up with no backdrop. */
+.window-layer--modal,
 .window-layer--settings,
-.window-layer--variables-manager,
-.window-layer--parameter-prompt,
-.window-layer--extractors,
-.window-layer--extractor-result {
+.window-layer--variables-manager {
   z-index: 20;
   pointer-events: auto;
 }
 
 /* Transparent backdrop in all themes — blocks clicks on content behind any open dialog. */
 .window-layer--stack::before,
+.window-layer--modal::before,
 .window-layer--settings::before,
-.window-layer--variables-manager::before,
-.window-layer--parameter-prompt::before,
-.window-layer--extractors::before,
-.window-layer--extractor-result::before {
+.window-layer--variables-manager::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -2686,11 +2684,9 @@ select,
 
 /* Dark theme: add visible scrim on top of the transparent blocker. */
 [data-theme="dark"] .window-layer--stack::before,
+[data-theme="dark"] .window-layer--modal::before,
 [data-theme="dark"] .window-layer--settings::before,
-[data-theme="dark"] .window-layer--variables-manager::before,
-[data-theme="dark"] .window-layer--parameter-prompt::before,
-[data-theme="dark"] .window-layer--extractors::before,
-[data-theme="dark"] .window-layer--extractor-result::before {
+[data-theme="dark"] .window-layer--variables-manager::before {
   background: rgb(var(--rp-shadow-rgb) / 0.42);
 }
 
@@ -3459,9 +3455,6 @@ select,
   min-height: 0;
 }
 
-
-
-
 @media (max-width: 900px) {
 }
 
@@ -3507,24 +3500,24 @@ select,
 
 /* Functions popover (title bar) */
 
-.extractors-popover {
+.functions-popover {
   width: min(360px, calc(100vw - 24px));
 }
 
-.extractors-popover-content {
+.functions-popover-content {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
 }
 
-.extractors-popover-list {
+.functions-popover-list {
   max-height: 320px;
   overflow-y: auto;
   gap: 2px;
 }
 
-.extractors-popover-item {
+.functions-popover-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3535,17 +3528,17 @@ select,
   transition: background 0.15s ease;
 }
 
-.extractors-popover-item:hover {
+.functions-popover-item:hover {
   background: var(--rp-hover);
 }
 
-.extractors-popover-item:focus-visible,
-.extractors-popover-item:focus {
+.functions-popover-item:focus-visible,
+.functions-popover-item:focus {
   background: rgb(var(--rp-accent-rgb) / 0.12);
   box-shadow: inset 0 0 0 1px var(--rp-accent);
 }
 
-.extractors-popover-item-main {
+.functions-popover-item-main {
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -3553,7 +3546,7 @@ select,
   min-width: 0;
 }
 
-.extractors-popover-item-name {
+.functions-popover-item-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--rp-text);
@@ -3562,7 +3555,7 @@ select,
   white-space: nowrap;
 }
 
-.extractors-popover-item-desc {
+.functions-popover-item-desc {
   font-size: 11px;
   color: var(--rp-text-muted);
   overflow: hidden;
@@ -3572,7 +3565,7 @@ select,
 
 /* Row actions stay out of the way until the row is hovered or focused.
    Opacity (not display) so the row layout never shifts. */
-.extractors-popover-item-actions {
+.functions-popover-item-actions {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -3581,12 +3574,12 @@ select,
   transition: opacity 0.12s ease;
 }
 
-.extractors-popover-item:hover .extractors-popover-item-actions,
-.extractors-popover-item:focus-within .extractors-popover-item-actions {
+.functions-popover-item:hover .functions-popover-item-actions,
+.functions-popover-item:focus-within .functions-popover-item-actions {
   opacity: 1;
 }
 
-.mini-btn.extractors-popover-action {
+.mini-btn.functions-popover-action {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3601,22 +3594,22 @@ select,
   cursor: pointer;
 }
 
-.extractors-popover .mini-btn.extractors-popover-action--edit {
+.functions-popover .mini-btn.functions-popover-action--edit {
   color: var(--rp-text-muted);
 }
 
-.extractors-popover .mini-btn.extractors-popover-action--edit:hover {
+.functions-popover .mini-btn.functions-popover-action--edit:hover {
   background: var(--rp-hover);
   color: var(--rp-accent-strong);
 }
 
-/* Scoped by .extractors-popover so this beats the generic
+/* Scoped by .functions-popover so this beats the generic
    `[data-theme="dark"] .mini-btn` override, which otherwise greys out the cross. */
-.extractors-popover .mini-btn.extractors-popover-action--delete {
+.functions-popover .mini-btn.functions-popover-action--delete {
   color: var(--field-remove-color);
 }
 
-.extractors-popover .mini-btn.extractors-popover-action--delete:hover {
+.functions-popover .mini-btn.functions-popover-action--delete:hover {
   color: var(--field-remove-color-hover);
   background: var(--field-remove-tint);
 }
@@ -3625,7 +3618,7 @@ select,
   to { transform: rotate(360deg); }
 }
 
-.extractors-popover-empty {
+.functions-popover-empty {
   text-align: center;
   padding: 16px 4px;
   font-style: italic;
@@ -4705,7 +4698,6 @@ select,
   color: var(--rp-danger);
 }
 
-
 /* Sidebar action popover (+ and ⋯ menus at sidebar header) */
 [data-theme="dark"] .sidebar-action-popover {
   background: var(--rp-chrome-elevated);
@@ -4914,14 +4906,12 @@ select,
   overflow: visible;
 }
 
-
 .sidebar-rail,
 .sidebar-rail-actions,
 .sidebar-action-popover button {
   display: flex;
   align-items: center;
 }
-
 
 .sidebar-context {
   display: flex;
@@ -5541,7 +5531,6 @@ select,
   background: var(--field-remove-tint);
 }
 
-
 .variables-workspace-sidebar {
   width: 230px;
   flex-shrink: 0;
@@ -5900,7 +5889,6 @@ select,
   color: var(--rp-danger);
 }
 
-
 /* ---------- Parameter prompt ---------- */
 
 .parameter-prompt-single {
@@ -5995,12 +5983,9 @@ select,
   outline-offset: -1px;
 }
 
-
 /* ---------- Shared modal shell ---------- */
 
-.window-layer--extractors,
-.window-layer--extractor-result,
-.window-layer--parameter-prompt {
+.window-layer--modal {
   display: block;
 }
 
@@ -6033,7 +6018,7 @@ select,
 /* ---------- Extractor row under the URL ---------- */
 
 /* Fixed height: the row never grows or shrinks with the selection, so nothing below it moves. */
-.extractor-bar {
+.function-bar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -6043,30 +6028,30 @@ select,
   font-size: 12px;
 }
 
-.extractor-bar-label {
+.function-bar-label {
   color: var(--rp-text-muted);
   white-space: nowrap;
 }
 
-.extractor-bar.is-active .extractor-bar-label {
+.function-bar.is-active .function-bar-label {
   color: var(--rp-text-secondary);
   font-weight: 600;
 }
 
-.extractor-bar-arrow,
-.extractor-bar-variable {
+.function-bar-arrow,
+.function-bar-variable {
   transition: opacity 0.15s ease;
 }
 
-.extractor-bar-arrow {
+.function-bar-arrow {
   color: var(--rp-text-faint);
 }
 
-.extractor-bar:not(.is-active) .extractor-bar-arrow {
+.function-bar:not(.is-active) .function-bar-arrow {
   opacity: 0.4;
 }
 
-.extractor-bar-variable {
+.function-bar-variable {
   width: 180px;
   height: 26px;
   padding: 0 8px;
@@ -6077,7 +6062,7 @@ select,
   font-size: 12px;
 }
 
-.extractor-bar-variable:disabled {
+.function-bar-variable:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -6207,15 +6192,7 @@ select,
   font-size: 12px;
 }
 
-/* ---------- Extractors dialog ---------- */
-
-.app-modal--extractors .app-modal-body {
-  padding: 0;
-  gap: 0;
-  overflow: hidden;
-}
-
-.extractors-dialog-body {
+.functions-dialog-body {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
   flex: 1;
@@ -6223,41 +6200,7 @@ select,
   width: 100%;
 }
 
-.extractors-dialog-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px;
-  overflow-y: auto;
-  border-right: 1px solid var(--rp-border);
-}
-
-.extractors-dialog-list-item {
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--rp-text-secondary);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.extractors-dialog-list-item:hover {
-  background: rgb(var(--rp-ink-rgb) / 0.06);
-}
-
-.extractors-dialog-list-item.is-active {
-  background: rgb(var(--rp-accent-rgb) / 0.14);
-  color: var(--rp-text);
-  font-weight: 600;
-}
-
-.extractors-dialog-editor {
+.functions-dialog-editor {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -6266,19 +6209,12 @@ select,
   padding: 14px 16px;
 }
 
-.extractors-dialog-meta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.extractors-field {
+.script-field {
   display: grid;
   gap: 4px;
 }
 
-.extractors-field span {
+.script-field span {
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -6286,7 +6222,7 @@ select,
   color: var(--rp-text-faint);
 }
 
-.extractors-field input {
+.script-field input {
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--rp-input-border);
@@ -6296,17 +6232,17 @@ select,
   font-size: 13px;
 }
 
-.extractors-field input.is-invalid {
+.script-field input.is-invalid {
   border-color: var(--rp-danger);
 }
 
-.extractors-name-error {
+.script-error {
   margin: 0;
   color: var(--rp-danger-text);
   font-size: 12px;
 }
 
-.extractors-dialog-panes {
+.script-panes {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
@@ -6314,14 +6250,14 @@ select,
   min-height: 0;
 }
 
-.extractors-pane {
+.script-pane {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-height: 0;
 }
 
-.extractors-pane-title {
+.script-pane-title {
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.04em;
@@ -6329,7 +6265,7 @@ select,
   color: var(--rp-text-faint);
 }
 
-.extractors-pane .extractors-code {
+.script-pane .script-code {
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -6337,21 +6273,7 @@ select,
   border-radius: 6px;
 }
 
-.extractors-dialog-outcome {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.mini-btn.extractors-test-btn {
-  width: auto;
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.extractors-output {
+.script-output {
   flex: 1;
   min-width: 0;
   max-height: 64px;
@@ -6367,45 +6289,13 @@ select,
   word-break: break-all;
 }
 
-.extractors-output.is-error {
+.script-output.is-error {
   border-color: rgb(var(--rp-danger-rgb) / 0.35);
   color: var(--rp-danger-text);
 }
 
-/* ---------- Extractor result ---------- */
-
-.extractor-result-field {
-  position: relative;
-}
-
-.extractor-result-field textarea {
-  width: 100%;
-  min-height: 96px;
-  padding: 8px 38px 8px 10px;
-  border: 1px solid var(--rp-input-border);
-  border-radius: 6px;
-  background: var(--rp-input-bg);
-  color: var(--rp-text);
-  font-family: monospace;
-  font-size: 12px;
-  resize: vertical;
-}
-
-.mini-btn.extractor-result-copy {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-}
-
-.extractor-result-error {
-  margin: 0;
-  color: var(--rp-danger-text);
-  font-size: 12px;
-  white-space: pre-wrap;
-}
-
 /* Popover rows are buttons too — same UA centring to undo. */
-.extractors-popover-item-main {
+.functions-popover-item-main {
   padding: 0;
   border: 0;
   background: transparent;
@@ -6423,22 +6313,17 @@ select,
   font-size: 12px;
 }
 
-.extractors-popover .mini-btn.extractors-popover-action--run:hover {
-  border-color: rgb(var(--rp-accent-rgb) / 0.45);
-  color: var(--rp-accent-text, var(--rp-text));
-}
-
 /* The editor is the whole dialog: browsing happens in the picker, so no list column. */
 .functions-dialog-body {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.functions-dialog-body .extractors-dialog-editor {
+.functions-dialog-body .functions-dialog-editor {
   gap: 10px;
 }
 
 /* One column when there is no sample response to show beside the code. */
-.extractors-dialog-panes.is-single {
+.script-panes.is-single {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -6806,7 +6691,7 @@ select,
 
 /* A code editor should read as a recessed well, not as the lightest surface in the dialog.
    `--rp-bg` is the app canvas: near-black in dark, warm paper in light. */
-.extractors-pane .extractors-code {
+.script-pane .script-code {
   background: var(--rp-bg);
 }
 
@@ -6833,4 +6718,17 @@ select,
   height: 26px;
   min-width: 28px;
   min-height: 26px;
+}
+
+/* A result is something the user asked to see, not a passing confirmation: more room, and the
+   value in monospace because it is usually one. Still a toast — it does not block anything. */
+.app-toast--result {
+  max-width: min(92vw, 560px);
+  padding: 12px 18px;
+  border-color: rgb(var(--rp-accent-rgb) / 0.35);
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
