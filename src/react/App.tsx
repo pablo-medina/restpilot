@@ -20,6 +20,9 @@ import {
   Toast,
   ExtractorResultDialog,
   ExtractorsDialog,
+  FunctionsDialog,
+  ScriptArgsDialog,
+  ScriptResultDialog,
   ParameterPromptDialog,
   VariablesManagerDialog,
   Workspace
@@ -80,6 +83,9 @@ export function App() {
         <ParameterPromptDialog />
         <ExtractorsDialog refresh={refresh} />
         <ExtractorResultDialog />
+        <FunctionsDialog refresh={refresh} />
+        <ScriptArgsDialog />
+        <ScriptResultDialog />
       </ErrorBoundary>
       <ContextMenu />
       <Toast />

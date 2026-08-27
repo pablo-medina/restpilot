@@ -7,6 +7,7 @@ import { normalizeParentId } from "./collection-parent";
 import { migrateVariableSyntax, needsVariableSyntaxMigration } from "./migrate-variable-syntax";
 import {
   clampRequestTimeoutSecs,
+  clampScriptTimeoutSecs,
   CONFIG_VERSION,
   DEFAULT_PROXY_TEST_URL,
   defaultSettings,
@@ -15,6 +16,7 @@ import {
   type BodyMode,
   type Environment,
   type Extractor,
+  type Helper,
   type RequestExtractor,
   type FormPartType,
   type HeaderPair,
@@ -113,6 +115,33 @@ function legacyFunctionExtractors(functions: unknown): Record<string, unknown>[]
     });
 }
 
+function normalizeHelper(raw: Record<string, unknown>): Helper {
+  const description = String(raw.description ?? "").trim();
+  const code = String(raw.code ?? "");
+  const params = Array.isArray(raw.params) ? raw.params : [];
+  const sampleArgs = Array.isArray(raw.sampleArgs) ? raw.sampleArgs : null;
+  // The cached signature is only as good as the last save; `code` is what the engine reads,
+  // and the editor refreshes both whenever the source is parsed.
+  return {
+    id: String(raw.id || crypto.randomUUID()),
+    name: String(raw.name ?? "").trim(),
+    description: description || undefined,
+    params: params.map((param) => String(param ?? "")).filter((param) => param !== ""),
+    code,
+    sampleArgs: sampleArgs ? sampleArgs.map((value) => String(value ?? "")) : undefined
+  };
+}
+
+/** Stored under `helpers`. The `functions` key is a different, removed feature — see
+ * `legacyFunctionExtractors` — and must not be read here. */
+function normalizeHelpers(config: AppConfig): Helper[] {
+  const raw: unknown[] = Array.isArray(config.helpers) ? config.helpers : [];
+  return raw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map(normalizeHelper)
+    .filter((helper) => helper.code.trim() !== "");
+}
+
 function normalizeRequestExtractor(raw: unknown): RequestExtractor | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const value = raw as Record<string, unknown>;
@@ -204,12 +233,14 @@ export function normalizeConfig(config: AppConfig): AppConfig {
     openTabs: config.openTabs ?? [],
     activeTabId: config.activeTabId ?? "",
     extractors: normalizeExtractors(config),
+    helpers: normalizeHelpers(config),
     settings: {
       ...defaultSettings(),
       ...config.settings,
       tabSize: clampTabSize(config.settings?.tabSize),
       autoPrettifyJson: config.settings?.autoPrettifyJson !== false,
       requestTimeoutSecs: clampRequestTimeoutSecs(config.settings?.requestTimeoutSecs),
+      scriptTimeoutSecs: clampScriptTimeoutSecs(config.settings?.scriptTimeoutSecs),
       followRedirects: config.settings?.followRedirects !== false,
       clickToSelect: config.settings?.clickToSelect !== false,
       limitOpenTabs: config.settings?.limitOpenTabs === true,

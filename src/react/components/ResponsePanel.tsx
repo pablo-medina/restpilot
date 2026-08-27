@@ -14,7 +14,8 @@ import {
 } from "../../ui/response-panel";
 import { isImageResponse, isPdfResponse, responseBodyBytes, responseMimeType } from "../../lib/response-binary";
 import { highlightResponse, isLargeText } from "../../lib/content-display";
-import { iconBookmark, iconCopy, iconDownload } from "../../lib/icons";
+import { iconBookmark, iconCopy, iconDownload, iconFunction } from "../../lib/icons";
+import { createFunctionFromResponse } from "../lib/function-from-response";
 import { t } from "../../i18n";
 import type { ApiResponse, ResponseTab, SavedRequest, SavedResponseHistoryItem, TabState } from "../../types";
 import { ensureTab } from "../lib/ensure-tab";
@@ -175,6 +176,17 @@ function ResponseHead({
           style={{ marginRight: 6, color: "var(--rp-text-muted)" }}
           onClick={() => void downloadResponseBody(request, tab)}
           dangerouslySetInnerHTML={{ __html: iconDownload }}
+        />
+        <button
+          className="icon-btn"
+          data-action-create-function
+          type="button"
+          disabled={response.body_is_base64}
+          aria-label={t().functions.createFromResponse}
+          title={t().functions.createFromResponse}
+          style={{ marginRight: 6, color: "var(--rp-text-muted)" }}
+          onClick={() => createFunctionFromResponse(request, response)}
+          dangerouslySetInnerHTML={{ __html: iconFunction }}
         />
         <button
           className="icon-btn"

@@ -22,6 +22,7 @@ import { ensureTab } from "./react/lib/ensure-tab";
 import { enforceOpenTabLimit } from "./react/lib/tab-actions";
 import { markTabUsed } from "./app/tab-usage";
 import { requestUsesSecretVariables, variablesForCurl } from "./lib/variables";
+import type { AppConfig } from "./types";
 import "./styles.css";
 import { COLLECTION_ROOT_PARENT_ID } from "./app/collection-parent";
 import { finishBoot } from "./app/boot-loader";
@@ -67,7 +68,10 @@ export async function startApp(
     const loaded = await configPromise;
     if (loaded) {
       const { config: migrated, persist } = loaded;
-      Object.assign(state, {
+      // Typed as the whole config on purpose: adding a field to `AppConfig` and forgetting
+      // it here is how the script library got saved but never restored, so let that be a
+      // compile error rather than something to notice on the next restart.
+      const restored: Omit<AppConfig, "configVersion"> = {
         items: migrated.items,
         variables: migrated.variables ?? [],
         environments: migrated.environments ?? [],
@@ -75,8 +79,10 @@ export async function startApp(
         openTabs: (migrated.openTabs ?? []).filter((tabId) => Boolean(getRequestFrom(migrated.items, tabId))),
         activeTabId: "",
         settings: migrated.settings,
-        extractors: migrated.extractors ?? []
-      });
+        extractors: migrated.extractors ?? [],
+        helpers: migrated.helpers ?? []
+      };
+      Object.assign(state, restored);
       state.activeTabId = state.openTabs.includes(migrated.activeTabId) ? migrated.activeTabId : (state.openTabs[0] ?? "");
       if (persist) scheduleSave();
 

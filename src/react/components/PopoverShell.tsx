@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { computePopoverPosition } from "../../components/popover-position";
 import { t } from "../../i18n";
+import { iconWindowClose } from "../../lib/icons";
+import { Icon } from "./Icon";
 
 type Props = {
   className?: string;
@@ -56,13 +58,13 @@ export function PopoverShell({ className, title, ariaLabel, anchor, onClose, chi
       <header className="app-popover-head">
         <strong className="app-popover-title">{title}</strong>
         <button
-          className="mini-btn app-popover-close"
+          className="mini-btn dialog-window-btn dialog-window-btn--close app-popover-close"
           type="button"
           data-popover-close
           aria-label={labels.close}
           onClick={(event) => { event.stopPropagation(); onClose(); }}
         >
-          ×
+          <Icon html={iconWindowClose} />
         </button>
       </header>
       <div className="app-popover-body">{children}</div>

@@ -10,6 +10,7 @@ import { t } from "../../i18n";
 import {
   clampMaxOpenTabs,
   clampRequestTimeoutSecs,
+  clampScriptTimeoutSecs,
   DEFAULT_PROXY_TEST_URL,
   MAX_MAX_OPEN_TABS,
   MIN_MAX_OPEN_TABS,
@@ -409,6 +410,22 @@ export function SettingsPanel({ refresh }: Props) {
                   title={labels.requestTimeoutHint}
                   onChange={(event) => {
                     settings.requestTimeoutSecs = clampRequestTimeoutSecs(event.target.value);
+                    persist();
+                  }}
+                />
+              </label>
+              <label className="settings-field settings-field-compact">
+                <span>{labels.scriptTimeout}</span>
+                <input
+                  id="setting-script-timeout"
+                  type="number"
+                  min={1}
+                  max={300}
+                  step={1}
+                  value={settings.scriptTimeoutSecs}
+                  title={labels.scriptTimeoutHint}
+                  onChange={(event) => {
+                    settings.scriptTimeoutSecs = clampScriptTimeoutSecs(event.target.value);
                     persist();
                   }}
                 />

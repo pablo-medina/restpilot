@@ -76,6 +76,7 @@ export function parseCollectionExport(raw: string, settings: UserSettings): Coll
     // always treated as legacy. The template-syntax upgrade is idempotent, which makes this
     // safe for exports produced after the switch.
     configVersion: LEGACY_CONFIG_VERSION,
+    helpers: [],
     items: (collection as CollectionSnapshot).items ?? [],
     variables: (collection as CollectionSnapshot).variables ?? [],
     environments: (collection as CollectionSnapshot).environments ?? [],

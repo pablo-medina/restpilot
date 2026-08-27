@@ -15,3 +15,6 @@ export { Toast, pushToast } from "./Toast";
 export { ErrorBoundary } from "./ErrorBoundary";
 export { ExtractorsDialog } from "./dialogs/ExtractorsDialog";
 export { ExtractorResultDialog } from "./dialogs/ExtractorResultDialog";
+export { FunctionsDialog } from "./dialogs/FunctionsDialog";
+export { ScriptArgsDialog } from "./dialogs/ScriptArgsDialog";
+export { ScriptResultDialog } from "./dialogs/ScriptResultDialog";

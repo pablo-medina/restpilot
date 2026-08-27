@@ -43,6 +43,10 @@ export const iconEyeOff = strokeIcon('<path d="M2 2l12 12M3.65 4.15A8.8 8.8 0 0 
 /** Funnel — an extractor narrows a response down to one value. */
 export const iconExtractor = strokeIcon('<path d="M2.75 3.5h10.5L9.25 8.25v4.9l-2.5-1.65V8.25z"/>');
 
+export const iconFunction = strokeIcon('<path d="M6.75 2.75c-1.4 0-1.9.85-1.9 2.1s.1 2.4-1.6 2.4h-.5"/><path d="M2.75 8.75h.5c1.7 0 1.6 1.15 1.6 2.4s.5 2.1 1.9 2.1"/><path d="M9.25 2.75c1.4 0 1.9.85 1.9 2.1s-.1 2.4 1.6 2.4h.5"/><path d="M13.25 8.75h-.5c-1.7 0-1.6 1.15-1.6 2.4s-.5 2.1-1.9 2.1"/>');
+
+export const iconHelp = strokeIcon('<circle cx="8" cy="8" r="6.25"/><path d="M6.35 6.2a1.7 1.7 0 0 1 3.3.55c0 1.1-1.65 1.35-1.65 2.5"/><circle cx="8" cy="11.6" r=".75" fill="currentColor" stroke="none"/>');
+
 export const iconPlus = strokeIcon('<path d="M8 2.75v10.5M2.75 8h10.5"/>');
 
 export const iconMoreHorizontal = strokeIcon('<circle cx="3.25" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="12.75" cy="8" r=".9" fill="currentColor" stroke="none"/>');

@@ -11,6 +11,7 @@ import {
 } from "../../ui/window-chrome";
 import {
   iconExtractor,
+  iconFunction,
   iconSettings,
   iconSidebar,
   iconWindowClose,
@@ -22,6 +23,7 @@ import { openSettingsDialog } from "../lib/settings-dialog";
 import { toggleSidebar } from "../lib/sync-app-frame";
 import { TabBar } from "./TabBar";
 import { ExtractorsPopover } from "./extractors/ExtractorsPopover";
+import { FunctionsPopover } from "./functions/FunctionsPopover";
 
 type Props = {
   refresh: () => void;
@@ -57,6 +59,13 @@ export function TitleBar({ refresh }: Props) {
   const railHostsSidebarToggle = state.activePanel === "request" && state.sidebarVisible;
   const extractorsBtnRef = useRef<HTMLButtonElement>(null);
   const [extractorsOpen, setExtractorsOpen] = useState(false);
+  const functionsBtnRef = useRef<HTMLButtonElement>(null);
+  const [functionsOpen, setFunctionsOpen] = useState(false);
+
+  const closeFunctionsPopover = () => {
+    setFunctionsOpen(false);
+    functionsBtnRef.current?.focus();
+  };
 
   const closeExtractorsPopover = () => {
     setExtractorsOpen(false);
@@ -142,6 +151,31 @@ export function TitleBar({ refresh }: Props) {
     </>
   );
 
+  const functionsButton = (
+    <>
+      <button
+        ref={functionsBtnRef}
+        type="button"
+        className={`title-bar-settings title-bar-functions${functionsOpen ? " is-active" : ""}`}
+        data-title-bar-functions
+        title={nav.functions}
+        aria-label={nav.functions}
+        aria-haspopup="dialog"
+        aria-expanded={functionsOpen}
+        onClick={() => setFunctionsOpen((open) => !open)}
+      >
+        <span className="title-bar-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: iconFunction }} />
+      </button>
+      {functionsOpen && (
+        <FunctionsPopover
+          anchor={functionsBtnRef.current}
+          onClose={closeFunctionsPopover}
+          refresh={refresh}
+        />
+      )}
+    </>
+  );
+
   const settingsButton = (
     <button
       type="button"
@@ -166,6 +200,7 @@ export function TitleBar({ refresh }: Props) {
         </div>
         <div className="title-bar-drag" data-tauri-drag-region aria-hidden="true" />
         <div className="title-bar-actions">
+          {functionsButton}
           {extractorsButton}
           {settingsButton}
           {controls}
@@ -181,6 +216,7 @@ export function TitleBar({ refresh }: Props) {
         <span className="title-bar-center-text">{center}</span>
       </div>
       <div className="title-bar-actions">
+        {functionsButton}
         {extractorsButton}
         {settingsButton}
         {controls}

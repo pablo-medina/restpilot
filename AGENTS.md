@@ -15,6 +15,8 @@
 - **Do not use `localStorage` or `sessionStorage`.**
 - Do not add migration fallbacks from removed storage mechanisms.
 
+**Restoring config into state is typed as the whole config.** `startApp` copies the loaded config into `state` field by field, and a field added to `AppConfig` but forgotten there is saved and never read back — which then blanks it on the next save. The object is annotated `Omit<AppConfig, "configVersion">` so leaving one out is a compile error, not something to discover after a restart.
+
 ### Config version and schema upgrades
 
 `AppConfig.configVersion` (`CONFIG_VERSION` in `src/types.ts`) is the schema version of `config.json`. When stored data needs a one-time rewrite, bump it and add the upgrade to `normalizeConfig()` in `src/app/config-normalize.ts`, which runs on load **and** on RestPilot collection import (export files embed raw items and carry no version of their own, so `parseCollectionExport()` passes `LEGACY_CONFIG_VERSION`).
@@ -55,7 +57,7 @@ A `{{?name}}` is a value the request asks for when it runs. There is nothing to 
 **Never build a modal out of a bare `.app-dialog` + `.dialog-title`.** Every hand-rolled one shipped the same three defects: a title bar that looks draggable but is not, a bare `×` glyph instead of the real close control, and its own broken centring. `AppModal` (`src/react/components/dialogs/AppModal.tsx`) is the shell — pass `title`, `variant`, `width`, optional `height`, `onClose` and an optional `footer`, and it provides:
 
 - a **working drag** on the title bar (`cursor: grab`, clamped so a grab strip always stays on screen),
-- the standard close button (`iconWindowClose` in `.dialog-window-btn--close`),
+- the standard close button (`iconWindowClose` in `.dialog-window-btn--close`) — **never a `×` text glyph**, whose size follows the font so no two of them ever match. `SettingsDialog`, `VariablesManagerDialog` and `PopoverShell` each shipped one anyway; they now use the control, and `.dialog-window-btn svg` sizes every window-button icon to 14px so the whole family agrees. The close hover tint is no longer scoped to `.app-dialog`, so a popover's close reddens like a dialog's,
 - Escape to close, and centring via explicit `left`/`top`.
 
 Centring uses `left`/`top`, **not** `transform`: `.app-dialog` carries `animation: rp-dialog-appear … !important`, and its final frame `transform: scale(1)` silently overwrites any `transform: translate(-50%, -50%)`.
@@ -101,6 +103,118 @@ An extractor is a named script that pulls a value out of a response. It replaced
 - Per request, `SavedRequest.extractor` (`ExtractorBar`, the row under the URL line) holds the toggle, the chosen extractor and an optional target variable. The checkbox is the disclosure — the rest of the row only renders when it is on.
 - `runRequestExtractor()` runs after a successful send. With a target variable the value lands in the **active environment, or globals when none is active**; without one it opens `ExtractorResultDialog` to copy.
 - Configs that still carry `functions` have each function's `extractorCode` carried over into an extractor (`legacyFunctionExtractors` in `config-normalize.ts`) — delete that branch once no config in the wild has them.
+
+### Script library
+
+A **library function** is a named piece of JavaScript reachable from any script as `lib.<name>`. It is a different thing from an extractor: an extractor is attached to a request and pulls a value out of one response, a library function is a reusable helper anything can call.
+
+**The source is the only form.** The author writes an ordinary declaration —
+
+```js
+function doSomething(nrodoc) {
+  console.log("DNI: " + nrodoc);
+  return "hola";
+}
+```
+
+— and the name and parameters are read back out of it. There is no name field and no parameter table; `Helper.name` and `Helper.params` are a **cache of the last parse**, kept only so the picker can show a signature without asking the engine, and never authoritative. `src-tauri/src/script_signature.rs` is the scanner (strings, comments and bracket depth, unit-tested); `describe()` runs it and then compiles the source so a syntax error is reported against what was written. The editor calls `parse_script` debounced while typing, which is also where live syntax errors come from.
+
+The entry exports **the last top-level `function` declaration**, so private helpers can be written above it. `run_script` re-derives every entry's name from its own source, so a stale cache can never make `lib.<name>` resolve to the wrong function.
+
+**Everything a run involves lives in `runHelper()`** (`src/react/lib/run-helper.ts`): work out the signature, ask for what is missing, run, apply what the script wrote to `env`, toast the variables it touched. It is not in the editor because **a run started from the picker never opens one** — clicking a row in `FunctionsPopover` runs its function, the pencil is what edits. Output goes to `ScriptResultDialog`; the editor renders the same `ScriptOutput` inline, so a run reads the same either way.
+
+**Create function from response** (the braces button in the response panel) starts an entry whose parameter is called `response` and seeds the editor with the whole response as pretty-printed JSON — `{status, headers, body}`, headers as the lookup a script reads (repeats joined with ", "), body parsed so it shows as structure. `responseSampleJson()` builds it, `parseSampleResponse()` reads it back, and a pane the user has broken is reported rather than handed over as a string.
+
+That sample is **scaffolding for that one editing session**, not a property of the function. It reaches the dialog through `openFunctionsDialog(id, { sample })` and nothing stores it — not `Helper`, not `config.json`, not a session map. **The editor is identical for every function**: reopening one that was created from a response later gives the plain single-pane editor like any other. While the sample pane is there, Run injects it as the first argument and asks only for the parameters after it.
+
+**A function being created is added to the run library, not substituted into it.** `draftLibrary()` normally swaps the stored entry for the draft, but a new function is not in `state.helpers` at all until Save — substituting would leave it out and a first run before saving would fail with "Unknown library function".
+
+**Editing lives in `useFunctionDraft` and `FunctionEditor`, not in the dialog.** The hook holds the draft, the debounced signature parse, whether it has been edited, running, saving and the discard guard; the component renders the signature, description, panes, run row and output. `FunctionsDialog` is only a frame — a title, a footer and the ways out. That split is what lets the same editing surface work in a full-window panel later without being written twice, so keep new editing behaviour in the hook or the component rather than in whatever is framing them.
+
+`guard(proceed)` is the **one** unsaved-changes check, for every way out — cancel, close, and a panel's "switch to another function". Do not add a second one.
+
+Its prompt passes `height: 0` to `applicationDialog`, which otherwise defaults to 420px — a mostly empty box around two lines of prose. Any confirmation of that size wants the same.
+
+**Nothing is created by opening the editor.** A new function — from the picker or from Create function from response — is handed to the dialog through `openFunctionsDialog(id, { create })` and only reaches `state.helpers` on Save, so opening the editor and closing it leaves the library exactly as it was. Save is enabled only once the draft differs from what was opened, and closing an edited dialog asks before discarding. "Edited" means the **stored** fields only: the sample pane is scaffolding and `sampleArgs` is bookkeeping a run updates by itself, so neither makes a dialog dirty.
+
+**The script editor is a mode of the body editor, not a second editor.** `mountBodyEditor(host, …, { script: true, libraryNames })` layers on the gutter, active line, bracket matching and completion; `CodeMirrorEditor` takes `script` and `libraryNames` to ask for it. It is opt-in so a JSON request body does not grow a gutter it never asked for, and `libraryNames` is read at mount — it is a fresh array on every render, so putting it in the effect's deps would remount mid-edit and throw away the cursor.
+
+`scriptCompletions()` offers only what **this app** puts in scope — `env`, `lib`, `response`, `args`, `console`, plus the library after `lib.` — and leaves JavaScript itself to the language extension. A half-remembered subset of the standard library would be worse than none. It is exported and unit-tested: CodeMirror will not open a completion tooltip in an unfocused document, so the browser preview cannot exercise it.
+
+A library completion carries its **signature** and inserts `name()` with the cursor between the parentheses. The signatures come from parsing each other entry's source when the editor opens, not from the cached `Helper.params` — the cache holds names only, and the types are the point. The list is read through a **getter**, so signatures that resolve a moment after the editor mounted are still offered without remounting it and losing the cursor.
+
+**Tab takes the highlighted completion** while the list is open, wrapped in `Prec.high` — without it `insertTabKeymap` would insert spaces first. `acceptCompletion` declines when nothing is open, so Tab still indents the rest of the time.
+
+The completion popup, gutter and active line are themed in `scriptTheme()` **inside the CodeMirror theme**, not in `styles.css`, for the same reason the syntax colours are: CodeMirror writes those values into its own stylesheet, so an `--rp-*` token resolves per theme and there is no light/dark pair to keep in step by hand. The selected row is an accent **tint** rather than a solid fill, because the detail text has to stay readable on it.
+
+The **help button** beside Run opens `ScriptHelpDialog`: what is in scope, how JSDoc types the arguments, and where the edges are. Prose lives in i18n; the code sample does not, because it is JavaScript in both languages.
+
+**One dialog, two scopes.** Opened on a single function — from a request, or from the picker's pencil — there is no catalogue, because there is nothing to switch to; a list rendered inert would be worse than no list. Opened with `{ library: true }` from the picker's **Open library** it comes up large with `FunctionList` beside the editor. Same `FunctionEditor` either way.
+
+Switching rows goes through the same `guard()` as closing, and **saving does not close while browsing** — you are in the library, you stay in it. Coming from a request, saving is the end of the errand and the dialog closes. `save()` itself never closes: it re-seeds the baseline so the editor is no longer "edited", and the frame decides.
+
+There is deliberately **no full-window panel**. `Workspace` still branches on `activePanel === "settings"` and `switchActivityPanel()` still exists, but **nothing calls it** — Settings went the same route (one `SettingsPanel`, rendered by a dialog) and the panel frame was left behind. A functions panel would be the only screen of its kind, so the editor is a resizable dialog instead. Revisit when ROADMAP 3.9/3.10 make scripting a workspace rather than something you open, edit and close.
+
+**`AppModal` resizes and maximizes** (`resizable`), using the same `.resize-handle`/`.maximized` classes `AppDialog` has always had, so the existing styles apply unchanged. Handles are not rendered while maximized, and restoring returns the exact bounds it left. Maximized also drops `.app-modal`'s `max-height`, which exists to keep a *normal* dialog on screen and only fights a size that was already worked out.
+
+**A code editor gets `--rp-bg`, not the dialog's surface.** CodeMirror is transparent, so without a background of its own the code area inherits `--rp-surface-raised` and ends up the *lightest* thing in the dialog — backwards for an editor, and in dark mode it reads as a wash of similar greys. `.extractors-pane .extractors-code` sets the app canvas instead: `#141312` in dark against the dialog's `#2a2926`, with the gutter a shade lighter at `#181715`.
+
+Measuring a maximized dialog in the Browser pane gives numbers ~3% small: the `rp-dialog-appear` animation never finishes while the pane is not compositing, so it stays at its `scale(0.97)` first frame. Divide it out before concluding anything about margins.
+
+Names are made unique at **creation**, not left for validation to complain about: `identifierFromTitle()` camel-cases the request's title (folding accents, lowercasing all-caps words) and `uniqueHelperName()` counts past whatever is taken — `example`, `example2`, `example3`. Uniqueness is not cosmetic: every entry is reached through the same `lib`, so two functions with one name would shadow each other with no way to tell which won.
+
+Running **prompts for its arguments** (`ScriptArgsDialog`), the same way a request prompts for its `{{?parameters}}`. Both dialogs share `PromptFields` — one control for a single value, a spreadsheet grid for several, with the Enter/↓/↑ keys. Do not fork it; the keyboard behaviour only stays consistent because there is one copy.
+
+**`PromptFields` must not depend on the identity of its `fields` array.** Callers build it inline, so a new array arrives on every render; keying the focus effect on it refocused and re-selected after every keystroke, and the next character replaced what had been typed. It keys on a string built from the rows instead.
+
+### Typing arguments with JSDoc
+
+A parameter's type comes from an ordinary JSDoc block above the declaration:
+
+```js
+/**
+ * @param {string} dni
+ * @param {number} monto
+ * @param {object} filtros
+ */
+function cobrar(dni, monto, filtros) { … }
+```
+
+It is **valid JavaScript** — comments the engine ignores — so there is no transpiling and no syntax the engine would reject. TC39's type annotations are Stage 1 and QuickJS would refuse `dni: string` outright; TypeScript would mean shipping a compiler and, worse, running something other than what was typed, which is what today keeps error line numbers honest.
+
+`script_signature.rs` reads it: `jsdoc_before()` finds the block attached to the exported declaration (searching the raw source backwards, since `CodeScan` skips comments on purpose) and `jsdoc_param_types()` pulls the `@param` types out. The **declaration stays the authority** on which parameters exist and in what order — JSDoc only adds a type to one already there, so a stale `@param` for a renamed parameter is ignored rather than inventing an argument.
+
+Only a closed set is understood: `string`, `number`, `boolean`, `object`, `array` (plus the spellings people actually write — `Boolean`, `int`, `String[]`, `Array<number>`, `{{ x: string }}`). Anything else reads as **no annotation at all**, because pretending to understand `{Promise<Foo>}` is worse than admitting it says nothing this app can act on.
+
+**A blank field means `undefined`, and JSON cannot say that.** `runScript` sends blanks as `null` plus an `undefined_args` list of positions, and the engine puts the `undefined` back before calling. Without it a parameter written with a default (`function f(a = 10)`) would receive `null`, which does **not** trigger the default — the function would silently compute with nothing. The declaration's defaults are read by the scanner too and shown as the field's placeholder, so leaving it blank is a visible option rather than something to know.
+
+The type picks the control — number field, checkbox, JSON box, plain text — and `coerceArgument()` turns the typed text into the value. **An unannotated argument stays a string; nothing is inferred.** "Looks like JSON, must be JSON" would silently turn a DNI into a number with no way to say otherwise, which is the same class of bug that makes spreadsheets mangle phone numbers. A blank typed field is `undefined` rather than `0` or `{}`, so `function f(monto = 10)` gets its default. A JSON box that will not parse blocks Run in the prompt rather than failing after the fact.
+
+Scripts do **not** run in the webview. `src-tauri/src/script.rs` embeds QuickJS and the `run_script` command evaluates them there. Two reasons, and both are load-bearing:
+
+- **A webview script cannot be stopped.** `new Function` on the main thread means one `while(true)` hangs the app with no way out. QuickJS has an interrupt handler, so `scriptTimeoutSecs` and the user's Cancel both actually work — they share the request cancellation registry (`cancel_request` / `is_cancelled`), so one id cancels either kind of run.
+- **Tauri ships no engine of its own.** In the webview a script would run on V8 on Windows and on two different JavaScriptCore versions on macOS and Linux — where the version depends on the distro's webkit2gtk. Embedding the engine is what makes a script behave the same everywhere.
+
+What a script sees, all built by the JS prelude in `script.rs`:
+
+| In scope | Is |
+|---|---|
+| `response` | the response, JSON bodies already parsed — `null` when there is none |
+| `env` | a `Proxy`: reads a snapshot of the effective variables, writes buffer into `__envWrites` |
+| `lib` | a `Proxy` compiling each function on first use with `new Function(...params, code)` |
+| `args` | the entry script's arguments |
+| `console` | `log`/`warn`/`error`, emitted live on `restpilot:script-log` **and** returned in the outcome |
+
+Things that will bite if they are undone:
+
+- **`env.x = undefined` clears the variable**, the same as `delete env.x` — `undefined` is JavaScript for "there is no such thing". A `null` is kept as an empty value instead, because that is a value an API actually returned.
+- **A run that clears several variables at once asks first** (`CONFIRM_CLEARED_FROM` in `run-script.ts`). Deleting a token or two is ordinary; a loop over `Object.keys(env)` wiping an environment is not, and by then it is gone. Answering no applies **nothing** — not the deletions and not the run's other writes — so the environment is left exactly as the script found it. Note there is no way to wipe the environment wholesale: `env = {}` only reassigns a local binding, and the only things ever applied are the names the `Proxy` traps recorded.
+- **`env` writes are applied by the caller, never by the engine**, and a script that throws applies **none** of them. Half-written variables are impossible to debug. `applyScriptWrites()` puts them in the active environment, or globals when there is none — the same destination an extractor's target variable uses.
+- **`lib` needs no cycle guard.** An entry is compiled by evaluating its source and taking the function it declares; compiling does not run the body, so a function calling another one resolves lazily at call time and cannot recurse at definition time.
+- **The entry wrapper carries no newline** (`wrap_entry`). That is what makes the line numbers in an error match the lines the user wrote; add one and every reported line is off by one.
+- **The library is stored under `helpers`, never `functions`.** The `functions` key belongs to the removed Functions section and is still read by `legacyFunctionExtractors()`; reusing it would silently turn library functions into extractors.
+- Two entries declaring the **same function name** is the one name rule left (`helperNameProblem`); everything else about the name is JavaScript's problem and the engine already reported it.
+- `FunctionsDialog` runs the **unsaved draft**, not the stored version — it passes its own library through `runScript({ helpers })`.
 
 `Dropdown` (`src/react/components/Dropdown.tsx`) is the app's own listbox. Use it instead of a native `<select>` wherever the control sits in app chrome; a native one renders as OS chrome.
 

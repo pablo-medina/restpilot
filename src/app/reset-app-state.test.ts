@@ -6,6 +6,7 @@ import type { AppState } from "./state";
 function mockPopulatedState(): AppState {
   return {
     configVersion: CONFIG_VERSION,
+    helpers: [{ id: "h1", name: "cuil", params: ["dni"], code: "function cuil(dni) { return dni; }" }],
     items: [{ id: "1", kind: "folder", parentId: "/", title: "X", expanded: true }],
     variables: [{ id: "v1", name: "a", value: "b", enabled: true }],
     environments: [{ id: "e1", name: "Prod", variables: [] }],
@@ -59,6 +60,7 @@ describe("resetAppStateToDefaults", () => {
     expect(state.settings).toEqual(expected.settings);
     expect(state.openTabs).toEqual(expected.openTabs);
     expect(state.extractors).toEqual(expected.extractors);
+    expect(state.helpers).toEqual(expected.helpers);
   });
 
 

@@ -1,4 +1,5 @@
 import type { ApiResponse, Extractor, Variable } from "../types";
+import { uniqueNameProblem, type NameProblem } from "./unique-names";
 
 export const DEFAULT_EXTRACTOR_CODE = `// The response is available as \`response\`.
 // Return the value you want to extract.
@@ -95,7 +96,7 @@ export function applyExtractedVariable(
   return { created: true };
 }
 
-export type ExtractorNameProblem = "empty" | "duplicate" | null;
+export type ExtractorNameProblem = NameProblem;
 
 /** Names are required and unique; `selfId` excludes the extractor being edited. */
 export function extractorNameProblem(
@@ -103,12 +104,7 @@ export function extractorNameProblem(
   extractors: Extractor[],
   selfId: string
 ): ExtractorNameProblem {
-  const trimmed = name.trim();
-  if (!trimmed) return "empty";
-  const clash = extractors.some(
-    (item) => item.id !== selfId && item.name.trim().toLowerCase() === trimmed.toLowerCase()
-  );
-  return clash ? "duplicate" : null;
+  return uniqueNameProblem(name, extractors, selfId);
 }
 
 export function findExtractor(extractors: Extractor[], id: string | undefined): Extractor | null {

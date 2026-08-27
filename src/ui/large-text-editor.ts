@@ -4,11 +4,27 @@ import { t } from "../i18n";
 import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
 import { javascript } from "@codemirror/lang-javascript";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { history, historyKeymap } from "@codemirror/commands";
+import { bracketMatching, HighlightStyle, indentOnInput, syntaxHighlighting } from "@codemirror/language";
+import {
+  acceptCompletion,
+  autocompletion,
+  closeBrackets,
+  closeBracketsKeymap,
+  completionKeymap,
+  type Completion,
+  type CompletionContext,
+  type CompletionResult
+} from "@codemirror/autocomplete";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { tags } from "@lezer/highlight";
-import { EditorSelection, EditorState, Transaction, type ChangeSpec } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorSelection, EditorState, Prec, Transaction, type ChangeSpec } from "@codemirror/state";
+import {
+  EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  keymap,
+  lineNumbers
+} from "@codemirror/view";
 import { clampTabSize, type RawType } from "../types";
 
 export type ViewerMode = RawType | "javascript";
@@ -19,6 +35,11 @@ export type BodyEditorOptions = {
   autoPrettifyJson?: boolean;
   onChange: (value: string) => void;
   onSend?: () => void;
+  /** Turns on the code-editing extras: gutter, brackets, completion of what is in scope. */
+  script?: boolean;
+  /** Library functions offered after `lib.`, with their signatures. Read through a getter so
+   * signatures that resolve after the editor mounted are still offered. */
+  library?: () => readonly LibraryCompletion[];
 };
 
 /** Highlight colours come from the `--rp-syntax-*` tokens rather than a hardcoded
@@ -159,6 +180,161 @@ function bodyPasteHandler(rawType: ViewerMode, autoPrettifyJson: boolean) {
   });
 }
 
+/** One library function as the editor offers it: what to insert, and what it takes. */
+export type LibraryCompletion = {
+  name: string;
+  /** Rendered beside the name, e.g. `(dni: string, monto: number)`. */
+  signature: string;
+  /** Whether to leave the cursor between the parentheses after inserting. */
+  takesArguments: boolean;
+};
+
+/** What a library script has in scope, so the editor can offer it rather than leaving the
+ * author to remember. Kept in step with the prelude in `src-tauri/src/script.rs`. */
+const SCRIPT_GLOBALS: Completion[] = [
+  { label: "env", type: "variable", detail: "RestPilot variables" },
+  { label: "lib", type: "variable", detail: "the script library" },
+  { label: "response", type: "variable", detail: "the response, when there is one" },
+  { label: "args", type: "variable", detail: "the arguments this run was given" },
+  { label: "console", type: "variable", detail: "log / warn / error" }
+];
+
+const MEMBERS: Record<string, Completion[]> = {
+  console: [
+    { label: "log", type: "method" },
+    { label: "warn", type: "method" },
+    { label: "error", type: "method" }
+  ],
+  response: [
+    { label: "status", type: "property" },
+    { label: "statusText", type: "property" },
+    { label: "headers", type: "property" },
+    { label: "body", type: "property" }
+  ]
+};
+
+/**
+ * Completion for what the engine puts in scope, plus the library by name.
+ *
+ * Deliberately small: it offers what this app provides and leaves JavaScript itself to the
+ * language extension. A half-remembered subset of the standard library would be worse than
+ * offering none at all.
+ */
+export function scriptCompletions(getLibrary: () => readonly LibraryCompletion[]) {
+  const toOption = (entry: LibraryCompletion): Completion => ({
+    label: entry.name,
+    type: "function",
+    detail: entry.signature,
+    // Inserting the parentheses and landing between them is the point: the next thing to
+    // write is the arguments, and the list has just said which ones.
+    apply: (view, _completion, from, to) => {
+      const inside = from + entry.name.length + 1;
+      view.dispatch({
+        changes: { from, to, insert: entry.name + "()" },
+        selection: { anchor: entry.takesArguments ? inside : inside + 1 }
+      });
+    }
+  });
+
+  return (context: CompletionContext): CompletionResult | null => {
+    const member = context.matchBefore(/\w+\.\w*/);
+    if (member) {
+      const owner = member.text.slice(0, member.text.indexOf("."));
+      const options = owner === "lib" ? getLibrary().map(toOption) : MEMBERS[owner];
+      if (!options?.length) return null;
+      return { from: member.from + owner.length + 1, options, validFor: /^\w*$/ };
+    }
+
+    const word = context.matchBefore(/\w+/);
+    if (!word || (word.from === word.to && !context.explicit)) return null;
+    return { from: word.from, options: SCRIPT_GLOBALS, validFor: /^\w*$/ };
+  };
+}
+
+/** Completion popup, gutter and active line, in the app's tokens.
+ *
+ * Kept in the CodeMirror theme rather than in `styles.css` for the same reason the syntax
+ * colours are: CodeMirror writes these straight into its own stylesheet, so a token resolves
+ * per theme and there is no light/dark pair to keep in step by hand. */
+function scriptTheme() {
+  return EditorView.theme({
+    ".cm-gutters": {
+      borderRight: "1px solid var(--rp-border)",
+      background: "var(--rp-surface-muted)",
+      color: "var(--rp-text-faint)"
+    },
+    ".cm-activeLineGutter": { background: "transparent", color: "var(--rp-text-secondary)" },
+    ".cm-activeLine": { background: "var(--rp-accent-soft)" },
+    ".cm-matchingBracket, &.cm-focused .cm-matchingBracket": {
+      background: "var(--rp-accent-soft-md)",
+      outline: "1px solid var(--rp-accent-soft-strong)"
+    },
+
+    ".cm-tooltip.cm-tooltip-autocomplete": {
+      border: "1px solid var(--rp-border)",
+      borderRadius: "7px",
+      background: "var(--rp-surface-raised)",
+      boxShadow: "0 10px 28px rgb(0 0 0 / 0.18)",
+      overflow: "hidden"
+    },
+    ".cm-tooltip-autocomplete > ul": {
+      fontFamily: "inherit",
+      maxHeight: "16em"
+    },
+    ".cm-tooltip-autocomplete > ul > li": {
+      display: "flex",
+      alignItems: "baseline",
+      gap: "6px",
+      padding: "4px 10px",
+      color: "var(--rp-text)",
+      lineHeight: "1.5"
+    },
+    // A tint rather than a solid fill: the detail text has to stay readable on it.
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+      background: "var(--rp-accent-soft-strong)",
+      color: "var(--rp-text)"
+    },
+    ".cm-completionLabel": { color: "inherit" },
+    ".cm-completionMatchedText": {
+      color: "var(--rp-accent-text)",
+      textDecoration: "none",
+      fontWeight: "600"
+    },
+    ".cm-completionDetail": {
+      marginLeft: "auto",
+      paddingLeft: "12px",
+      color: "var(--rp-text-muted)",
+      fontStyle: "normal"
+    },
+    ".cm-completionIcon": {
+      width: "1.1em",
+      color: "var(--rp-text-faint)",
+      opacity: "1"
+    }
+  });
+}
+
+/** The comforts a code editor is expected to have. Kept off the request body editor, so a
+ * JSON body does not grow a gutter it never asked for. */
+function scriptExtensions(getLibrary: () => readonly LibraryCompletion[]) {
+  return [
+    scriptTheme(),
+    lineNumbers(),
+    highlightActiveLine(),
+    highlightActiveLineGutter(),
+    bracketMatching(),
+    closeBrackets(),
+    indentOnInput(),
+    autocompletion({ override: [scriptCompletions(getLibrary)] }),
+    // Tab takes the highlighted completion while the list is open, the way an editor is
+    // expected to behave. Above everything else on purpose, or `insertTabKeymap` would put
+    // spaces in first; `acceptCompletion` declines when no list is open, so Tab still indents
+    // the rest of the time.
+    Prec.high(keymap.of([{ key: "Tab", run: acceptCompletion }])),
+    keymap.of([...closeBracketsKeymap, ...completionKeymap, ...defaultKeymap])
+  ];
+}
+
 function baseExtensions(editable: boolean, tabSize: number) {
   const extensions = [
     EditorView.lineWrapping,
@@ -184,8 +360,10 @@ function languageExtension(mode: ViewerMode) {
 export function mountBodyEditor(host: HTMLElement, initial: string, options: BodyEditorOptions): () => void {
   const { tabSize, rawType, autoPrettifyJson = false, onChange } = options;
   host.classList.add("cm-host");
+  if (options.script) host.classList.add("cm-script");
   const extensions = [
     ...baseExtensions(true, tabSize),
+    ...(options.script ? scriptExtensions(options.library ?? (() => [])) : []),
     languageExtension(rawType),
     sendKeymap(options.onSend),
     prettifyJsonKeymap(rawType, onChange),

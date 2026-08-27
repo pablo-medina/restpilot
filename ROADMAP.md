@@ -110,7 +110,9 @@ Goal: deeper workflows for teams and debugging — still local-first.
 | 3.6 | **Client certificates** — pick cert/key for mTLS | Settings or per-request | planned |
 | 3.7 | **Dynamic variables** — `$randomInt`, `$timestamp`, `$guid`, `$randomEmail` etc. at send time | `src/variables.ts` — new `resolveDynamicVariable()` | planned |
 | 3.8 | **Variable chaining** — resolve `{{...}}` inside variable values (recursive, cycle-guarded) | `src/variables.ts` — recursive `applyVariables` | planned |
-| 3.9 | **Pre-request scripts** — JavaScript sandbox to set variables before send | QuickJS or similar embedded runtime; separate `src/scripting/` | planned |
+| 3.9 | **Pre-request scripts** — JavaScript sandbox to set variables before send | Engine already embedded (`src-tauri/src/script.rs`); this is the hook point | planned |
+| 3.9b | **Script library** — named JavaScript functions callable as `lib.<name>` from any script, with declared parameters, `env` writes and console output | QuickJS in Rust; `FunctionsDialog` + `run_script` | done |
+| 3.9c | **`http.send` inside scripts** — synchronous HTTP from a script, through the same client as a normal request | Host function over `execute_request()` on the blocking script thread | planned |
 | 3.10 | **Post-response tests** — assertions on status/body/headers with pass/fail UI | `src/testing/` — test script editor + results display | planned |
 | 3.11 | **Per-request proxy override** — override global proxy per request or per-folder | Extend `SavedRequest` with optional `proxyOverride` | planned |
 | 3.12 | **Cookie management** — cookie jar UI, view response cookies, manual cookie editing | `src/cookies/` — cookie store + editor panel | planned |

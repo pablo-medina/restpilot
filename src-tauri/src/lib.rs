@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs, path::PathBuf, sync::Mutex, time::Instant};
+use std::{collections::HashSet, fs, path::PathBuf, sync::Arc, sync::Mutex, time::Instant};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::StreamExt;
@@ -13,8 +13,11 @@ mod proxy_env;
 mod proxy_test;
 mod proxy_uri;
 mod proxy_windows;
+mod script;
+mod script_signature;
 
 const STREAM_EVENT: &str = "restpilot:request-stream";
+const SCRIPT_LOG_EVENT: &str = "restpilot:script-log";
 
 #[derive(Default)]
 struct RuntimeState {
@@ -222,6 +225,66 @@ fn save_response_cache(cache: serde_json::Value) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|error| error.to_string())?;
     let content = serde_json::to_string_pretty(&cache).map_err(|error| error.to_string())?;
     fs::write(path, content).map_err(|error| error.to_string())
+}
+
+/// One `console.*` line, emitted while the script is still running so the output panel can
+/// fill in live rather than all at once at the end.
+#[derive(Clone, Serialize)]
+struct ScriptLogEvent {
+    run_id: String,
+    level: String,
+    text: String,
+}
+
+/// Runs a library script. Blocking on purpose: QuickJS is synchronous, and keeping it that way
+/// is what lets a script call out to the host without the author writing `async`/`await`.
+#[tauri::command]
+async fn run_script(
+    app: tauri::AppHandle,
+    payload: script::RunScriptPayload,
+) -> Result<script::ScriptOutcome, String> {
+    let run_id = payload.run_id.clone();
+
+    // Scripts share the request cancellation registry, so the same cancel path stops both.
+    let cancel_app = app.clone();
+    let cancel_id = run_id.clone();
+    let cancel: Arc<dyn Fn() -> bool + Send + Sync> = Arc::new(move || {
+        is_cancelled(cancel_app.state::<RuntimeState>().inner(), &cancel_id)
+    });
+
+    let log_app = app.clone();
+    let log_id = run_id.clone();
+    let on_log: Arc<dyn Fn(&script::LogLine) + Send + Sync> = Arc::new(move |line| {
+        let _ = log_app.emit(
+            SCRIPT_LOG_EVENT,
+            ScriptLogEvent {
+                run_id: log_id.clone(),
+                level: line.level.clone(),
+                text: line.text.clone(),
+            },
+        );
+    });
+
+    let outcome =
+        tauri::async_runtime::spawn_blocking(move || script::run_script(payload, cancel, on_log))
+            .await
+            .map_err(|error| error.to_string())?;
+
+    // Clear the flag so a cancelled id cannot poison a later run that reuses it.
+    if let Ok(mut cancellations) = app.state::<RuntimeState>().cancellations.lock() {
+        cancellations.remove(&run_id);
+    }
+
+    Ok(outcome)
+}
+
+/// Reads back the name and parameters a library entry's source declares. Called while the
+/// editor is being typed in, so it stays cheap: a scan plus one compile, no script is run.
+#[tauri::command]
+async fn parse_script(payload: script::ParseScriptPayload) -> Result<script::Signature, String> {
+    tauri::async_runtime::spawn_blocking(move || script::describe(&payload.code))
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -1159,6 +1222,8 @@ pub fn run() {
             load_response_cache,
             save_response_cache,
             send_request,
+            run_script,
+            parse_script,
             test_proxy_connection,
             open_external_url
         ])

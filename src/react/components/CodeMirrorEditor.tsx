@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import type { ViewerMode } from "../../ui/large-text-editor";
+import { useCallback, useEffect, useRef } from "react";
+import type { LibraryCompletion, ViewerMode } from "../../ui/large-text-editor";
 
 type EditableProps = {
   readOnly?: false;
@@ -7,6 +7,10 @@ type EditableProps = {
   onSend?: () => void;
   tabSize?: number;
   autoPrettifyJson?: boolean;
+  /** Code-editing extras: gutter, bracket matching, completion of what a script has in scope. */
+  script?: boolean;
+  /** Library functions offered after `lib.`, with their signatures. */
+  library?: readonly LibraryCompletion[];
 };
 
 type ReadonlyProps = {
@@ -15,6 +19,8 @@ type ReadonlyProps = {
   onSend?: never;
   tabSize?: number;
   autoPrettifyJson?: never;
+  script?: never;
+  library?: never;
 };
 
 type BaseProps = {
@@ -35,11 +41,20 @@ export function CodeMirrorEditor({
   onSend,
   tabSize = 2,
   autoPrettifyJson = false,
+  script,
+  library,
   className,
   style,
   onPaste
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
+
+  // The completion source reads this when it runs, not when the editor mounted, so a library
+  // whose signatures resolve a moment later is still offered — and the editor never remounts
+  // mid-edit to pick them up.
+  const libraryRef = useRef<readonly LibraryCompletion[]>(library ?? []);
+  libraryRef.current = library ?? [];
+  const getLibrary = useCallback(() => libraryRef.current, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -59,7 +74,9 @@ export function CodeMirrorEditor({
           rawType: language,
           autoPrettifyJson,
           onChange: onChange ?? (() => {}),
-          onSend
+          onSend,
+          script,
+          library: getLibrary
         });
       }
     });
@@ -71,7 +88,7 @@ export function CodeMirrorEditor({
     // Intentionally excluding `value` from deps — the editor owns content after mount.
     // To replace content programmatically use setBodyEditorValue / setReadonlyViewerValue.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, readOnly, tabSize, autoPrettifyJson, onSend]);
+  }, [language, readOnly, tabSize, autoPrettifyJson, onSend, script, getLibrary]);
 
   // Sync externally-driven value changes into the live editor (e.g. response body update).
   // This effect runs only when `value` changes while the component stays mounted.

@@ -62,6 +62,7 @@ export function resetAppStateToDefaults(target: AppState): void {
   target.activeTabId = fresh.activeTabId;
   target.settings = fresh.settings;
   target.extractors = fresh.extractors;
+  target.helpers = fresh.helpers;
 
   resetTabUsage();
   Object.assign(target, runtime);

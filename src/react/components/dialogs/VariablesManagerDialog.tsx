@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { setState } from "../../../app/state";
 import { t } from "../../../i18n";
+import { iconWindowClose } from "../../../lib/icons";
+import { Icon } from "../Icon";
 import { VariablesSidebar } from "../variables/VariablesSidebar";
 import { VariablesWorkspace } from "../variables/VariablesWorkspace";
 
@@ -101,13 +103,13 @@ export function VariablesManagerDialog({ open, onClose, refresh }: Props) {
           <strong id="react-variables-manager-title">{t().environments.manageAll}</strong>
           <div className="dialog-title-actions">
             <button
-              className="mini-btn dialog-window-btn"
+              className="mini-btn dialog-window-btn dialog-window-btn--close"
               type="button"
               title={dialogLabels.close}
               aria-label={dialogLabels.close}
               onClick={onClose}
             >
-              ×
+              <Icon html={iconWindowClose} />
             </button>
           </div>
         </div>

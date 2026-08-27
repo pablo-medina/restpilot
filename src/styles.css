@@ -6415,3 +6415,422 @@ select,
   text-align: left;
   cursor: pointer;
 }
+
+/* ---------- Function library ---------- */
+
+.functions-popover-item-signature {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.extractors-popover .mini-btn.extractors-popover-action--run:hover {
+  border-color: rgb(var(--rp-accent-rgb) / 0.45);
+  color: var(--rp-accent-text, var(--rp-text));
+}
+
+/* The editor is the whole dialog: browsing happens in the picker, so no list column. */
+.functions-dialog-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.functions-dialog-body .extractors-dialog-editor {
+  gap: 10px;
+}
+
+/* One column when there is no sample response to show beside the code. */
+.extractors-dialog-panes.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.functions-signature-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Read-only: the declaration in the editor below is what sets it. */
+.functions-signature {
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  background: var(--rp-surface-muted);
+  color: var(--rp-text);
+  font-family: monospace;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.functions-signature.is-invalid {
+  border-color: rgb(var(--rp-danger-rgb) / 0.45);
+  color: var(--rp-text-muted);
+}
+
+.functions-description {
+  min-width: 0;
+}
+
+.functions-code-pane {
+  flex: 1;
+  min-height: 0;
+}
+
+.functions-run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.functions-run-hint {
+  flex: 1;
+  min-width: 0;
+  color: var(--rp-text-muted);
+  font-size: 11px;
+}
+
+/* Trying the function out is the point of having the editor open, so this reads as an action
+   rather than as one more small icon button in the corner. */
+.mini-btn.functions-run-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: auto;
+  height: 30px;
+  padding: 0 16px;
+  border-color: transparent;
+  border-radius: 7px;
+  background: var(--dialog-primary-bg);
+  color: var(--dialog-primary-fg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mini-btn.functions-run-btn:hover:not(:disabled) {
+  background: var(--dialog-primary-bg-hover);
+  color: var(--dialog-primary-fg);
+}
+
+.mini-btn.functions-run-btn:disabled {
+  background: var(--rp-surface-muted);
+  color: var(--rp-text-muted);
+  border-color: var(--rp-border);
+}
+
+.mini-btn.functions-run-btn.is-running {
+  background: var(--dialog-danger-bg);
+  color: var(--dialog-danger-fg);
+  border-color: transparent;
+}
+
+.functions-run-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.functions-output {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.functions-output-value {
+  margin: 0;
+  max-height: none;
+}
+
+.functions-console {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  background: var(--rp-surface-muted);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.functions-console-line {
+  margin: 0;
+  color: var(--rp-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.functions-console-line.is-warn {
+  color: var(--rp-warning-text, var(--rp-text));
+}
+
+.functions-console-line.is-error {
+  color: var(--rp-danger-text);
+}
+
+.functions-output-meta {
+  margin: 0;
+  color: var(--rp-text-muted);
+  font-size: 11px;
+}
+
+.script-result-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.script-result-body .functions-output {
+  max-height: 320px;
+}
+
+/* ---------- Typed prompt fields ---------- */
+
+.parameter-prompt-single textarea,
+.parameter-grid textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  background: var(--rp-surface);
+  color: var(--rp-text);
+  font-family: monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.parameter-prompt-single input.is-invalid,
+.parameter-prompt-single textarea.is-invalid,
+.parameter-grid input.is-invalid,
+.parameter-grid textarea.is-invalid {
+  border-color: rgb(var(--rp-danger-rgb) / 0.55);
+}
+
+/* A checkbox must not stretch to the width of a text field. */
+.parameter-prompt-single .prompt-check,
+.parameter-grid .prompt-check {
+  width: 16px;
+  height: 16px;
+  justify-self: start;
+  accent-color: var(--rp-accent, currentColor);
+}
+
+/* ---------- Script editor ---------- */
+
+.mini-btn.functions-help-btn {
+  flex-shrink: 0;
+}
+
+/* ---------- Script help ---------- */
+
+.script-help-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.script-help-intro {
+  margin: 0;
+  color: var(--rp-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.script-help-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.script-help-section h3 {
+  margin: 0;
+  color: var(--rp-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.script-help-section p {
+  margin: 0;
+  color: var(--rp-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.script-help-entry {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+}
+
+.script-help-entry code {
+  padding: 2px 6px;
+  border: 1px solid var(--rp-border);
+  border-radius: 5px;
+  background: var(--rp-surface-muted);
+  color: var(--rp-text);
+  font-family: monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.script-help-example {
+  height: 150px;
+  border: 1px solid var(--rp-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* The editor fills whatever frame it is given — a dialog today, a panel next. */
+.function-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- Function library, browsing ---------- */
+
+.functions-dialog-body.is-library {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.function-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px;
+  border-right: 1px solid var(--rp-border);
+}
+
+.function-list-search {
+  flex-shrink: 0;
+}
+
+.function-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.function-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+}
+
+.function-list-item:hover {
+  background: var(--rp-surface-muted);
+}
+
+.function-list-item.is-active {
+  background: var(--rp-accent-soft-md);
+}
+
+/* A button used as a list row inherits centred text and centred items from the UA. */
+.function-list-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  align-items: stretch;
+  text-align: left;
+  cursor: pointer;
+}
+
+.function-list-signature {
+  color: var(--rp-text);
+  font-family: monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.function-list-desc {
+  color: var(--rp-text-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-btn.function-list-delete {
+  margin-right: 4px;
+  opacity: 0;
+}
+
+.function-list-item:hover .function-list-delete,
+.function-list-item:focus-within .function-list-delete {
+  opacity: 1;
+}
+
+.mini-btn.function-list-delete:hover {
+  border-color: rgb(var(--rp-danger-rgb) / 0.45);
+  color: var(--rp-danger-text);
+}
+
+.functions-popover-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* `.app-modal`'s max-height is there to keep a normal dialog on screen; maximized has already
+   worked out its own height and the clamp only fights it. */
+.app-modal.maximized {
+  max-height: none;
+}
+
+/* A code editor should read as a recessed well, not as the lightest surface in the dialog.
+   `--rp-bg` is the app canvas: near-black in dark, warm paper in light. */
+.extractors-pane .extractors-code {
+  background: var(--rp-bg);
+}
+
+/* ---------- Close controls ---------- */
+
+/* One size for every dialog window button, whatever renders inside it. The icons are drawn on
+   the 12-unit window grid, which is right for the real title bar but reads small next to
+   dialog text — 14px is the size the buttons were always laid out for. */
+.dialog-window-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* The close tint was scoped to `.app-dialog`, so a popover's close stayed grey on hover while
+   every dialog's turned red. Same control, same feedback. */
+.dialog-window-btn--close:hover {
+  background: var(--field-remove-tint);
+  color: var(--field-remove-color);
+}
+
+/* `.mini-btn` sizes to 24px square; a window button is wider and shorter, and must win. */
+.mini-btn.dialog-window-btn {
+  width: 28px;
+  height: 26px;
+  min-width: 28px;
+  min-height: 26px;
+}

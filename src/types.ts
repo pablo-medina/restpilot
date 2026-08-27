@@ -73,6 +73,8 @@ export type UserSettings = {
   autoPrettifyJson: boolean;
   /** Per-request timeout in seconds (non-streaming). Streaming uses at least 600 s. */
   requestTimeoutSecs: number;
+  /** How long a library script may run before it is interrupted (1-300 s). */
+  scriptTimeoutSecs: number;
   /** Whether the HTTP client follows redirects (up to 10 hops). */
   followRedirects: boolean;
   /** Single-click a request with an open tab focuses that tab; does not open closed requests. */
@@ -153,6 +155,27 @@ export type Extractor = {
   sampleText: string;
 };
 
+/** An entry of the script library: plain JavaScript declaring a function, reachable from any
+ * script as `lib.<name>`.
+ *
+ * `code` is the only source of truth. `name` and `params` are read back out of it — cached
+ * here so the list and the picker can render a signature without asking the engine, never
+ * edited directly, and always re-derived where it matters.
+ *
+ * Stored under `helpers`, never `functions` — that key belongs to the removed Functions
+ * section and is still read by `legacyFunctionExtractors()`. */
+export type Helper = {
+  id: string;
+  /** Derived from `code`: the name of the function it declares. */
+  name: string;
+  description?: string;
+  /** Derived from `code`: the declared parameters, as written. */
+  params: string[];
+  code: string;
+  /** Argument values the Run prompt starts from. */
+  sampleArgs?: string[];
+};
+
 /** Present only when an extractor is assigned; choosing one is what enables the feature. */
 export type RequestExtractor = {
   extractorId: string;
@@ -230,6 +253,7 @@ export type AppConfig = {
   activeTabId: string;
   settings: UserSettings;
   extractors: Extractor[];
+  helpers: Helper[];
 };
 
 
@@ -251,6 +275,7 @@ export function defaultSettings(): UserSettings {
     tabSize: 2,
     autoPrettifyJson: true,
     requestTimeoutSecs: 60,
+    scriptTimeoutSecs: 10,
     followRedirects: true,
     clickToSelect: true,
     limitOpenTabs: false,
@@ -264,6 +289,12 @@ export function clampRequestTimeoutSecs(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return defaultSettings().requestTimeoutSecs;
   return Math.max(5, Math.min(300, Math.round(parsed)));
+}
+
+export function clampScriptTimeoutSecs(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return defaultSettings().scriptTimeoutSecs;
+  return Math.max(1, Math.min(300, Math.round(parsed)));
 }
 
 export function clampMaxOpenTabs(value: unknown): number {
@@ -288,6 +319,7 @@ export function defaultConfig(): AppConfig {
     openTabs: [],
     activeTabId: "",
     settings: defaultSettings(),
-    extractors: []
+    extractors: [],
+    helpers: []
   };
 }

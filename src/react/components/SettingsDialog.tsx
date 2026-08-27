@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "../../i18n";
+import { iconWindowClose } from "../../lib/icons";
+import { Icon } from "./Icon";
 import { SettingsPanel } from "./SettingsPanel";
 
 type Props = {
@@ -98,13 +100,13 @@ export function SettingsDialog({ open, onClose, refresh }: Props) {
           <strong id="react-settings-dialog-title">{t().settings.title}</strong>
           <div className="dialog-title-actions">
             <button
-              className="mini-btn dialog-window-btn"
+              className="mini-btn dialog-window-btn dialog-window-btn--close"
               type="button"
               title={labels.close}
               aria-label={labels.close}
               onClick={onClose}
             >
-              ×
+              <Icon html={iconWindowClose} />
             </button>
           </div>
         </div>

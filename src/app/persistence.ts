@@ -113,6 +113,7 @@ export async function persistConfig() {
     openTabs: state.openTabs,
     activeTabId: state.activeTabId,
     extractors: state.extractors,
+    helpers: state.helpers,
     settings: {
       ...state.settings,
       proxy: proxySettingsForSave(state.settings.proxy)
