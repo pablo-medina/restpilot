@@ -12,7 +12,6 @@ export const en = {
     close: "Close"
   },
   nav: {
-    activityBar: "Primary navigation",
     collection: "Collection",
     requests: "Requests",
     workspace: "Workspace",

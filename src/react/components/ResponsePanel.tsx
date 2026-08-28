@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { syncContextMenuBridge } from "../lib/context-menu-bridge";
 import { hasResponseBodySelection } from "../../app/context-menu";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { HeadersTable } from "./HeadersTable";
@@ -50,7 +51,7 @@ function ResponseHead({
     event.stopPropagation();
     if (state.contextMenu?.kind === "response-copy" && state.contextMenu.requestId === tab.requestId) {
       setState(prev => ({ ...prev, contextMenu: null }));
-      void import("../../app").then((app) => app.syncContextMenu());
+      syncContextMenuBridge();
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
@@ -64,7 +65,7 @@ function ResponseHead({
         canCopySelection: hasResponseBodySelection()
       }
     }));
-    void import("../../app").then((app) => app.syncContextMenu());
+    syncContextMenuBridge();
   };
 
   const saveResponse = async () => {

@@ -24,7 +24,7 @@ export async function showSiblingNameConflictDialog(conflict: SiblingNameConflic
   );
 }
 
-export function focusTreeRenameInput(itemId: string): void {
+function focusTreeRenameInput(itemId: string): void {
   const input = document.querySelector<HTMLInputElement>(`.tree-row[data-tree-id="${itemId}"] .tree-rename-input`);
   if (!input) return;
   input.focus();

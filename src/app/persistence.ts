@@ -17,7 +17,7 @@ let saveTimer: number | undefined;
 
 export { isSeedConfig, normalizeConfig } from "./config-normalize";
 
-export function proxySettingsForSave(proxy: UserSettings["proxy"]): UserSettings["proxy"] {
+function proxySettingsForSave(proxy: UserSettings["proxy"]): UserSettings["proxy"] {
   return {
     mode: proxy.mode,
     httpProxy: proxy.httpProxy.trim(),

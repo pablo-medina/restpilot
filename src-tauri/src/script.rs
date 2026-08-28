@@ -67,9 +67,7 @@ pub(crate) struct ParseScriptPayload {
 /// JSDoc block above it is looked for.
 pub(crate) fn exported_function(source: &str) -> Option<(String, usize)> {
     top_level_functions(source)
-        .into_iter()
-        .filter(|(name, _)| is_identifier(name))
-        .next_back()
+        .into_iter().rfind(|(name, _)| is_identifier(name))
 }
 
 pub(crate) fn exported_name(source: &str) -> Option<String> {
@@ -431,7 +429,7 @@ pub(crate) fn run_script(
     let mut ticks: u32 = 0;
     runtime.set_interrupt_handler(Some(Box::new(move || {
         ticks = ticks.wrapping_add(1);
-        if ticks % INTERRUPT_CHECK_INTERVAL != 0 {
+        if !ticks.is_multiple_of(INTERRUPT_CHECK_INTERVAL) {
             return false;
         }
         Instant::now() >= deadline || cancel()

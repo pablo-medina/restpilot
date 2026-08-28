@@ -44,7 +44,7 @@ export function needsExtractorMigration(configVersion: number | undefined): bool
 }
 
 /** Wraps a bare extractor body into a declaration a script can call. */
-export function functionFromExtractorBody(name: string, body: string): string {
+function functionFromExtractorBody(name: string, body: string): string {
   return `/**
  * @param {object} response
  */

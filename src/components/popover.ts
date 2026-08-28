@@ -33,7 +33,7 @@ export function renderPopoverShell(options: PopoverShellOptions): string {
   `;
 }
 
-export function positionPopoverElement(popover: HTMLElement, anchor: HTMLElement) {
+function positionPopoverElement(popover: HTMLElement, anchor: HTMLElement) {
   const anchorRect = anchor.getBoundingClientRect();
 
   popover.style.visibility = "hidden";

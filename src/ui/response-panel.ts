@@ -1,3 +1,5 @@
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
 import {
   bodySourceKey,
   detectContentKind,
@@ -73,7 +75,6 @@ export async function downloadResponseBody(request: SavedRequest, tab: TabState)
   const defaultPath = suggestedResponseFileName(response);
   const extension = defaultPath.split(".").pop() ?? responseFileExtension(response.headers);
 
-  const { save } = await import("@tauri-apps/plugin-dialog");
   const path = await save({
     title: labels.downloadResponse,
     defaultPath,
@@ -82,7 +83,6 @@ export async function downloadResponseBody(request: SavedRequest, tab: TabState)
   if (!path) return;
 
   try {
-    const { writeFile } = await import("@tauri-apps/plugin-fs");
     await writeFile(path, bytes);
     pushToast(labels.downloadResponseSuccess);
   } catch {

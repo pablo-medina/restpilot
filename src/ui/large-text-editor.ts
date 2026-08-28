@@ -406,19 +406,6 @@ export function setBodyEditorValue(host: HTMLElement, value: string): boolean {
   return setReadonlyViewerValue(host, value);
 }
 
-export function prettifyBodyEditor(host: HTMLElement): boolean {
-  const view = (host as HTMLElement & { __cmView?: EditorView }).__cmView ?? EditorView.findFromDOM(host);
-  if (!view) return false;
-  const current = view.state.doc.toString();
-  const pretty = tryPrettifyJson(current);
-  if (!pretty || pretty === current) return false;
-  view.dispatch({
-    changes: { from: 0, to: current.length, insert: pretty },
-    selection: EditorSelection.cursor(pretty.length)
-  });
-  return true;
-}
-
 function destroyView(host: HTMLElement, view: EditorView) {
   delete (host as HTMLElement & { __cmView?: EditorView }).__cmView;
   view.destroy();

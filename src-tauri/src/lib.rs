@@ -1020,7 +1020,7 @@ async fn execute_request(
     let is_multipart = normalize_body_mode(&request.body_mode) == "multipart";
 
     for (key, value) in &request.headers {
-        if is_multipart && key.to_ascii_lowercase() == "content-type" {
+        if is_multipart && key.eq_ignore_ascii_case("content-type") {
             continue;
         }
         let name = key
@@ -1194,7 +1194,7 @@ fn open_external_url(url: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let _ = std::process::Command::new("cmd")
-            .args(&["/C", "start", "", &url])
+            .args(["/C", "start", "", &url])
             .spawn();
     }
     #[cfg(target_os = "macos")]

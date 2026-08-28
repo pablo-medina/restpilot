@@ -3,7 +3,7 @@ import { state } from "../app/state";
 import { collectTemplateNames, effectiveVariables, requestTemplateFields } from "../lib/variables";
 import type { SavedRequest, TreeItem, Variable } from "../types";
 
-export function collectVariableNamesFromText(value: string): Set<string> {
+function collectVariableNamesFromText(value: string): Set<string> {
   return collectTemplateNames(value);
 }
 

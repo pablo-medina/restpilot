@@ -142,7 +142,7 @@ function bindEvents() {
   bindOverlayBindings();
 }
 
-export function closeContextMenu() {
+function closeContextMenu() {
   if (!state.contextMenu) return;
   state.contextMenu = null;
   bumpRenderGeneration();

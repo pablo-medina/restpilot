@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { getEffectiveVariables } from "../../app/environments";
 import { httpTransportPayload, scheduleSave } from "../../app/persistence";
 import { resolvedOutboundUrl } from "../../app/request-auth";
@@ -162,7 +163,6 @@ async function sendRequest(refresh: () => void, answers: ParameterAnswers): Prom
       body = JSON.stringify({ query, variables });
     } else if (request.bodyMode === "binary" && request.binaryFilePath) {
       try {
-        const { readFile } = await import("@tauri-apps/plugin-fs");
         const fileBytes = await readFile(request.binaryFilePath);
         let binaryStr = "";
         for (let i = 0; i < fileBytes.length; i++) {

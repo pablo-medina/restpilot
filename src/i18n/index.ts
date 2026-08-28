@@ -13,10 +13,6 @@ export function setLocale(next: Locale) {
   document.documentElement.lang = next === "es" ? "es" : "en";
 }
 
-export function getLocale(): Locale {
-  return locale;
-}
-
 export function t(): TranslationTree {
   return catalogs[locale];
 }

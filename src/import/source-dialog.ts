@@ -1,3 +1,5 @@
+import { open } from "@tauri-apps/plugin-dialog";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import { applicationDialog, messageDialog } from "../components/dialogs";
 import { t } from "../i18n";
 import { parseCurl } from "../lib/curl";
@@ -168,7 +170,6 @@ async function pickFile(source: ImportSource): Promise<string | null> {
   }
 
   try {
-    const { open } = await import("@tauri-apps/plugin-dialog");
     const selected = await open({ multiple: false, filters: [{ name, extensions }] });
     return selected ?? null;
   } catch {
@@ -178,7 +179,6 @@ async function pickFile(source: ImportSource): Promise<string | null> {
 
 async function readFileContents(filePath: string): Promise<string | null> {
   try {
-    const { readTextFile } = await import("@tauri-apps/plugin-fs");
     return await readTextFile(filePath);
   } catch (err) {
     await messageDialog(

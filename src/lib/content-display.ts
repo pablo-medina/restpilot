@@ -65,7 +65,7 @@ export function detectContentKind(body: string, headers: HeaderPair[]): RawType 
   return "text";
 }
 
-export function formatXml(body: string) {
+function formatXml(body: string) {
   const trimmed = body.trim();
   if (!trimmed) return "";
   try {
@@ -119,7 +119,7 @@ export function tryPrettifyJson(body: string): string | null {
   }
 }
 
-export function formatJsonBody(body: string) {
+function formatJsonBody(body: string) {
   return tryPrettifyJson(body) ?? body;
 }
 

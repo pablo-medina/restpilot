@@ -1,6 +1,5 @@
 import { scheduleSave } from "../../app/persistence";
 import { appRoot, setState, state } from "../../app/state";
-import type { ActivePanel } from "../../types";
 
 export function syncAppFrameLayout(): void {
   const isRequest = state.activePanel === "request";
@@ -20,13 +19,6 @@ export function showSidebar(): void {
 
 export function toggleSidebar(refresh: () => void): void {
   setState(prev => ({ ...prev, sidebarVisible: !prev.sidebarVisible }));
-  syncAppFrameLayout();
-  refresh();
-}
-
-export function switchActivityPanel(panel: ActivePanel, refresh: () => void): void {
-  if (state.activePanel === panel) return;
-  setState(prev => ({ ...prev, activePanel: panel, contextMenu: null }));
   syncAppFrameLayout();
   refresh();
 }

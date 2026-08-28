@@ -5,7 +5,7 @@ import { isIdentifier, uniqueNameProblem, type NameProblem } from "./unique-name
  *
  * The JSDoc block is part of the seed so the typing is discovered by seeing it, not by reading
  * about it somewhere. */
-export function defaultHelperCode(name: string): string {
+function defaultHelperCode(name: string): string {
   return `/**
  * @param {string} value
  */
@@ -21,7 +21,7 @@ function ${name}(value) {
  *
  * Annotating it `{object}` is what makes a by-hand run offer a JSON box rather than a text
  * field, so the function is testable from the picker too, not only from the sample pane. */
-export function responseHelperCode(name: string): string {
+function responseHelperCode(name: string): string {
   return `/**
  * @param {object} response
  */

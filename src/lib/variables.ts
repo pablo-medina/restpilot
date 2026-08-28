@@ -22,7 +22,7 @@ const VARIABLE_TEMPLATE = /\{\{([^}]+)\}\}/;
 const VARIABLE_TEMPLATE_GLOBAL = new RegExp(VARIABLE_TEMPLATE, "g");
 
 /** Marks a reference as a run-time parameter rather than a stored variable: `{{?username}}`. */
-export const PARAMETER_SIGIL = "?";
+const PARAMETER_SIGIL = "?";
 
 /** A single `{{…}}` occurrence, classified. `{{name}}` reads a stored variable; `{{?name}}` is
  * answered when the request runs. */
@@ -32,7 +32,7 @@ export type TemplateReference =
 
 /** Classifies the text between the braces. Returns `null` for a reference with no name
  * (`{{}}` or `{{?}}`), which is left in place rather than resolved to nothing. */
-export function classifyTemplate(inner: string): TemplateReference | null {
+function classifyTemplate(inner: string): TemplateReference | null {
   const trimmed = inner.trim();
   if (trimmed.startsWith(PARAMETER_SIGIL)) {
     const name = trimmed.slice(PARAMETER_SIGIL.length).trim();
@@ -46,7 +46,7 @@ export function classifyTemplate(inner: string): TemplateReference | null {
  * One pass is deliberate: whatever a reference resolves to is final, so a value that itself
  * contains `{{…}}` is not expanded again. That is what keeps variable chaining out of the
  * language until it is designed properly (ROADMAP 3.8). */
-export function replaceTemplates(text: string, resolve: (reference: TemplateReference) => string): string {
+function replaceTemplates(text: string, resolve: (reference: TemplateReference) => string): string {
   return text.replace(VARIABLE_TEMPLATE_GLOBAL, (match, inner: string) => {
     const reference = classifyTemplate(inner);
     return reference ? resolve(reference) : match;

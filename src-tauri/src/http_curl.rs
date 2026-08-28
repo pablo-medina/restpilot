@@ -370,7 +370,7 @@ pub fn execute_request_curl_sync(
     let is_multipart = normalize_body_mode(&request.body_mode) == "multipart";
     let mut has_headers = false;
     for (key, value) in &request.headers {
-        if is_multipart && key.to_ascii_lowercase() == "content-type" {
+        if is_multipart && key.eq_ignore_ascii_case("content-type") {
             continue;
         }
         header_list

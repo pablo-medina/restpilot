@@ -1,11 +1,12 @@
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { pushToast } from "../components/Toast";
 
 const SCRIPT_TOAST_EVENT = "restpilot:script-toast";
 
 type ScriptToastEvent = { title: string; message: string };
 
-let unlisten: UnlistenFn | null = null;
+/** The subscription lives as long as the app does, so the handle is never kept. */
+let started = false;
 
 /**
  * Shows what a script asked for with `ui.showToast`, wherever the run was started from.
@@ -18,9 +19,10 @@ let unlisten: UnlistenFn | null = null;
  * would only make the honest cases harder to reason about.
  */
 export async function startScriptToasts(): Promise<void> {
-  if (unlisten) return;
+  if (started) return;
+  started = true;
   try {
-    unlisten = await listen<ScriptToastEvent>(SCRIPT_TOAST_EVENT, (event) => {
+    await listen<ScriptToastEvent>(SCRIPT_TOAST_EVENT, (event) => {
       const { title, message } = event.payload;
       if (!message.trim() && !title.trim()) return;
       pushToast(message, { variant: "message", title });
@@ -28,9 +30,4 @@ export async function startScriptToasts(): Promise<void> {
   } catch {
     // No Tauri runtime — nothing emits the event either, so there is nothing to report.
   }
-}
-
-export function stopScriptToasts(): void {
-  unlisten?.();
-  unlisten = null;
 }

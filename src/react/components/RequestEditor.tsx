@@ -1,4 +1,5 @@
 import { useCallback, useState, type ReactNode } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { scheduleSave } from "../../app/persistence";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { VariableInput } from "./VariableInput";
@@ -517,7 +518,6 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
                   id="binary-file-picker"
                   type="button"
                   onClick={async () => {
-                    const { open } = await import("@tauri-apps/plugin-dialog");
                     const selected = await open({ multiple: false, title: labels.selectBinaryFile });
                     if (selected) {
                       request.binaryFilePath = selected;
@@ -534,7 +534,6 @@ export function RequestEditor({ refresh, responsePanel }: Props) {
                 id="binary-file-picker"
                 type="button"
                 onClick={async () => {
-                  const { open } = await import("@tauri-apps/plugin-dialog");
                   const selected = await open({ multiple: false, title: labels.selectBinaryFile });
                   if (selected) {
                     request.binaryFilePath = selected;

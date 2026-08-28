@@ -3,7 +3,7 @@ import { buildRequestUrl } from "../lib/url-params";
 import { compactBase64, decodeBasicCredentials, encodeBasicCredentials } from "../lib/basic-auth";
 import type { HeaderPair, Pair, ParameterAnswers, RequestAuth, SavedRequest, Variable } from "../types";
 
-export const AUTH_HEADER_NAME = "authorization";
+const AUTH_HEADER_NAME = "authorization";
 
 export function defaultRequestAuth(): RequestAuth {
   return { type: "none" };

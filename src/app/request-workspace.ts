@@ -1,6 +1,4 @@
 import { invalidateResponseRenderCache } from "../lib/content-display";
-import { syncRequestPopover } from "../ui/request-popovers";
-import { bumpRenderGeneration } from "../react/render-bridge";
 import { state } from "./state";
 
 /** Drop cached response rendering for a tab whose editors are being torn down by React. */
@@ -10,11 +8,4 @@ export function unmountRequestTabEditors(requestId: string | null | undefined): 
   if (!tab) return;
 
   invalidateResponseRenderCache(tab);
-}
-
-export function refreshRequestWorkspace(): void {
-  bumpRenderGeneration();
-  if (state.openRequestPopover) {
-    requestAnimationFrame(() => syncRequestPopover());
-  }
 }

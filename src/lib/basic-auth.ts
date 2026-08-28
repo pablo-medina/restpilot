@@ -36,15 +36,3 @@ export function decodeBasicCredentials(
   if (colon < 0) return null;
   return { username: decoded.slice(0, colon), password: decoded.slice(colon + 1) };
 }
-
-/** `true` when the value is decodable base64 (used for the editor hint, not for sending). */
-export function isDecodableBase64(token: string): boolean {
-  const compact = compactBase64(token);
-  if (!compact) return false;
-  try {
-    atob(compact);
-    return true;
-  } catch {
-    return false;
-  }
-}

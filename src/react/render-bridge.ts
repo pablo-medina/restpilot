@@ -9,7 +9,7 @@ export function subscribeRender(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
-export function notifyReactRender(): void {
+function notifyReactRender(): void {
   for (const listener of listeners) listener();
 }
 
